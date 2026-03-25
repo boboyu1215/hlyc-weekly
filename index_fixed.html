@@ -1,0 +1,3018 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>华力集团 · 研策部周报系统</title>
+<!-- CloudBase JS SDK（用于实时监听） -->
+<script src="https://static.cloudbase.net/cloudbase-js-sdk/latest/cloudbase.full.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --gold:#8a6400;--gl:#f5e9c0;--gm:#e8c840;
+  --rb:#fff0f0;--rt:#b00020;--rbd:#f5c0c0;
+  --yb:#fffbeb;--yt:#6a4800;--ybd:#f0d878;
+  --gb:#f0faf2;--gt:#145c28;--gbd:#a8ddb8;
+  --bg:#f2f0ea;--card:#ffffff;--bdr:#d8d4cc;
+  --tx:#111111;--t2:#444444;--t3:#888888;
+  --r:12px;--rr:8px;
+  --fn:'PingFang SC','Microsoft YaHei',sans-serif;
+}
+/* 系统暗色模式 */
+@media(prefers-color-scheme:dark){:root:not(.light){
+  --bg:#141210;--card:#1e1c18;--bdr:#302e28;
+  --tx:#f0ece0;--t2:#b0a888;--t3:#686050;
+  --gold:#c4a030;--gl:#2e2808;--gm:#5a4810;
+  --rb:#2a1010;--rt:#f06060;--rbd:#5a2020;
+  --yb:#2a2008;--yt:#d4a030;--ybd:#5a4010;
+  --gb:#0e2618;--gt:#50c070;--gbd:#205030;
+}}
+/* 手动暗色 class */
+:root.dark{
+  --bg:#141210;--card:#1e1c18;--bdr:#302e28;
+  --tx:#f0ece0;--t2:#b0a888;--t3:#686050;
+  --gold:#c4a030;--gl:#2e2808;--gm:#5a4810;
+  --rb:#2a1010;--rt:#f06060;--rbd:#5a2020;
+  --yb:#2a2008;--yt:#d4a030;--ybd:#5a4010;
+  --gb:#0e2618;--gt:#50c070;--gbd:#205030;
+}
+/* 手动亮色 class */
+:root.light{
+  --bg:#f2f0ea;--card:#ffffff;--bdr:#d8d4cc;
+  --tx:#111111;--t2:#444444;--t3:#888888;
+  --gold:#8a6400;--gl:#f5e9c0;--gm:#e8c840;
+  --rb:#fff0f0;--rt:#b00020;--rbd:#f5c0c0;
+  --yb:#fffbeb;--yt:#6a4800;--ybd:#f0d878;
+  --gb:#f0faf2;--gt:#145c28;--gbd:#a8ddb8;
+}
+body{font-family:var(--fn);font-size:14px;color:var(--tx);background:var(--bg);min-height:100vh}
+/* TOPBAR */
+.topbar{background:var(--card);border-bottom:1px solid var(--bdr);position:sticky;top:0;z-index:200;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.topinner{max-width:1060px;margin:0 auto;display:flex;align-items:center;height:52px;padding:0 12px;gap:6px;overflow:hidden}
+/* tabs 滚动指示器 */
+.tabs-wrap{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.tabs-scroll{display:flex;gap:0;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;touch-action:pan-x;cursor:grab;user-select:none}
+.tabs-scroll::-webkit-scrollbar{display:none}
+.tabs-scroll.is-dragging{cursor:grabbing}
+.tab-indicator{height:2px;background:var(--bdr);border-radius:1px;margin:0 4px;overflow:hidden;opacity:0;transition:opacity .2s}
+.tab-indicator-bar{height:100%;background:var(--gold);border-radius:1px;transition:left .15s,width .15s;position:relative}
+.tabs-wrap:hover .tab-indicator{opacity:1}
+.logo{font-size:13px;font-weight:700;color:var(--gold);white-space:nowrap;flex-shrink:0}
+.logo em{font-style:normal;font-weight:400;color:var(--t3);font-size:11px;margin-left:4px}
+/* tabs style moved to tabs-scroll */
+.tab{padding:0 13px;height:52px;display:flex;align-items:center;font-size:12px;font-weight:600;color:var(--t2);border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;flex-shrink:0}
+.tab:hover{color:var(--tx)}.tab.on{color:var(--gold);border-bottom-color:var(--gold)}
+.week-sw{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.wb{width:24px;height:24px;border:0.5px solid var(--bdr);border-radius:5px;background:var(--card);color:var(--t2);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center}
+.wb:hover{border-color:var(--gold);color:var(--gold)}
+.wl{font-size:11px;color:var(--t2);min-width:76px;text-align:center}
+/* SHELL */
+.shell{max-width:1060px;margin:0 auto;padding:0 16px 40px}
+.content{padding-top:18px}
+/* WEEK BAR */
+.wkbar{background:var(--card);border:0.5px solid var(--bdr);border-radius:var(--r);padding:10px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;box-shadow:none}
+.wkbar-l{font-size:14px;font-weight:700}
+.wkbar-sub{font-size:11px;color:var(--t3);margin-top:1px}
+/* METRICS */
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+.mc{background:var(--card);border:0.5px solid var(--bdr);border-radius:var(--rr);padding:12px 14px}
+.mc .lb{font-size:10px;color:var(--t3);margin-bottom:4px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.mc .vl{font-size:22px;font-weight:500}
+.vl.r{color:var(--rt)}.vl.y{color:var(--yt)}.vl.g{color:var(--gt)}
+/* BADGE */
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}
+.badge.r{background:var(--rb);color:var(--rt);border:0.5px solid var(--rbd)}
+.badge.y{background:var(--yb);color:var(--yt);border:0.5px solid var(--ybd)}
+.badge.g{background:var(--gb);color:var(--gt);border:0.5px solid var(--gbd)}
+.badge.arch{background:var(--bg);color:var(--t3);border:0.5px solid var(--bdr)}
+.dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.dot.r{background:var(--rt)}.dot.y{background:var(--yt)}.dot.g{background:var(--gt)}
+/* NOTICE */
+.notice{background:var(--rb);border:0.5px solid var(--rbd);border-radius:var(--rr);padding:10px 14px;font-size:12px;color:var(--rt);margin-bottom:12px}
+.blk-list{margin-top:6px;display:flex;flex-direction:column;gap:4px}
+.blk-item{display:flex;gap:8px;padding:5px 9px;background:rgba(176,0,32,.07);border-radius:5px;font-size:11px;align-items:flex-start}
+.blk-nm{font-weight:700;flex:0 0 auto;white-space:nowrap;padding-right:8px}.blk-dc{color:var(--t2);flex:1;word-break:break-word}
+/* SH */
+.sh{display:flex;align-items:center;justify-content:space-between;margin:16px 0 8px}
+.sh-t{font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--t3);text-transform:uppercase}
+.leg{display:flex;gap:10px;font-size:10px;color:var(--t3)}
+.li{display:flex;align-items:center;gap:3px}
+.ls{width:8px;height:8px;border-radius:2px}
+/* WEEKLY REPORT CARD (compact) */
+.pgrid{display:grid;gap:9px}
+.pc{background:var(--card);border:0.5px solid var(--bdr);border-radius:var(--r);padding:14px 16px;border-left:3px solid transparent}
+.pc.r{border-left-color:var(--rt)}.pc.y{border-left-color:var(--yt)}.pc.g{border-left-color:var(--gt)}.pc.arch{border-left-color:var(--t3);opacity:.65}
+.pc-top{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px}
+.pc-nm{font-size:14px;font-weight:700;flex:1;line-height:1.3}
+.pc-keys{display:flex;gap:16px;font-size:11px;color:var(--t2);margin-bottom:10px;flex-wrap:wrap}
+.pk{display:flex;flex-direction:column;gap:1px}
+.pk-lb{font-size:10px;color:var(--t3)}
+.pk-vl{font-weight:600;color:var(--tx)}
+.stages{display:flex;gap:2px;margin-bottom:6px;border-radius:3px;overflow:hidden}
+.ss{height:4px;flex:1;background:var(--bdr)}
+.ss.dn{background:#1a6830}.ss.ac{background:var(--gold)}
+.dims{display:grid;grid-template-columns:1fr 1fr;gap:7px;font-size:12px}
+.dim{background:var(--bg);border-radius:var(--rr);padding:8px 10px;border-left:2px solid transparent}
+.dim.d1{border-left-color:#e8593c}.dim.d2{border-left-color:var(--gold)}.dim.d3{border-left-color:#3b8bd4}.dim.d4{border-left-color:#7b5ea7}
+.dim-hd{font-size:10px;font-weight:700;letter-spacing:.03em;margin-bottom:4px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dim.d1 .dim-hd{color:#e8593c}.dim.d2 .dim-hd{color:var(--gold)}.dim.d3 .dim-hd{color:#3b8bd4}.dim.d4 .dim-hd{color:#7b5ea7}
+.dim-body{color:var(--t2);line-height:1.5;font-size:11px}
+.ca{display:flex;justify-content:flex-end;gap:5px;margin-top:10px;padding-top:8px;border-top:0.5px solid var(--bdr)}
+.add-btn{display:flex;align-items:center;gap:3px;padding:6px 13px;border:0.5px solid var(--gold);color:var(--gold);background:var(--gl);border-radius:var(--rr);font-size:12px;font-weight:700;cursor:pointer;font-family:var(--fn)}
+.arch-toggle{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--t3);cursor:pointer;padding:5px 0;user-select:none;margin-top:10px}
+.arch-toggle:hover{color:var(--t2)}
+/* PROJECT OVERVIEW CARD */
+.ov-card{background:var(--card);border:0.5px solid var(--bdr);border-radius:var(--r);padding:14px 16px;margin-bottom:9px}
+.ov-top{display:flex;align-items:flex-start;gap:8px;margin-bottom:10px}
+.ov-nm{font-size:14px;font-weight:700;flex:1}
+.ov-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:4px 10px;margin-bottom:10px}
+.og{display:flex;flex-direction:column;gap:1px}
+.og-lb{font-size:10px;color:var(--t3)}
+.og-vl{font-size:12px;font-weight:600;color:var(--tx)}
+.ov-stages{display:flex;gap:2px;margin-bottom:5px;border-radius:3px;overflow:hidden}
+.ov-stage-lbl{font-size:10px;color:var(--t3);margin-bottom:8px}
+.ov-stage-lbl span{color:var(--gold);font-weight:700}
+/* CHARTS */
+.cc{background:var(--card);border:0.5px solid var(--bdr);border-radius:var(--r);padding:16px;margin-bottom:12px}
+.cc-t{font-size:12px;font-weight:700;color:var(--t2);margin-bottom:12px}
+.bch{display:flex;flex-direction:column;gap:7px}
+.br{display:flex;align-items:center;gap:8px;font-size:11px}
+.bl{width:100px;color:var(--t2);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}
+.bt{flex:1;height:15px;background:var(--bg);border-radius:3px;overflow:hidden}
+.bf{height:100%;border-radius:3px;transition:width .5s}
+.bv{width:26px;color:var(--t3);font-size:10px;text-align:right}
+.health-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;align-items:stretch}
+.hc{border-radius:var(--rr);padding:10px 12px;border:0.5px solid transparent;display:flex;flex-direction:column;min-height:100%}
+.hc.r{background:var(--rb);border-color:var(--rbd)}.hc.y{background:var(--yb);border-color:var(--ybd)}.hc.g{background:var(--gb);border-color:var(--gbd)}
+.hc-nm{font-size:12px;font-weight:700;margin-bottom:3px;flex-shrink:0;word-wrap:break-word;word-break:break-all}
+.hc.r .hc-nm{color:var(--rt)}.hc.y .hc-nm{color:var(--yt)}.hc.g .hc-nm{color:var(--gt)}
+.hc-stage{font-size:10px;color:var(--t3);margin-bottom:5px;flex-shrink:0}
+.hc-risks{font-size:11px;display:flex;flex-direction:column;gap:3px;flex:1;min-height:0;word-wrap:break-word;word-break:break-all}
+.hc-risk{display:flex;gap:4px;align-items:flex-start}
+.hc-risk::before{content:'▸';flex-shrink:0;font-size:10px;margin-top:1px}
+.hc.r .hc-risk{color:var(--rt)}.hc.y .hc-risk{color:var(--yt)}.hc.g .hc-risk{color:var(--gt)}
+.tlw{display:flex;flex-direction:column;gap:5px}
+.tlr{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:0.5px solid var(--bdr)}
+.tlr:last-child{border:none}
+.tln{flex:0 0 115px;font-size:11px;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tlt{flex:1;height:16px;position:relative;background:var(--bg);border-radius:3px;overflow:visible}
+.tlb{position:absolute;height:100%;border-radius:3px;opacity:.75}
+.tlds{font-size:10px;min-width:36px;text-align:right;flex-shrink:0}
+.ali{display:flex;flex-direction:column;gap:6px}
+.ai{display:flex;gap:8px;align-items:flex-start;padding:8px 10px;background:var(--bg);border-radius:var(--rr);font-size:11px}
+.at{color:var(--t2);line-height:1.45;flex:1}
+/* HISTORY */
+.hw{background:var(--card);border:0.5px solid var(--bdr);border-radius:var(--r);overflow:hidden;margin-bottom:12px}
+.hw-hd{background:var(--gl);padding:9px 16px;font-weight:700;font-size:11px;color:var(--gold);border-bottom:0.5px solid var(--gm)}
+.wki{padding:10px 16px;border-bottom:0.5px solid var(--bdr);display:flex;align-items:center;gap:10px;cursor:pointer}
+.wki:last-child{border:none}.wki:hover{background:var(--bg)}
+.wki-l{font-size:12px;font-weight:700;flex:1}
+.wki-s{font-size:10px;color:var(--t3)}
+.wk-cnt{display:flex;gap:5px}
+.wk-dot{display:flex;align-items:center;gap:2px;font-size:10px;padding:2px 6px;border-radius:8px}
+.wk-dot.r{background:var(--rb);color:var(--rt)}.wk-dot.y{background:var(--yb);color:var(--yt)}.wk-dot.g{background:var(--gb);color:var(--gt)}
+/* FORM */
+.fc{background:var(--card);border:0.5px solid var(--bdr);border-radius:var(--r);padding:16px;margin-bottom:12px}
+.fc-t{font-size:13px;font-weight:700;margin-bottom:13px;color:var(--tx)}
+.fc-sub{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:13px 0 7px;padding-top:13px;border-top:0.5px solid var(--bdr)}
+.fc-sub.d1{color:#e8593c}.fc-sub.d2{color:var(--gold)}.fc-sub.d3{color:#3b8bd4}.fc-sub.d4{color:#7b5ea7}
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.fg.g3{grid-template-columns:1fr 1fr 1fr}
+.fg.full{grid-template-columns:1fr}
+.ff{display:flex;flex-direction:column;gap:4px}
+.ff label{font-size:10px;color:var(--t3);font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.ff input,.ff select,.ff textarea{width:100%;font-size:13px;padding:7px 10px;border:0.5px solid var(--bdr);border-radius:var(--rr);background:var(--bg);color:var(--tx);font-family:var(--fn);outline:none;transition:border-color .15s}
+.ff input:focus,.ff select:focus,.ff textarea:focus{border-color:var(--gold)}
+.ff textarea{resize:vertical;min-height:60px;line-height:1.5}
+.ssel{display:flex;gap:6px}
+.sopt{flex:1;padding:7px;border:0.5px solid var(--bdr);border-radius:var(--rr);text-align:center;cursor:pointer;font-size:11px;font-weight:700;background:var(--bg);color:var(--t2)}
+.sopt.sr{background:var(--rb);color:var(--rt);border-color:var(--rt)}
+.sopt.sy{background:var(--yb);color:var(--yt);border-color:var(--yt)}
+.sopt.sg{background:var(--gb);color:var(--gt);border-color:var(--gt)}
+.spk{display:grid;grid-template-columns:repeat(4,1fr);gap:3px}
+.spi{padding:5px 3px;text-align:center;font-size:10px;border:0.5px solid var(--bdr);border-radius:var(--rr);cursor:pointer;color:var(--t2);background:var(--bg);line-height:1.3}
+.spi:hover{border-color:var(--gold);color:var(--gold)}
+.spi.ds{background:#e8f5ea;color:#1a6830;border-color:#a8ddb8}
+.spi.as{background:var(--gl);color:var(--gold);border-color:var(--gm);font-weight:700}
+.ar{display:flex;justify-content:flex-end;gap:6px;margin-top:13px}
+.bp{padding:8px 18px;background:var(--gold);color:#fff;border:none;border-radius:var(--rr);font-size:13px;font-weight:700;cursor:pointer;font-family:var(--fn)}
+.bs{padding:8px 13px;background:none;border:0.5px solid var(--bdr);color:var(--t2);border-radius:var(--rr);font-size:13px;cursor:pointer;font-family:var(--fn)}
+.bd{padding:4px 9px;background:none;border:0.5px solid var(--rbd);color:var(--rt);border-radius:var(--rr);font-size:11px;cursor:pointer;font-family:var(--fn)}
+.ba{padding:4px 9px;background:none;border:0.5px solid var(--ybd);color:var(--yt);border-radius:var(--rr);font-size:11px;cursor:pointer;font-family:var(--fn)}
+.empty{text-align:center;padding:32px;color:var(--t3);font-size:12px}
+/* MODAL */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:995;display:flex;align-items:center;justify-content:center}
+.modal{background:var(--card);border-radius:var(--r);padding:20px;width:300px}
+.modal h3{font-size:13px;font-weight:700;margin-bottom:9px}
+.modal p{font-size:11px;color:var(--t2);margin-bottom:11px;line-height:1.6}
+.modal input{width:100%;padding:7px 10px;border:0.5px solid var(--bdr);border-radius:var(--rr);font-size:13px;background:var(--bg);color:var(--tx);font-family:var(--fn);outline:none;margin-bottom:7px}
+.modal input:focus{border-color:var(--gold)}
+.modal-err{font-size:11px;color:var(--rt);margin-top:-4px;margin-bottom:7px}
+.modal-btns{display:flex;justify-content:flex-end;gap:6px}
+/* PRINT */
+@media print{
+  .topbar,.ca,.add-btn,.no-print,
+  .arch-toggle,.week-sw,.wkbar,
+  .metrics,.notice,.sh,.leg{display:none!important}
+  body{background:#fff!important;color:#000!important;font-size:11pt}
+  .shell{max-width:100%;padding:0;margin:0}
+  .content{padding-top:4mm}
+  .pc,.cc,.ov-card{
+    break-inside:avoid;
+    page-break-inside:avoid;
+    border:0.5px solid #ccc!important;
+    background:#fff!important;
+    margin-bottom:4mm!important;
+    padding:8px 10px!important;
+  }
+  .dim,.pf,.mc,.ai,.hc{background:#f0f0f0!important}
+  .print-hd{
+    display:block!important;
+    text-align:center;
+    padding-bottom:6px;
+    border-bottom:2px solid #9a7200;
+    margin-bottom:10px;
+  }
+  .print-hd h1{font-size:16pt;font-weight:700;color:#9a7200;margin-bottom:2px}
+  .print-hd p{font-size:10pt;color:#666}
+  /* 可视化周报文字缩进2个字符并均匀对齐 */
+  .bch .br{
+    text-align:justify;
+    text-justify:inter-ideograph;
+  }
+  .bch .br div[class*="style"], .bch .br div[style*="flex"],
+  .bch .br span{
+    text-indent:0;
+  }
+  .ali .ai{
+    text-align:justify;
+    text-justify:inter-ideograph;
+  }
+  .ali .ai .at{
+    text-indent:2em;
+  }
+  .tlw .tlr{
+    text-align:justify;
+    text-justify:inter-ideograph;
+  }
+  .tlw .tlr div[style]{
+    text-indent:0;
+  }
+  @page{
+    size:A4 landscape;
+    margin:18mm 20mm 15mm 20mm;
+    @bottom-center{
+      content:counter(page) ' / ' counter(pages);
+      font-size:7.5pt;
+      color:#aaa;
+      font-family:'PingFang SC','Microsoft YaHei',sans-serif;
+    }
+  }
+  .print-page-hd,#_pph{display:none!important}
+  .dims{gap:4px!important}
+  .dim{padding:5px 8px!important}
+  .pgrid{gap:4mm!important}
+  .pc-keys{margin-bottom:5px!important}
+  .stages{margin-bottom:5px!important}
+}
+.print-hd{display:none}
+.print-page-hd{display:none!important}
+#_pph{display:none!important}
+.ff input[type="date"]{
+  width:100%;padding:8px 10px;
+  border:0.5px solid var(--bdr);border-radius:var(--rr);
+  background:var(--card);color:var(--tx);
+  font-family:var(--fn);font-size:13px;
+  cursor:pointer;-webkit-appearance:none;appearance:none;
+}
+.ff input[type="date"]::-webkit-calendar-picker-indicator{
+  filter:invert(0.5);cursor:pointer;padding:2px;
+}
+.ff input[type="date"]:focus{border-color:var(--gold);outline:none}
+.act-bar{position:fixed;bottom:0;left:0;right:0;height:22px;background:transparent;border-top:none;display:flex;align-items:center;overflow:hidden;z-index:900;font-size:11px;color:var(--t3)}
+.act-bar-label{flex-shrink:0;padding:0 8px;color:var(--gold);font-weight:700;font-size:10px;white-space:nowrap;opacity:.7}
+.act-scroll-wrap{flex:1;overflow:hidden;position:relative;height:100%}
+.act-scroll-inner{display:flex;align-items:center;height:100%;white-space:nowrap;animation:actscroll 40s linear infinite}
+.act-scroll-inner:hover{animation-play-state:paused}
+@keyframes actscroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+.act-item{display:inline-flex;align-items:center;gap:5px;padding:0 16px;border-right:0.5px solid var(--bdr)}
+.act-item .act-user{color:var(--gold);font-weight:700}
+.act-item .act-proj{color:var(--tx)}
+.act-item .act-time{color:var(--t3);font-size:10px}
+.diff-section-title{font-size:11px;font-weight:700;color:var(--gold);margin:10px 0 5px;padding-top:8px;border-top:0.5px solid var(--bdr)}
+.diff-section-title:first-child{border-top:none;margin-top:0;padding-top:0}
+.diff-proj{background:var(--card);border:0.5px solid var(--bdr);border-radius:var(--rr);padding:8px 10px;margin-bottom:5px}
+/* 全局刷新按钮 */
+#global-refresh-btn{position:fixed;left:16px;top:50%;transform:translateY(-50%);z-index:999;padding:12px 16px;background:#4a90e2;color:#fff;border:2px solid #e8c840;border-radius:12px;cursor:pointer;font-family:var(--fn);font-size:14px;font-weight:600;white-space:nowrap;text-align:center;box-shadow:2px 2px 8px rgba(0,0,0,.15);transition:all .3s;display:none;width:130px;line-height:1.4}
+#global-refresh-btn:hover{background:#357abd;border-color:#8a6400;color:#fff;transform:translateY(-50%) scale(1.05);box-shadow:3px 3px 12px rgba(0,0,0,.2);}
+#global-refresh-btn:active{background:#4a90e2;border-color:#e8c840;transform:translateY(-50%) scale(0.95)}
+#global-refresh-btn ._new_data_badge{position:absolute;top:-8px;right:-8px;width:26px;height:26px;background:#b00020;color:#fff;border-radius:50%;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0;box-shadow:0 2px 4px rgba(0,0,0,.3)}
+@media print{#global-refresh-btn{display:none!important;}}
+.diff-proj b{font-size:12px;font-weight:700;display:block;margin-bottom:5px;color:var(--tx)}
+.diff-row{display:grid;grid-template-columns:80px 1fr 16px 1fr;align-items:baseline;gap:4px;font-size:11px;padding:3px 0;border-bottom:0.5px solid var(--bdr)}
+.diff-row:last-child{border:none}
+.diff-field{color:var(--t3);font-size:10px;font-weight:700}
+.diff-from{color:var(--rt);text-decoration:line-through;opacity:.8;word-break:break-all}
+.diff-arrow{color:var(--t3);text-align:center}
+.diff-to{color:var(--gt);font-weight:700;word-break:break-all}
+.diff-tag{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;margin-right:4px}
+.diff-tag.add{background:var(--gb);color:var(--gt)}.diff-tag.del{background:var(--rb);color:var(--rt)}
+.diff-meta{font-size:10px;color:var(--t3);margin-top:8px;padding-top:6px;border-top:0.5px solid var(--bdr);text-align:right}
+.pc[draggable=true]{cursor:grab;user-select:none}
+.pc[draggable=true]:active{cursor:grabbing}
+.pc.drag-over{outline:2px solid var(--gold);outline-offset:2px}
+.pc.dragging{opacity:.4}
+.ff textarea.auto-h{min-height:60px;overflow:hidden;resize:none}
+.io-bar{display:flex;gap:7px;align-items:center;justify-content:flex-end;margin-bottom:10px}
+.io-btn{padding:5px 12px;border:0.5px solid var(--bdr);background:var(--card);color:var(--t2);border-radius:var(--rr);font-size:11px;cursor:pointer;font-family:var(--fn)}
+.io-btn:hover{border-color:var(--gold);color:var(--gold)}
+.io-btn.imp{border-color:var(--gbd);color:var(--gt)}
+.arch-card{background:var(--card);border:0.5px solid var(--bdr);border-radius:var(--r);padding:12px 16px;margin-bottom:8px;opacity:.75;border-left:3px solid var(--t3)}
+.arch-card-top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.arch-card-nm{font-size:13px;font-weight:700;flex:1;color:var(--t2)}
+.arch-card-meta{font-size:11px;color:var(--t3);display:flex;gap:12px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<!-- 全局刷新按钮 -->
+<button id="global-refresh-btn" onclick="doRefresh()">
+  有同事更新数据<br>请刷新
+  <span class="_new_data_badge">0</span>
+</button>
+
+<div class="topbar">
+  <div class="topinner">
+    <div class="logo">华力集团 · 研策部<em>周报系统</em></div>
+    <div class="tabs-wrap">
+      <div class="tabs-scroll" id="tabs">
+        <button class="tab on"  onclick="ST('weekly')">项目周报</button>
+        <button class="tab"     onclick="ST('charts')">可视化看板</button>
+        <button class="tab"     onclick="ST('input')">录入数据</button>
+        <button class="tab"     onclick="ST('overview')">项目总览</button>
+        <button class="tab"     onclick="ST('meeting')">本周会议</button>
+        <button class="tab"     onclick="ST('archive')">归档项目</button>
+        <button class="tab"     onclick="ST('history')">历史记录</button>
+        <button class="tab" id="tab-users" style="display:none" onclick="ST('users')">👥 成员管理</button>
+      </div>
+      <div class="tab-indicator" id="tab-indicator"><div class="tab-indicator-bar" id="tab-indicator-bar"></div></div>
+    </div>
+    <div class="week-sw">
+      <button class="wb" onclick="prevWk()">‹</button>
+      <div class="wl" id="wl">—</div>
+      <button class="wb" onclick="nextWk()">›</button>
+    </div>
+    <div id="user-badge" style="font-size:11px;padding:4px 10px;background:var(--gl);border-radius:20px;color:var(--gold);font-weight:700;white-space:nowrap"></div>
+    <button id="users-btn" onclick="ST('users')" style="display:none;font-size:11px;padding:3px 9px;border:0.5px solid var(--gold);background:var(--gl);color:var(--gold);border-radius:12px;cursor:pointer;font-family:var(--fn)" title="用户管理">👥 管理</button>
+    <button id="theme-btn" onclick="toggleTheme()" style="font-size:14px;padding:3px 7px;border:0.5px solid var(--bdr);background:transparent;border-radius:8px;cursor:pointer;line-height:1" title="切换日夜模式">🌙</button>
+    <button onclick="window.logoutUser&&logoutUser()" style="font-size:11px;padding:3px 9px;border:0.5px solid var(--bdr);background:transparent;color:var(--t3);border-radius:12px;cursor:pointer;font-family:var(--fn)" title="退出当前用户">退出</button>
+  </div>
+</div>
+<div class="shell"><div class="content" id="content"></div></div>
+
+<div id="loading-overlay" style="position:fixed;inset:0;background:var(--bg);z-index:990;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px">
+  <div style="font-size:18px;font-weight:700;color:var(--gold)">华力集团 · 研策部周报系统</div>
+  <div style="font-size:13px;color:var(--t2)">正在初始化…</div>
+  <div style="width:80px;height:1px;background:rgba(255,255,255,.1);border-radius:1px;overflow:hidden;margin-top:12px">
+    <div id="load-bar" style="height:100%;width:0%;background:var(--gold);border-radius:1px;transition:width .5s ease"></div>
+  </div>
+</div>
+
+<div class="overlay" id="del-modal" style="display:none">
+  <div class="modal">
+    <h3>删除确认</h3>
+    <p>删除后数据不可恢复，请输入管理密码。</p>
+    <input type="password" id="del-pwd" placeholder="管理密码" onkeydown="if(event.key==='Enter')cfDel()">
+    <div class="modal-err" id="del-err" style="display:none">密码错误</div>
+    <div class="modal-btns">
+      <button class="bs" onclick="clDel()">取消</button>
+      <button class="bd" onclick="cfDel()">确认删除</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="fb-guide-modal" style="display:none">
+  <div class="modal" style="width:480px;max-height:84vh;overflow-y:auto">
+    <h3 style="margin-bottom:10px">☁ 云端同步配置说明</h3>
+    <p style="font-size:12px;line-height:1.7;color:var(--t2);margin-bottom:10px">配置步骤请参照说明文件设置腾讯云代理。</p>
+    <div class="modal-btns" style="margin-top:12px">
+      <button class="bp" onclick="document.getElementById('fb-guide-modal').style.display='none'">知道了</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="arch-modal" style="display:none">
+  <div class="modal">
+    <h3>归档确认</h3>
+    <p>归档后项目将移入「归档项目」栏，可随时释放恢复。请输入管理密码。</p>
+    <input type="password" id="arch-pwd" placeholder="管理密码" onkeydown="if(event.key==='Enter')cfArch()">
+    <div class="modal-err" id="arch-err" style="display:none">密码错误</div>
+    <div class="modal-btns">
+      <button class="bs" onclick="clArch()">取消</button>
+      <button class="ba" onclick="cfArch()">确认归档</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="unarch-modal" style="display:none">
+  <div class="modal">
+    <h3>释放确认</h3>
+    <p>将该项目从归档中释放，恢复到在建项目。请输入管理密码。</p>
+    <input type="password" id="unarch-pwd" placeholder="管理密码" onkeydown="if(event.key==='Enter')cfUnarch()">
+    <div class="modal-err" id="unarch-err" style="display:none">密码错误</div>
+    <div class="modal-btns">
+      <button class="bs" onclick="clUnarch()">取消</button>
+      <button class="bp" onclick="cfUnarch()">确认释放</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="io-modal" style="display:none">
+  <div class="modal" style="width:420px">
+    <h3 id="io-title">数据操作</h3>
+    <p id="io-desc" style="font-size:12px;color:var(--t2);margin-bottom:10px;line-height:1.6"></p>
+    <textarea id="io-text" style="width:100%;height:140px;font-size:11px;padding:7px;border:0.5px solid var(--bdr);border-radius:var(--rr);background:var(--bg);color:var(--tx);font-family:monospace;resize:vertical;margin-bottom:8px"></textarea>
+    <div class="modal-err" id="io-err" style="display:none;font-size:12px;color:var(--rt);margin-bottom:8px"></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+      <button class="bs" id="io-file-btn" style="display:none;font-size:12px">📁 选择文件</button>
+      <button class="bs" id="io-copy-btn" style="display:none;font-size:12px">复制JSON</button>
+      <button class="bs" onclick="document.getElementById('io-modal').style.display='none'">关闭</button>
+      <button class="bp" id="io-action-btn" style="font-size:12px"></button>
+    </div>
+  </div>
+</div>
+
+<div class="act-bar" id="act-bar">
+  <div class="act-bar-label">动态</div>
+  <div class="act-scroll-wrap">
+    <div class="act-scroll-inner" id="act-scroll">
+      <span class="act-item" style="color:var(--t3)">暂无提交记录，数据提交后将在此显示</span>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="user-modal" style="display:none">
+  <div class="modal" style="width:380px">
+    <div id="user-modal-body"></div>
+  </div>
+</div>
+
+<div class="overlay" id="submit-modal" style="display:none">
+  <div class="modal" style="width:420px">
+    <h3 style="margin-bottom:6px">📤 提交项目更新</h3>
+    <p style="font-size:12px;color:var(--t2);margin-bottom:10px">以下是本次修改内容，确认后将同步到云端：</p>
+    <div id="submit-diff" style="background:var(--bg);border-radius:var(--rr);padding:10px 12px;font-size:12px;max-height:280px;overflow-y:auto;margin-bottom:12px"></div>
+    <div class="modal-btns">
+      <button class="bs" id="submit-cancel-btn">取消</button>
+      <button class="bp" id="submit-confirm-btn" style="background:var(--gold)">确认提交</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="submit-result-modal" style="display:none">
+  <div class="modal" style="width:300px;text-align:center;padding:28px 24px">
+    <div id="submit-result" style="font-size:16px;font-weight:700;margin-bottom:16px"></div>
+    <button class="bp" style="width:100%" onclick="document.getElementById('submit-result-modal').style.display='none'">关闭</button>
+  </div>
+</div>
+<div class="overlay" id="sync-modal" style="display:none">
+  <div class="modal" style="width:420px">
+    <h3 style="margin-bottom:6px">☁ 同步到云端</h3>
+    <p style="font-size:12px;color:var(--t2);margin-bottom:10px">以下内容将被上传，所有团队成员的数据将更新为本版本：</p>
+    <div id="sync-summary" style="background:var(--bg);border-radius:var(--rr);padding:10px 12px;font-size:12px;color:var(--tx);line-height:2;margin-bottom:12px;max-height:240px;overflow-y:auto"></div>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:12px;padding:6px 10px;background:var(--yb);border-radius:var(--rr);border:0.5px solid var(--ybd)">
+      ⚠ 上传将覆盖云端旧数据。如其他人也有本地修改，请先让他们同步后再上传。
+    </div>
+    <div class="modal-btns">
+      <button class="bs" id="sync-cancel-btn">取消</button>
+      <button class="bp" id="sync-confirm-btn" style="background:var(--gold)">确认上传</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="sync-result-modal" style="display:none">
+  <div class="modal" style="width:320px;text-align:center;padding:28px 24px">
+    <div id="sync-result" style="font-size:16px;font-weight:700;margin-bottom:16px"></div>
+    <button class="bp" style="width:100%" onclick="document.getElementById('sync-result-modal').style.display='none'">关闭</button>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════════
+// ▌ 配置 — 修改此处为你的云函数地址
+// ════════════════════════════════════════════════════════════════
+const PROXY_URL = 'https://ycb-zb-0g7962fmca5676a3-1255322631.ap-shanghai.app.tcloudbase.com/weeklyProxy';
+// CloudBase 环境 ID（用于实时监听 WebSocket，无需 VPN）
+const ENV_ID = 'ycb-zb-0g7962fmca5676a3';
+// CloudBase SDK 实例（初始化后赋值）
+let _cbApp = null;
+// 实时监听器列表（用于统一关闭）
+let _cbWatchers = [];
+
+const DIRECTORS = ['张建波','冷耀秋','Kenbe']; // 最高管理权，直接登录无需录入
+const HIDDEN_USERS = ['啵啵','z\'j\'b']; // 强制隐藏的用户（已删除但未从云端清除）
+// 预设角色：其他已知成员，首次登录自动激活（无需审批）
+// 可在此处添加已知成员的初始角色
+const PRESET_ROLES = {
+  // '示例姓名': 'manager', // 设计经理
+};
+const DEL_PWD = '1234';
+// 角色体系：director=总监 manager=设计经理 curator=策展经理 supervisor=主管 pending=待审批
+const ROLE_LABELS = {director:'总监', manager:'设计经理', curator:'策展经理', supervisor:'主管', pending:'待审批'};
+const ROLE_ICONS  = {director:'👑', manager:'🎨', curator:'🖼️', supervisor:'📋', pending:'⏳'};
+// 可编辑项目的角色（被分配到"研策负责人"字段的人）
+const EDITOR_ROLES = ['director','manager','curator','supervisor'];
+const STAGES = ['平面','方案（概念）','方案（效果图）','全部方案','业态落位','施工图','软装','照明','家具','材料样板','招采','营建','竣工'];
+const SL = {r:'需决策/卡住', y:'需关注', g:'正常推进'};
+
+// ════ 用户系统 ════
+let _currentUser = localStorage.getItem('hlzc_user') || '';
+let _userRegistry = {};
+
+// 本地删除标记（持久化到 localStorage，防止轮询覆盖）
+// 清除已删除用户缓存（强制重新加载云端数据）
+localStorage.removeItem('hlzc_deleted_users');
+const _deletedUsers = new Set();
+function _markDeleted(name){
+  _deletedUsers.add(name);
+  localStorage.setItem('hlzc_deleted_users', JSON.stringify([..._deletedUsers]));
+}
+function _unmarkDeleted(name){
+  _deletedUsers.delete(name);
+  localStorage.setItem('hlzc_deleted_users', JSON.stringify([..._deletedUsers]));
+}
+
+async function _loadUserRegistry(){
+  if(!_syncOk) return;
+  try{
+    const rec = await _dbGet('users');
+    if(rec && rec.data){
+      // 完全使用云端数据（删除操作已同步到云端）
+      _userRegistry = {};
+      for(const [name, data] of Object.entries(rec.data)){
+        if(!HIDDEN_USERS.includes(name)){
+          _userRegistry[name] = data;
+        }
+      }
+    }
+  }catch(e){}
+}
+async function _saveUserRegistry(){
+  if(!_syncOk) return;
+  try{ await _dbSet('users', {data: _userRegistry, _updatedAt: Date.now()}); }catch(e){}
+}
+
+function getUserRole(name){
+  if(DIRECTORS.includes(name)) return 'director';
+  return (_userRegistry[name] && _userRegistry[name].role) || 'pending';
+}
+function isDirector(){
+  return DIRECTORS.includes(_currentUser) || getUserRole(_currentUser) === 'director';
+}
+function isApproved(){
+  if(DIRECTORS.includes(_currentUser)) return true;
+  return EDITOR_ROLES.includes(getUserRole(_currentUser));
+}
+function canEditProject(p){
+  if(isDirector()) return true;
+  if(!isApproved()) return false;
+  // 设计经理/策展经理/主管只能编辑研策负责人是自己的项目
+  return p.designOwner === _currentUser;
+}
+function ensureUser(onReady){
+  console.log('[ensureUser] 开始检查用户...', {currentUser: _currentUser, syncOk: _syncOk});
+  if(!_currentUser){
+    console.log('[ensureUser] 无当前用户, 显示登录弹窗');
+    _showLoginModal(onReady);
+    return;
+  }
+  if(DIRECTORS.includes(_currentUser)){
+    console.log('[ensureUser] 用户是总监, 直接通过');
+    onReady();
+    return;
+  }
+  // 非总监：检查是否已被录入
+  if(_syncOk){
+    const approved = isApproved();
+    console.log('[ensureUser] 检查用户权限...', {approved, userRole: getUserRole(_currentUser)});
+    if(approved){
+      console.log('[ensureUser] 用户已通过验证');
+      onReady();
+      return;
+    }
+    else {
+      console.log('[ensureUser] 用户未通过验证, 显示未开通弹窗');
+      _showNotInSystemModal();
+      return;
+    }
+  }
+  // 云端未连接时先放行
+  console.log('[ensureUser] 云端未连接, 放行用户');
+  onReady();
+}
+
+// ── 登录弹窗（无注册，总监直接录入成员）──
+let _loginOnReady = null;
+
+function _showLoginModal(onReady){
+  _loginOnReady = onReady;
+  const m = document.getElementById('user-modal');
+  m.style.display='flex';
+  document.getElementById('user-modal-body').innerHTML = _buildLoginForm();
+  setTimeout(()=>{ const inp=document.getElementById('user-input'); if(inp) inp.focus(); },100);
+}
+
+// 未被录入系统时的提示
+function _showNotInSystemModal(){
+  const m = document.getElementById('user-modal');
+  document.getElementById('user-modal-body').innerHTML = `
+    <div style="text-align:center;padding:10px 0">
+      <div style="font-size:40px;margin-bottom:12px">🚫</div>
+      <h3 style="margin-bottom:8px">账号未开通</h3>
+      <p style="font-size:12px;color:var(--t2);line-height:1.8;margin-bottom:16px">
+        「${esc(_currentUser)}」尚未被添加到系统<br>
+        请联系总监开通账号：<br>
+        <strong style="color:var(--gold)">张建波 / 冷耀秋</strong>
+      </p>
+      <button class="bs" style="width:100%;padding:8px" onclick="_currentUser='';localStorage.removeItem('hlzc_user');document.getElementById('user-modal-body').innerHTML=_buildLoginForm();setTimeout(()=>{const i=document.getElementById('user-input');if(i)i.focus();},100)">← 返回，换个名字登录</button>
+    </div>`;
+  m.style.display='flex';
+}
+
+// 事件委托：登录确认（无注册流程）
+document.addEventListener('click', async function(e){
+  const btn = e.target.closest('#user-confirm-btn');
+  if(!btn) return;
+  e.preventDefault();
+
+  const name = (document.getElementById('user-input')||{value:''}).value.trim();
+  const m = document.getElementById('user-modal');
+
+  if(!name){ 
+    const inp = document.getElementById('user-input');
+    if(inp){ inp.style.borderColor='var(--rt)'; inp.focus(); setTimeout(()=>inp.style.borderColor='',1500); }
+    return; 
+  }
+
+  btn.disabled = true;
+  btn.textContent = '登录中…';
+
+  try{
+    _currentUser = name; 
+    localStorage.setItem('hlzc_user', name);
+    // 总监：直接进入，更新最后登录时间
+    if(DIRECTORS.includes(name)){
+      if(_syncOk && _userRegistry[name]){
+        _userRegistry[name].lastSeen = Date.now();
+        _saveUserRegistry();
+      }
+      m.style.display='none';
+      updateUserBadge();
+      const ready = _loginOnReady; _loginOnReady = null;
+      if(ready) ready();
+      setTimeout(_checkAndShowNotifications, 500);
+      return;
+    }
+    // 非总监：必须先在系统里
+    if(_syncOk){
+      await _loadUserRegistry();
+      if(isApproved()){
+        if(_userRegistry[name]) { _userRegistry[name].lastSeen = Date.now(); _saveUserRegistry(); }
+        m.style.display='none';
+        updateUserBadge();
+        const ready = _loginOnReady; _loginOnReady = null;
+        if(ready) ready();
+      } else {
+        // 未被录入，显示提示
+        btn.disabled = false;
+        btn.textContent = '进入系统';
+        _showNotInSystemModal();
+      }
+    } else {
+      // 云端未连：放行，连上后再验证
+      m.style.display='none';
+      updateUserBadge();
+      const ready = _loginOnReady; _loginOnReady = null;
+      if(ready) ready();
+    }
+  } catch(err){
+    console.error('login error:', err);
+    btn.disabled = false;
+    btn.textContent = '进入系统';
+  }
+});
+
+// Enter 键提交
+document.addEventListener('keydown', function(e){
+  if(e.key !== 'Enter') return;
+  const modal = document.getElementById('user-modal');
+  if(!modal || modal.style.display==='none') return;
+  const inp = document.getElementById('user-input');
+  if(document.activeElement === inp){
+    const btn = document.getElementById('user-confirm-btn');
+    if(btn && !btn.disabled) btn.click();
+  }
+});
+
+// ── 总监注册通知系统 ──
+async function _writeNotification(notif){
+  try{
+    const rec = await _dbGet('notifications');
+    const list = (rec && rec.data) ? rec.data : [];
+    list.push({...notif, id: Date.now()});
+    if(list.length > 50) list.splice(0, list.length - 50);
+    await _dbSet('notifications', {data: list, _updatedAt: Date.now()});
+  }catch(e){}
+}
+
+// 无注册系统，此函数保留空实现
+function _checkAndShowNotifications(){ }
+
+// _showPendingBadge 已移除（无注册审批）
+
+function _showDirectorNotification(notifs){
+  // 在管理按钮旁边显示红色气泡 + 下拉卡片
+  const btn = document.getElementById('users-btn');
+  if(!btn) return;
+  // 移除旧的气泡
+  const oldBubble = document.getElementById('_notif_bubble');
+  if(oldBubble) oldBubble.remove();
+  const oldCard = document.getElementById('_notif_card');
+  if(oldCard) oldCard.remove();
+
+  const names = [...new Set(notifs.map(n=>n.from))];
+  const count = notifs.length;
+
+  // 红色气泡数字（绝对定位在管理按钮右上角）
+  const bubble = document.createElement('span');
+  bubble.id = '_notif_bubble';
+  bubble.textContent = count;
+  bubble.style.cssText = `
+    position:absolute;top:-6px;right:-6px;
+    background:#e02020;color:#fff;font-size:10px;font-weight:700;
+    min-width:16px;height:16px;border-radius:8px;
+    display:flex;align-items:center;justify-content:center;
+    padding:0 4px;pointer-events:none;font-family:var(--fn);
+    box-shadow:0 1px 4px rgba(0,0,0,.3);
+  `;
+  // 管理按钮需要 position:relative
+  btn.style.position = 'relative';
+  btn.appendChild(bubble);
+
+  // 点击管理按钮显示/隐藏下拉卡片
+  const showCard = () => {
+    const existing = document.getElementById('_notif_card');
+    if(existing){ existing.remove(); return; }
+    const btnRect = btn.getBoundingClientRect();
+    const card = document.createElement('div');
+    card.id = '_notif_card';
+    card.style.cssText = `
+      position:fixed;top:${btnRect.bottom+6}px;right:${window.innerWidth-btnRect.right}px;
+      z-index:9998;background:var(--card);border:1.5px solid var(--gold);
+      border-radius:10px;padding:14px 16px;min-width:260px;max-width:300px;
+      box-shadow:0 4px 20px rgba(0,0,0,.2);font-family:var(--fn);
+    `;
+    card.innerHTML = `
+      <div style="font-size:12px;font-weight:700;color:var(--gold);margin-bottom:10px">🔔 有 ${count} 位新成员申请注册</div>
+      <div style="margin-bottom:12px">
+        ${names.map(n=>`<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:0.5px solid var(--bdr)">
+          <span style="font-size:20px">👤</span>
+          <span style="font-size:12px;font-weight:700;flex:1">${esc(n)}</span>
+          <span style="font-size:10px;color:var(--t3)">待审批</span>
+        </div>`).join('')}
+      </div>
+      <button onclick="ST('users');document.getElementById('_notif_card')?.remove();document.getElementById('_notif_bubble')?.remove()"
+        style="width:100%;padding:7px;background:var(--gold);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--fn)">
+        前往审批 →
+      </button>
+    `;
+    document.body.appendChild(card);
+    // 点击外部关闭
+    setTimeout(()=>{
+      document.addEventListener('click', function handler(e){
+        if(!card.contains(e.target) && e.target!==btn){
+          card.remove(); document.removeEventListener('click',handler);
+        }
+      });
+    },100);
+  };
+  btn.onclick = showCard;
+}
+
+function _buildLoginForm(){
+  return `<div data-mode="login">
+    <div style="font-size:32px;text-align:center;margin-bottom:8px">👋</div>
+    <h3 style="margin-bottom:4px;text-align:center">华力集团 · 研策部周报系统</h3>
+    <p style="font-size:12px;color:var(--t2);margin-bottom:16px;text-align:center">请输入你的姓名进入系统</p>
+    <input id="user-input" type="text" placeholder="请输入你的真实姓名，如：张三"
+      style="width:100%;padding:10px 12px;border:1.5px solid var(--gold);border-radius:var(--rr);font-size:14px;background:var(--bg);color:var(--tx);font-family:var(--fn);margin-bottom:10px">
+    <button id="user-confirm-btn" class="bp" style="width:100%;padding:10px">进入系统</button>
+    <p style="font-size:11px;color:var(--t3);margin-top:10px;text-align:center">账号由总监统一开通，如需帮助请联系张建波或冷耀秋</p>
+  </div>`;
+}
+// _buildRegisterForm 已移除（无注册功能）
+// _recheckApproval 已移除（无注册审批流程）
+function updateUserBadge(){
+  const el = document.getElementById('user-badge'); if(!el) return;
+  const role = getUserRole(_currentUser);
+  el.textContent = _currentUser + ' ' + (ROLE_ICONS[role]||'');
+  el.title = ROLE_LABELS[role] || '未知';
+  const mgmtBtn = document.getElementById('users-btn');
+  const mgmtTab = document.getElementById('tab-users');
+  if(mgmtBtn) mgmtBtn.style.display = isDirector() ? 'inline-block' : 'none';
+  if(mgmtTab) mgmtTab.style.display = isDirector() ? 'inline-flex' : 'none';
+  setTimeout(()=>window.updateTabIndicator&&updateTabIndicator(), 100);
+}
+window.setUserRole = async function(name, role){
+  if(!isDirector()){ alert('无权限'); return; }
+  _userRegistry[name] = {...(_userRegistry[name]||{}), role, updatedBy:_currentUser, updatedAt:Date.now()};
+  try{
+    await _dbSet('users', {data: _userRegistry, _updatedAt: Date.now()});
+  }catch(e){ alert('修改失败，请检查网络'); return; }
+  const t = new Date().toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  _pushActivityLog({user:_currentUser, action:'修改角色', proj:'已将「'+name+'」设为'+ROLE_LABELS[role], time:t, ts:Date.now()});
+  renderUserPanel();
+};
+window.deleteUser = async function(name){
+  if(!isDirector()){ alert('无权限'); return; }
+  if(DIRECTORS.includes(name)){ alert('超级总监账号不可删除'); return; }
+  if(!confirm('确认删除用户「'+name+'」？\n\n删除后该用户需重新注册申请。')) return;
+  
+  // 1. 先获取云端最新数据
+  showSyncStatus('saving');
+  try{
+    const rec = await _dbGet('users');
+    const cloudData = (rec && rec.data) || {};
+    
+    // 2. 从云端数据删除
+    delete cloudData[name];
+    
+    // 3. 同步写入云端（使用 replace: true 确保完全替换）
+    await _dbSet('users', {data: cloudData, _updatedAt: Date.now(), _replace: true});
+    
+    // 4. 更新本地内存
+    _userRegistry = {...cloudData};
+    
+    // 5. 添加到隐藏列表（防止云端数据回滚时再次出现）
+    if(!HIDDEN_USERS.includes(name)){
+      HIDDEN_USERS.push(name);
+    }
+    
+    showSyncStatus('saved');
+    setTimeout(() => showSyncStatus('sync'), 2000);
+  }catch(e){
+    showSyncStatus('err');
+    alert('删除失败，请检查网络后重试：' + e.message);
+    return;
+  }
+  
+  // 6. 写入活动日志
+  const t = new Date().toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  _pushActivityLog({user:_currentUser, action:'删除用户', proj:'已删除用户「'+name+'」', time:t, ts:Date.now()});
+  
+  // 7. 刷新面板
+  renderUserPanel();
+  // 8. 更新气泡
+  _checkPendingBadge();
+  
+  _showOfflineToast('用户已删除并同步到云端', 'online');
+};
+function renderUserPanel(){
+  const panelEl = document.getElementById('user-panel-content'); if(!panelEl) return;
+  const members = Object.entries(_userRegistry).filter(([n])=>!DIRECTORS.includes(n) && !HIDDEN_USERS.includes(n));
+  
+  let html = `
+  <div style="background:var(--gl);border:0.5px solid var(--gm);border-radius:var(--rr);padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--gold)">
+    <strong>📋 成员管理说明</strong>：由总监直接录入成员姓名和角色。成员使用录入的姓名登录即可进入系统。
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+    <input id="add-member-name" placeholder="成员姓名" style="flex:1;min-width:120px;padding:7px 10px;border:0.5px solid var(--bdr);border-radius:var(--rr);background:var(--bg);color:var(--tx);font-family:var(--fn);font-size:13px">
+    <select id="add-member-role" style="padding:7px 10px;border:0.5px solid var(--bdr);border-radius:var(--rr);background:var(--bg);color:var(--tx);font-family:var(--fn);font-size:13px">
+      <option value="manager">设计经理</option>
+      <option value="curator">策展经理</option>
+      <option value="supervisor">主管</option>
+      <option value="director">总监</option>
+    </select>
+    <button class="bp" style="padding:7px 16px;font-size:13px" onclick="addMember()">＋ 添加</button>
+  </div>`;
+
+  if(!members.length){
+    html += `<div class="empty" style="padding:24px">暂无录入成员，请使用上方表单添加</div>`;
+  } else {
+    html += `<div style="font-size:11px;font-weight:700;color:var(--t3);margin-bottom:8px">已录入成员（${members.length}人）</div>`;
+    members.forEach(([name,u])=>{
+      const roleClr = u.role==='director'?'var(--gold)':u.role==='manager'?'var(--gt)':'var(--t2)';
+      const isMe = name===_currentUser;
+      const lastSeen = u.lastSeen ? new Date(u.lastSeen).toLocaleDateString('zh-CN') : '未登录';
+      html += `<div style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--card);border-radius:var(--rr);border:0.5px solid var(--bdr);margin-bottom:5px">
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:13px">${esc(name)}${isMe?' <span style="font-size:10px;color:var(--t3);font-weight:400">（我）</span>':''}</div>
+          <div style="font-size:10px;color:var(--t3);margin-top:2px">最近登录：${lastSeen}</div>
+        </div>
+        <div style="font-size:11px;color:${roleClr};font-weight:700">${ROLE_ICONS[u.role]||''} ${ROLE_LABELS[u.role]||u.role}</div>
+        <select style="font-size:11px;padding:3px 6px;border-radius:4px;border:0.5px solid var(--bdr);background:var(--bg);color:var(--tx);font-family:var(--fn)"
+          onchange="setUserRole('${esc(name)}',this.value)">
+          <option value="${u.role}" selected>修改角色</option>
+          <option value="manager">设计经理</option>
+          <option value="curator">策展经理</option>
+          <option value="supervisor">主管</option>
+          <option value="director">总监</option>
+        </select>
+        ${!isMe?`<button onclick="deleteUser('${esc(name)}')"
+          style="font-size:11px;padding:3px 8px;background:none;border:0.5px solid var(--rbd);color:var(--rt);border-radius:4px;cursor:pointer;font-family:var(--fn)">移除</button>`:''}
+      </div>`;
+    });
+  }
+
+  // 总监自己（固定）
+  html += `<div style="font-size:11px;font-weight:700;color:var(--t3);margin:16px 0 8px">👑 系统总监（固定）</div>`;
+  DIRECTORS.forEach(d=>{
+    const isMe = d===_currentUser;
+    html += `<div style="display:flex;align-items:center;gap:8px;padding:7px 12px;background:var(--gl);border-radius:var(--rr);border:0.5px solid var(--gm);margin-bottom:4px;opacity:.8">
+      <div style="flex:1;font-weight:700;font-size:12px;color:var(--gold)">${esc(d)}${isMe?' （我）':''}</div>
+      <div style="font-size:11px;color:var(--gold)">👑 总监</div>
+    </div>`;
+  });
+
+  panelEl.innerHTML = html;
+}
+
+window.addMember = async function(){
+  if(!isDirector()){ alert('无权限'); return; }
+  const nameEl = document.getElementById('add-member-name');
+  const roleEl = document.getElementById('add-member-role');
+  const name = nameEl.value.trim();
+  const role = roleEl.value;
+  if(!name){ nameEl.style.borderColor='var(--rt)'; nameEl.focus(); setTimeout(()=>nameEl.style.borderColor='',1500); return; }
+  if(DIRECTORS.includes(name)){ alert('该姓名已是系统总监'); return; }
+  if(_userRegistry[name] && !confirm('「'+name+'」已存在，是否更新角色为：'+ROLE_LABELS[role]+'？')) return;
+  _userRegistry[name] = {
+    role, 
+    joinedAt: _userRegistry[name]?.joinedAt || Date.now(),
+    lastSeen: _userRegistry[name]?.lastSeen || 0,
+    addedBy: _currentUser, addedAt: Date.now()
+  };
+  // 从删除标记里移除（允许重新添加）
+  _deletedUsers.delete(name);
+  localStorage.setItem('hlzc_deleted_users', JSON.stringify([..._deletedUsers]));
+  try{
+    await _dbSet('users', {data: _userRegistry, _updatedAt: Date.now()});
+    nameEl.value = '';
+    const t = new Date().toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    _pushActivityLog({user:_currentUser, action:'添加成员', proj:'已添加「'+name+'」为'+ROLE_LABELS[role], time:t, ts:Date.now()});
+    renderUserPanel();
+  }catch(e){ alert('保存失败，请检查网络'); }
+};
+
+// ════ 存储层 ════
+let _syncOk = false;
+let _pendingSync = false;
+let _pollTimer = null;
+let _appReady = false;
+let _wasOffline = false; // 上一个状态是否离线
+const _QUEUE_KEY = 'hlzc_offline_queue'; // 离线队列存储key
+
+// 离线队列操作
+function _queueGet(){ try{ return JSON.parse(localStorage.getItem(_QUEUE_KEY)||'[]'); }catch{ return []; } }
+function _queueSave(q){ localStorage.setItem(_QUEUE_KEY, JSON.stringify(q)); }
+function _queueAdd(item){
+  const q = _queueGet();
+  // 同一个 id 的操作去重，后者覆盖前者
+  const idx = q.findIndex(x=>x.id===item.id);
+  if(idx>=0) q[idx]=item; else q.push(item);
+  _queueSave(q);
+  _showOfflineToast('已保存到本地，网络恢复后自动同步');
+}
+
+// 离线提示小窗
+let _offlineToastTimer = null;
+function _showOfflineToast(msg, type){
+  let el = document.getElementById('_offline_toast');
+  if(!el){
+    el = document.createElement('div');
+    el.id = '_offline_toast';
+    el.style.cssText = `position:fixed;bottom:44px;left:50%;transform:translateX(-50%);
+      z-index:9997;border-radius:20px;padding:8px 18px;font-size:12px;font-weight:600;
+      font-family:var(--fn);box-shadow:0 4px 16px rgba(0,0,0,.2);
+      transition:opacity .3s;white-space:nowrap;pointer-events:none;`;
+    document.body.appendChild(el);
+  }
+  const isOnline = type==='online';
+  el.style.background = isOnline ? '#1a6830' : '#7a5800';
+  el.style.color = '#fff';
+  el.textContent = (isOnline?'☁ ':'💾 ') + msg;
+  el.style.opacity = '1';
+  clearTimeout(_offlineToastTimer);
+  _offlineToastTimer = setTimeout(()=>{ el.style.opacity='0'; }, isOnline?4000:3000);
+}
+
+function syncConfigured(){ return !!(PROXY_URL && !PROXY_URL.includes('<你的环境id>')); }
+
+async function _proxy(action, id, data, extra){
+  const payload = {action, ...(id?{id}:{}), ...(data?{data}:{}), ...(extra||{})};
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000); // 10秒超时
+  try {
+    const r = await fetch(PROXY_URL, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload),
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const result = await r.json();
+    if(result && result.error) throw new Error(result.error);
+    return result;
+  } catch(e) {
+    clearTimeout(timer);
+    throw e;
+  }
+}
+async function _dbGet(id){ try{ return await _proxy('get',id); }catch(e){ return null; } }
+async function _dbSet(id, obj, extra){
+  try{
+    return await _proxy('set',id,obj,extra);
+  }catch(e){
+    // 网络失败：加入离线队列
+    if(!navigator.onLine || e.message.includes('fetch') || e.message.includes('Failed') || e.message.includes('ERR_')){
+      _queueAdd({id, obj, extra, ts:Date.now()});
+      _syncOk = false;
+      showSyncStatus('pending');
+      _wasOffline = true;
+      throw Object.assign(new Error('OFFLINE'), {offline:true});
+    }
+    throw e;
+  }
+}
+async function _dbQuery(query){ try{ return await _proxy('query',null,null,{query}); }catch(e){ return []; } }
+
+// 离线队列同步：网络恢复后自动上传
+async function _flushOfflineQueue(){
+  const q = _queueGet();
+  if(!q.length) return;
+  const done = [];
+  for(const item of q){
+    try{
+      await _proxy('set', item.id, item.obj, item.extra);
+      done.push(item.id);
+    }catch(e){
+      break; // 网络还不稳定，停止
+    }
+  }
+  if(done.length){
+    const remaining = q.filter(x=>!done.includes(x.id));
+    _queueSave(remaining);
+    if(!remaining.length){
+      _showOfflineToast(`已同步 ${done.length} 条离线数据到云端`, 'online');
+    }
+  }
+}
+
+function showSyncStatus(state){
+  const M={local:['💻 本地模式','#f0ede4','#888'],sync:['☁ 已同步','#e8f5ea','#1a6830'],saving:['💾 同步中…','#e8f0fe','#1a56a8'],saved:['✓ 已同步','#e8f5ea','#1a6830'],err:['⚠ 同步失败','#fff0f0','#b00020'],pending:['📝 有未提交','#fffbe6','#7a5800']};
+  const [t,bg,c]=M[state]||M.local;
+  
+  // 更新所有页面的同步标签
+  const labels = ['_sync_label_weekly', '_sync_label_charts', '_sync_label_overview', '_sync_label_meeting', '_sync_label_meeting_edit', '_sync_label_archive', '_sync_label_history', '_sync_label_input', '_sync_label_wkinput'];
+  labels.forEach(id => {
+    const el = document.getElementById(id);
+    if(el){
+      el.textContent = t;
+      el.style.background = bg;
+      el.style.color = c;
+      el.style.border = '0.5px solid ' + c + '44';
+    }
+  });
+  
+  // 兼容旧的 _sb 元素
+  let el = document.getElementById('_sb');
+  if(el){
+    el.textContent = t;
+    el.style.background = bg;
+    el.style.color = c;
+    el.style.border = '0.5px solid ' + c + '44';
+  }
+}
+function markPending(){ _pendingSync=true; showSyncStatus('pending'); }
+
+function initStorage(onReady){
+  console.log('[initStorage] 开始初始化存储...');
+  showSyncStatus('local');
+  try{
+    console.log('[initStorage] 调用 onReady 回调...');
+    onReady();
+    console.log('[initStorage] onReady 回调完成');
+  }catch(e){
+    console.error('[initStorage] onReady 执行错误:', e);
+  }
+  if(!syncConfigured()) {
+    console.log('[initStorage] 云端未配置, 跳过云端初始化');
+    return;
+  }
+  console.log('[initStorage] 开始云端同步...');
+  (async()=>{
+    try{
+      console.log('[initStorage] ping 云端代理...');
+      await _proxy('ping');
+      console.log('[initStorage] 获取项目和活动日志...');
+      const [projRec, actRec] = await Promise.all([_dbGet('projects'), _dbGet('activity_log')]);
+      // 修复：云端存储的是 projects 字段，不是 data 字段
+      if(projRec && projRec.projects) localStorage.setItem('hlzc_p', JSON.stringify(projRec.projects));
+      if(actRec && actRec.data){ localStorage.setItem(_ACT_KEY, JSON.stringify(actRec.data)); renderActivityBar(); }
+      _syncOk = true;
+      console.log('[initStorage] 加载用户注册表...');
+      await _loadUserRegistry();
+      showSyncStatus('sync');
+      if(_appReady){
+        console.log('[initStorage] 应用已就绪, 检查数据变化...');
+        // 只在项目列表有变化时才 render（不无谓刷新当前编辑中的表单）
+        // 修复：云端存储的是 projects 字段，不是 data 字段
+        if(projRec && projRec.projects){
+          const h = JSON.stringify(projRec.projects);
+          if(h !== localStorage.getItem('hlzc_p')){
+            localStorage.setItem('hlzc_p', h);
+            if(S.tab === 'weekly' || S.tab === 'overview' || S.tab === 'charts') render();
+          }
+        }
+        if(_currentUser && !DIRECTORS.includes(_currentUser) && !isApproved()) _showNotInSystemModal();
+        if(isDirector()) setTimeout(_checkAndShowNotifications, 100);
+      }
+      console.log('[initStorage] 启动实时同步（优先 WebSocket，降级轮询）...');
+      _startSync();
+    }catch(e){
+      console.warn('[initStorage] 云端同步失败:', e.message);
+      showSyncStatus('local');
+    }
+  })();
+}
+
+// ════════════════════════════════════════════════════════════════
+// ▌ CloudBase 实时监听（替代 setInterval 轮询）
+// ════════════════════════════════════════════════════════════════
+
+// 自动合并并刷新：收到 onChange 时调用
+async function _onRealtimeChange(type){
+  // type: 'projects' | 'snap' | 'activity_log'
+  try{
+    if(type === 'activity_log'){
+      // 活动日志：直接覆盖，不打断用户操作
+      const actRec = await _dbGet('activity_log');
+      if(actRec && actRec.data){
+        localStorage.setItem(_ACT_KEY, JSON.stringify(actRec.data));
+        renderActivityBar();
+      }
+      return;
+    }
+    // projects 或 snap 变化：拉取最新数据并自动刷新视图
+    showSyncStatus('saving');
+    const [projRec, actRec] = await Promise.all([_dbGet('projects'), _dbGet('activity_log')]);
+    if(projRec && projRec.projects){
+      localStorage.setItem('hlzc_p', JSON.stringify(projRec.projects));
+    }
+    if(actRec && actRec.data){
+      localStorage.setItem(_ACT_KEY, JSON.stringify(actRec.data));
+    }
+    // 重新拉取所有项目快照
+    const projects = LP();
+    const allWeeks = {};
+    for(const proj of projects){
+      const snapRec = await _dbGet('snap_' + proj.id);
+      if(snapRec && snapRec.data){
+        Object.keys(snapRec.data).forEach(wk => {
+          if(!allWeeks[wk]) allWeeks[wk] = {};
+          allWeeks[wk][proj.id] = snapRec.data[wk];
+        });
+      }
+    }
+    // 拉取会议数据
+    const meetingRec = await _dbGet('meeting_' + S.yr + '_' + S.wk);
+    if(meetingRec && meetingRec.data){
+      const wk = wkKey(S.yr, S.wk);
+      if(!allWeeks[wk]) allWeeks[wk] = {};
+      allWeeks[wk].__meetings = meetingRec.data;
+    }
+    localStorage.setItem('hlzc_w', JSON.stringify(allWeeks));
+    // 刷新视图（不打断用户正在编辑的表单）
+    render();
+    renderActivityBar();
+    showSyncStatus('sync');
+    console.log('[Realtime] 数据已自动更新（类型:', type, '）');
+  }catch(e){
+    console.warn('[Realtime] 自动更新失败:', e.message);
+    showSyncStatus('err');
+  }
+}
+
+// 建立 CloudBase 实时监听（WebSocket）
+// 返回 true=成功, false=失败（触发降级）
+async function _startRealtime(){
+  try{
+    if(typeof cloudbase === 'undefined'){
+      console.warn('[Realtime] CloudBase SDK 未加载，降级到轮询');
+      return false;
+    }
+    // 初始化 SDK（匿名登录）
+    _cbApp = cloudbase.init({ env: ENV_ID, region: 'ap-shanghai' });
+    await _cbApp.auth.signInAnonymously();
+    console.log('[Realtime] CloudBase 匿名登录成功');
+
+    const db = _cbApp.database();
+
+    // 监听 weeklydata 集合的核心文档
+    // 注：CloudBase 实时监听基于集合+条件，数据库名是 weeklydata
+    // 所有业务数据都在这个集合里，用 _id 字段区分文档
+
+    // ── 监听 projects 文档 ──
+    const w1 = db.collection('weeklydata')
+      .where({ _id: db.command.eq('projects') })
+      .watch({
+        onChange: (snapshot) => {
+          if(snapshot && snapshot.docChanges && snapshot.docChanges.length > 0){
+            console.log('[Realtime] projects 变化');
+            _onRealtimeChange('projects');
+          }
+        },
+        onError: (err) => {
+          console.warn('[Realtime] projects watcher error:', err);
+          _handleRealtimeError();
+        }
+      });
+
+    // ── 监听 activity_log 文档 ──
+    const w2 = db.collection('weeklydata')
+      .where({ _id: db.command.eq('activity_log') })
+      .watch({
+        onChange: (snapshot) => {
+          if(snapshot && snapshot.docChanges && snapshot.docChanges.length > 0){
+            console.log('[Realtime] activity_log 变化');
+            _onRealtimeChange('activity_log');
+          }
+        },
+        onError: (err) => {
+          console.warn('[Realtime] activity_log watcher error:', err);
+          _handleRealtimeError();
+        }
+      });
+
+    // ── 监听所有 snap_* 文档（通过正则）──
+    // CloudBase 支持正则查询 _id
+    const w3 = db.collection('weeklydata')
+      .where({ _id: /^snap_/ })
+      .watch({
+        onChange: (snapshot) => {
+          if(snapshot && snapshot.docChanges && snapshot.docChanges.length > 0){
+            console.log('[Realtime] snap 变化');
+            _onRealtimeChange('snap');
+          }
+        },
+        onError: (err) => {
+          console.warn('[Realtime] snap watcher error:', err);
+          _handleRealtimeError();
+        }
+      });
+
+    _cbWatchers = [w1, w2, w3];
+    console.log('[Realtime] ✅ 实时监听已建立（3个集合），停止轮询');
+    return true;
+  }catch(e){
+    console.warn('[Realtime] 初始化失败:', e.message, '→ 降级到轮询');
+    return false;
+  }
+}
+
+// 实时监听出错时的处理（尝试重连或降级）
+let _realtimeRetryCount = 0;
+let _realtimeRetryTimer = null;
+function _handleRealtimeError(){
+  // 关闭现有监听器
+  _cbWatchers.forEach(w => { try{ w.close(); }catch(e){} });
+  _cbWatchers = [];
+
+  if(_realtimeRetryCount < 3){
+    _realtimeRetryCount++;
+    const delay = _realtimeRetryCount * 5000; // 5s / 10s / 15s 递增
+    console.log(`[Realtime] 将在 ${delay/1000}s 后重连（第${_realtimeRetryCount}次）`);
+    clearTimeout(_realtimeRetryTimer);
+    _realtimeRetryTimer = setTimeout(async() => {
+      const ok = await _startRealtime();
+      if(!ok && !_pollTimer){
+        console.warn('[Realtime] 重连失败，启动降级轮询');
+        _startPollOnly();
+      }
+    }, delay);
+  } else {
+    // 3次重连失败，永久降级到轮询
+    console.warn('[Realtime] 3次重连均失败，降级到轮询模式');
+    if(!_pollTimer) _startPollOnly();
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// ▌ 检测数据变化的提示（不自动刷新，避免打断用户编辑）
+// ════════════════════════════════════════════════════════════════
+// 检测数据变化的提示（不自动刷新，避免打断用户编辑）
+
+let _hasNewData = false;
+let _newDataCount = 0; // 记录新数据变化次数
+
+// 主同步入口：优先尝试实时监听，失败降级轮询
+async function _startSync(){
+  // 先注册网络事件（online/offline 监听只注册一次）
+  _registerNetworkListeners();
+  // 尝试建立实时监听
+  const ok = await _startRealtime();
+  if(!ok){
+    console.log('[Sync] 实时监听不可用，启动降级轮询');
+    _startPollOnly();
+  }
+}
+
+// 只注册一次网络事件监听
+let _networkListenersRegistered = false;
+function _registerNetworkListeners(){
+  if(_networkListenersRegistered) return;
+  _networkListenersRegistered = true;
+  window.addEventListener('online', async()=>{
+    if(_wasOffline){
+      _wasOffline = false;
+      showSyncStatus('saving');
+      _showOfflineToast('网络已恢复，正在同步离线数据…', 'online');
+      try{
+        await _proxy('ping');
+        _syncOk = true;
+        await _flushOfflineQueue();
+        showSyncStatus('sync');
+        // 网络恢复后重新尝试实时监听（若当前没有监听器且没有轮询）
+        if(_cbWatchers.length === 0 && !_pollTimer){
+          const ok = await _startRealtime();
+          if(!ok) _startPollOnly();
+        }
+      }catch(e){ showSyncStatus('err'); }
+    }
+  });
+  window.addEventListener('offline', ()=>{
+    _syncOk = false;
+    _wasOffline = true;
+    showSyncStatus('pending');
+    _showOfflineToast('网络已断开，数据将保存在本地');
+  });
+}
+
+// 降级轮询（setInterval 方案，仅在实时监听失败时使用）
+function _startPollOnly(){
+  if(_pollTimer) return;
+  console.log('[Poll] 启动降级轮询（每5秒）');
+
+  _pollTimer = setInterval(async()=>{
+    try{
+      const [projRec, actRec] = await Promise.all([_dbGet('projects'), _dbGet('activity_log')]);
+      
+      // 检测项目列表是否有变化（排除本地新增的项目）
+      if(projRec && projRec.projects){
+        const localProjects = LP();
+        const remoteIds = new Set(projRec.projects.map(p => p.id));
+        // 只比较云端有的项目，本地新增的项目不触发刷新提示
+        const localExistingProjects = localProjects.filter(p => remoteIds.has(p.id));
+        const remoteH = JSON.stringify(projRec.projects);
+        const localH = JSON.stringify(localExistingProjects);
+        if(remoteH !== localH){
+          // 有变化但不立即刷新，显示提示让用户手动刷新
+          if(_appReady && !_hasNewData){
+            _hasNewData = true;
+            _newDataCount++;
+            _showRefreshPrompt();
+          }
+        }
+      }
+      
+      // 检测项目快照数据是否有变化（新增了周报记录）
+      const projects = JSON.parse(localStorage.getItem('hlzc_p') || '[]');
+      for(const proj of projects){
+        const snapRec = await _dbGet('snap_' + proj.id);
+        if(snapRec && snapRec.data){
+          const localWeeks = LW();
+          let hasChange = false;
+          // 检查云端数据是否有本地没有的周
+          Object.keys(snapRec.data).forEach(wk => {
+            const localSnap = localWeeks[wk]?.[proj.id];
+            const remoteSnap = snapRec.data[wk];
+            // 如果本地没有这周的数据，或者数据有变化
+            if(!localSnap || JSON.stringify(localSnap) !== JSON.stringify(remoteSnap)){
+              hasChange = true;
+            }
+          });
+          if(hasChange && _appReady && !_hasNewData){
+            _hasNewData = true;
+            _newDataCount++;
+            _showRefreshPrompt();
+            break;
+          }
+        }
+      }
+      
+      // 检测会议数据是否有变化
+      const meetingRec = await _dbGet('meeting_' + S.yr + '_' + S.wk);
+      if(meetingRec && meetingRec.data){
+        const localMeetings = getMeetings(S.yr, S.wk);
+        // 比较云端和本地的会议数据
+        if(JSON.stringify(meetingRec.data) !== JSON.stringify(localMeetings)){
+          if(_appReady && !_hasNewData){
+            _hasNewData = true;
+            _newDataCount++;
+            _showRefreshPrompt();
+          }
+        }
+      }
+      
+      // 活动日志自动更新（不打断用户）
+      if(actRec && actRec.data){
+        const newLog = JSON.stringify(actRec.data);
+        if(newLog !== localStorage.getItem(_ACT_KEY)){ 
+          localStorage.setItem(_ACT_KEY, newLog); 
+          renderActivityBar(); 
+        }
+      }
+      
+      // 如果之前离线现在能拉到数据了，恢复并同步队列
+      if(_wasOffline){
+        _wasOffline = false;
+        _syncOk = true;
+        await _flushOfflineQueue();
+        _showOfflineToast('网络已恢复，离线数据已同步', 'online');
+      }
+      if(!_syncOk){ _syncOk = true; }
+      showSyncStatus('sync');
+
+    }catch(e){
+      if(!_syncOk) return;
+      _syncOk = false;
+      _wasOffline = true;
+      showSyncStatus('pending');
+    }
+  }, 5000); // 缩短到5秒检测一次
+}
+
+// 显示刷新提示（用户点击后刷新）
+function _showRefreshPrompt(){
+  if(!_hasNewData) return; // 已隐藏
+
+  // 显示全局刷新按钮
+  const globalBtn = document.getElementById('global-refresh-btn');
+  if(globalBtn){
+    globalBtn.style.display = 'block';
+    const badge = globalBtn.querySelector('._new_data_badge');
+    if(badge) badge.textContent = _newDataCount || 1;
+  }
+
+  // 显示所有刷新按钮并添加气泡
+  const buttons = document.querySelectorAll('._refresh_btn');
+  if(buttons.length === 0) return; // 按钮还没渲染，跳过
+
+  buttons.forEach(btn => {
+    btn.style.display = 'inline-block';
+    btn.style.background = '#fffbe6';
+    btn.style.borderColor = '#e8c840';
+    btn.style.color = '#7a5800';
+
+    // 添加气泡（如果没有的话）
+    if(!btn.querySelector('._new_data_badge')){
+      const badge = document.createElement('span');
+      badge.className = '_new_data_badge';
+      badge.style.cssText = `
+        position: absolute;
+        top: -6px;
+        right: -6px;
+        min-width: 18px;
+        height: 18px;
+        background: #b00020;
+        color: #fff;
+        border-radius: 9px;
+        font-size: 11px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 5px;
+        box-shadow: 0 2px 4px rgba(0,0,0,.2);
+      `;
+      badge.textContent = _newDataCount || 1;
+      btn.appendChild(badge);
+    }
+  });
+}
+
+// 刷新按钮点击处理（简化版本，避免阻塞UI）
+async function doRefresh(){
+  _hasNewData = false;
+  _newDataCount = 0;
+  // 隐藏全局刷新按钮
+  const globalBtn = document.getElementById('global-refresh-btn');
+  if(globalBtn) globalBtn.style.display = 'none';
+  // 更新所有刷新按钮状态
+  document.querySelectorAll('._refresh_btn').forEach(btn => {
+    btn.style.background = '#e8f0fe';
+    btn.style.borderColor = '#1a56a8';
+    btn.style.color = '#1a56a8';
+    // 移除气泡
+    const badge = btn.querySelector('._new_data_badge');
+    if(badge) badge.remove();
+  });
+
+  // 重新从云端拉取所有数据（简化版本：直接覆盖，不做复杂合并）
+  try {
+    // 1. 重新拉取项目列表
+    const projRec = await _dbGet('projects');
+    if(projRec && projRec.projects){
+      localStorage.setItem('hlzc_p', JSON.stringify(projRec.projects));
+    }
+
+    // 2. 重新拉取活动日志
+    const actRec = await _dbGet('activity_log');
+    if(actRec && actRec.data){
+      localStorage.setItem(_ACT_KEY, JSON.stringify(actRec.data));
+    }
+
+    // 3. 重新拉取用户注册表
+    await _loadUserRegistry();
+
+    // 4. 重新拉取所有项目的快照数据（简化：直接覆盖）
+    const projects = LP();
+    const allWeeks = {};
+    for(const proj of projects){
+      const snapRec = await _dbGet('snap_' + proj.id);
+      if(snapRec && snapRec.data){
+        // 直接使用云端数据
+        Object.keys(snapRec.data).forEach(wk => {
+          if(!allWeeks[wk]) allWeeks[wk] = {};
+          allWeeks[wk][proj.id] = snapRec.data[wk];
+        });
+      }
+    }
+
+    // 5. 重新拉取会议数据（以云端为准，完全覆盖）
+    const wk = wkKey(S.yr, S.wk);
+    const meetingRec = await _dbGet('meeting_' + S.yr + '_' + S.wk);
+    if(meetingRec && meetingRec.data){
+      if(!allWeeks[wk]) allWeeks[wk] = {};
+      allWeeks[wk].__meetings = meetingRec.data;
+    }
+
+    // 保存合并后的 weeks 数据
+    localStorage.setItem('hlzc_w', JSON.stringify(allWeeks));
+
+    // 6. 刷新页面显示
+    render();
+    renderActivityBar();
+
+    // 7. 隐藏刷新按钮
+    document.querySelectorAll('._refresh_btn').forEach(btn => {
+      btn.style.display = 'none';
+      const badge = btn.querySelector('._new_data_badge');
+      if(badge) badge.remove();
+    });
+
+  } catch(e) {
+    console.error('同步失败:', e);
+    alert('同步失败，请检查网络后重试');
+  }
+}
+
+// 轮询用：静默检查 pending，只更新气泡数字（不覆盖 _userRegistry）
+async function _checkPendingBadge(){
+  if(!isDirector() || !_syncOk) return;
+  try{
+    const rec = await _dbGet('users');
+    if(rec && rec.data){
+      // 只用于计数，不覆盖内存中的 _userRegistry（防止删除操作被回滚）
+      const remoteReg = rec.data;
+      const cnt = Object.entries(remoteReg).filter(([n,u])=>u.role==='pending'&&!DIRECTORS.includes(n)).length;
+      // 同步到内存（但跳过已在内存中被删除的用户）
+      // 规则：云端有但内存没有的，加进来；内存有的，保持内存状态
+      for(const [n, u] of Object.entries(remoteReg)){
+        if(!(_userRegistry[n])){
+          // 内存没有这个人，说明可能是新注册，同步进来
+          _userRegistry[n] = u;
+        }
+        // 内存已有：不覆盖（尊重本地删除/修改操作）
+      }
+      const existing = document.getElementById('_notif_bubble');
+      if(cnt > 0){
+        if(existing){ existing.textContent = cnt; }
+        else { _showPendingBadge(cnt); }
+      } else {
+        if(existing) existing.remove();
+      }
+    }
+  }catch(e){}
+}
+
+// ════ 提交（带乐观锁） ════
+
+// ════ 字段级合并（方案1：空值不覆盖非空值）════
+// 合并规则：
+//   1. 本地有值 + 云端有值 → 比较 _ts 时间戳，取最新的
+//   2. 本地有值 + 云端为空 → 用本地值（本地填了不能丢）
+//   3. 本地为空 + 云端有值 → 用云端值（空值不能覆盖非空值）
+//   4. 本地为空 + 云端为空 → 保持空
+const SNAP_CONTENT_FIELDS = ['status','stage','risk','coreOutput','coreAction','decision','crossDept','next','incident','knowledge'];
+
+function _mergeSnap(localSnap, remoteSnap){
+  if(!remoteSnap) return {...localSnap};
+  const merged = {...remoteSnap}; // 先以云端为基础
+  for(const field of SNAP_CONTENT_FIELDS){
+    const lv = localSnap[field];
+    const rv = remoteSnap[field];
+    const localEmpty  = lv === undefined || lv === null || lv === '';
+    const remoteEmpty = rv === undefined || rv === null || rv === '';
+    
+    if(localEmpty && !remoteEmpty){
+      // 规则3：本地空，用云端（但如果是风险/决策等字段，本地空可能是故意的，需要判断）
+      if((field === 'risk' && lv === '') || (field === 'decision' && lv === '无')) {
+        // 如果本地明确设为空字符串或"无"，就用本地值（覆盖云端）
+        merged[field] = lv;
+      } else {
+        merged[field] = rv;
+      }
+    } else if(!localEmpty && remoteEmpty){
+      merged[field] = lv;   // 规则2：云端空，用本地
+    } else if(!localEmpty && !remoteEmpty){
+      // 规则1：都有值，比时间戳（字段级时间戳优先，否则比整体 _ts）
+      const lts = (localSnap._fieldTs && localSnap._fieldTs[field]) || localSnap._ts || 0;
+      const rts = (remoteSnap._fieldTs && remoteSnap._fieldTs[field]) || remoteSnap._ts || 0;
+      merged[field] = lts >= rts ? lv : rv;
+    } else {
+      // 规则4：都空 → 保持空
+      merged[field] = '';
+    }
+  }
+  // status/stage 特殊处理：只要本地有明确设置就用本地
+  if(localSnap.status) merged.status = localSnap.status;
+  if(localSnap.stage !== undefined && localSnap.stage !== null) merged.stage = localSnap.stage;
+  return merged;
+}
+
+// 给快照里的每个字段打上时间戳（保存时调用）
+function _stampSnap(snap){
+  const now = Date.now();
+  const fieldTs = snap._fieldTs ? {...snap._fieldTs} : {};
+  for(const field of SNAP_CONTENT_FIELDS){
+    const v = snap[field];
+    const hasValue = v !== undefined && v !== null && v !== '';
+    if(hasValue) fieldTs[field] = now; // 有值的字段更新时间戳
+  }
+  return {...snap, _ts: now, _fieldTs: fieldTs};
+}
+
+async function submitProject(projId){
+  if(!syncConfigured()){ alert('云端未配置'); return false; }
+  const projName = (LP().find(p=>p.id===projId)||{}).name||'项目'+projId;
+  const t = new Date().toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+
+  if(!_syncOk){
+    // 离线：本地快照加时间戳后入队
+    const remoteId = 'snap_'+projId;
+    const newV = String(Date.now());
+    const localSnap = LW_proj(projId);
+    // 给每周快照打时间戳
+    const stampedSnap = {};
+    for(const [wk, s] of Object.entries(localSnap)){
+      stampedSnap[wk] = _stampSnap(s);
+    }
+    const payload = {data:stampedSnap, _v:newV, _updatedBy:_currentUser, _updatedAt:t};
+    _queueAdd({id:remoteId, obj:payload, ts:Date.now()});
+    localStorage.setItem('hlzc_pv_'+projId, newV);
+    _addActivityLog({user:_currentUser, action:'离线提交', proj:projName, time:t, ts:Date.now()});
+    _showOfflineToast('网络不可用，已存入本地队列，恢复后自动上传');
+    return 'queued';
+  }
+
+  const remoteId = 'snap_'+projId;
+  const newV = String(Date.now());
+  showSyncStatus('saving');
+
+  try{
+    // ── 步骤1：拉取云端最新快照 ──
+    const remoteRec = await _dbGet(remoteId);
+    const remoteData = (remoteRec && remoteRec.data) ? remoteRec.data : {};
+
+    // ── 步骤2：字段级合并（本地 + 云端 → 合并结果）──
+    const localSnap = LW_proj(projId);
+    const mergedSnap = {};
+    // 收集所有周次（本地+云端都要考虑）
+    const allWks = new Set([...Object.keys(localSnap), ...Object.keys(remoteData)]);
+    for(const wk of allWks){
+      const local  = localSnap[wk]  || null;
+      const remote = remoteData[wk] || null;
+      if(local && remote){
+        mergedSnap[wk] = _stampSnap(_mergeSnap(local, remote));
+      } else if(local){
+        mergedSnap[wk] = _stampSnap(local); // 只有本地有，直接用
+      } else {
+        mergedSnap[wk] = remote; // 只有云端有，保留（不能丢）
+      }
+    }
+
+    // ── 步骤3：把合并结果同步回本地 localStorage（让本地也是最新合并状态）──
+    const allWeeks = LW();
+    for(const [wk, snap] of Object.entries(mergedSnap)){
+      if(!allWeeks[wk]) allWeeks[wk] = {};
+      allWeeks[wk][projId] = snap;
+    }
+    localStorage.setItem('hlzc_w', JSON.stringify(allWeeks));
+
+    // ── 步骤4：写入云端（合并后的完整快照）──
+    await _dbSet(remoteId, {data:mergedSnap, _v:newV, _updatedBy:_currentUser, _updatedAt:t});
+    localStorage.setItem('hlzc_pv_'+projId, newV);
+
+    const entry = {user:_currentUser, action:'提交', proj:projName, time:t, ts:Date.now()};
+    _addActivityLog(entry);
+    _pushActivityLog(entry);
+    showSyncStatus('saved'); setTimeout(()=>showSyncStatus('sync'),2000);
+    return true;
+
+  }catch(e){
+    console.warn('submit error:', e.message);
+    showSyncStatus('err');
+    alert('提交失败\n\n请检查网络或稍后重试');
+    return false;
+  }
+}
+
+async function _pushActivityLog(entry){
+  try{
+    const rec = await _dbGet('activity_log');
+    const logs = (rec && rec.data) ? rec.data : [];
+    logs.unshift(entry); if(logs.length > 100) logs.length = 100;
+    await _dbSet('activity_log', {data:logs, _updatedAt:Date.now()});
+  }catch(e){}
+}
+
+async function pullProject(projId){
+  if(!syncConfigured()||!_syncOk) return;
+  try{
+    const rec = await _dbGet('snap_'+projId); if(!rec||!rec.data) return;
+    const remoteData = rec.data;
+    const localSnap  = LW_proj(projId);
+    const all = LW();
+    // 用字段级合并替代整体覆盖
+    for(const [wk, remoteSnap] of Object.entries(remoteData)){
+      if(!all[wk]) all[wk] = {};
+      const localWkSnap = (all[wk] && all[wk][projId]) ? all[wk][projId] : null;
+      all[wk][projId] = localWkSnap ? _mergeSnap(localWkSnap, remoteSnap) : remoteSnap;
+    }
+    localStorage.setItem('hlzc_w', JSON.stringify(all));
+    if(rec._v) localStorage.setItem('hlzc_pv_'+projId, rec._v);
+  }catch(e){}
+}
+
+async function _loadProjBin(projId){ const rec = await _dbGet('snap_'+projId); return rec ? rec.data : null; }
+async function _saveMainBin(payload){ return _dbSet('projects', payload); }
+
+function LP(){ try{return JSON.parse(localStorage.getItem('hlzc_p')||'[]')}catch{return[]} }
+function SP(ps){
+  localStorage.setItem('hlzc_p',JSON.stringify(ps));
+  if(_syncOk){ showSyncStatus('saving'); _dbSet('projects',{projects:ps,_v:Date.now()}).then(()=>{showSyncStatus('saved');setTimeout(()=>showSyncStatus('sync'),2000);}).catch(()=>showSyncStatus('err')); }
+}
+function LW(){ try{return JSON.parse(localStorage.getItem('hlzc_w')||'{}')}catch{return{}} }
+function SW(w){ localStorage.setItem('hlzc_w',JSON.stringify(w)); markPending(); }
+function LW_proj(projId){
+  const all=LW(),result={};
+  Object.keys(all).forEach(wk=>{ if(all[wk][projId]!==undefined) result[wk]=all[wk][projId]; });
+  return result;
+}
+
+const FIELD_LABELS={
+  name:'项目名称',area:'项目面积',startDate:'设计启动',
+  schemeDate:'方案完成',designDate:'设计完成',siteDate:'进场时间',
+  completionDate:'竣工时间',openDate:'开业时间',
+  prepOwner:'筹备负责人',designOwner:'研策负责人',
+  archived:'归档状态',defStatus:'默认状态',defStage:'默认阶段',
+  status:'项目状态',stage:'当前阶段',risk:'风险/卡点',
+  coreOutput:'上周完成',coreAction:'本周计划',
+  decision:'管理层决策',crossDept:'跨部门支援',
+};
+const STATUS_LABEL={r:'🔴需决策/卡住',y:'🟡需关注',g:'🟢正常推进'};
+function fieldVal(k,v){
+  if(k==='status'||k==='defStatus') return STATUS_LABEL[v]||v||'—';
+  if(k==='stage'||k==='defStage') return STAGES[v]||v||'—';
+  if(k==='archived') return v?'已归档':'在建';
+  return (v===null||v===undefined||v==='') ? '（空）' : String(v);
+}
+
+// 日期时间转换函数（用于 datetime-local 输入框）
+function toDateTimeLocal(v){
+  if(!v) return '';
+  // 将 "2026/3/15 14:00" 转换为 "2026-03-15T14:00"
+  const match = v.match(/(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})/);
+  if(!match) return '';
+  const [,y,mo,d,h,m] = match;
+  return `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}T${String(h).padStart(2,'0')}:${m}`;
+}
+function fromDateTimeLocal(v){
+  if(!v) return '';
+  // 将 "2026-03-15T14:00" 转换为 "2026/3/15 14:00"
+  const match = v.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  if(!match) return '';
+  const [,y,mo,d,h,m] = match;
+  return `${y}/${parseInt(mo)}/${parseInt(d)} ${h}:${m}`;
+}
+
+function isoWk(d){
+  const t=new Date(d);t.setHours(0,0,0,0);t.setDate(t.getDate()+3-(t.getDay()+6)%7);
+  const w=new Date(t.getFullYear(),0,4);
+  return{yr:t.getFullYear(),wk:1+Math.round(((t-w)/864e5-(3-(w.getDay()+6)%7))/7)};
+}
+function wkKey(yr,wk){return`${yr}-W${String(wk).padStart(2,'0')}`}
+function parseWkKey(k){const m=k.match(/(\d{4})-W(\d+)/);return m?{yr:+m[1],wk:+m[2]}:null}
+function wkLabel(yr,wk){return`${yr}年 第${wk}周`}
+function wkRange(yr,wk){
+  const j4=new Date(yr,0,4);
+  const mon=new Date(j4);mon.setDate(j4.getDate()-(j4.getDay()||7)+1+(wk-1)*7);
+  const sun=new Date(mon);sun.setDate(mon.getDate()+6);
+  const f=d=>d.toLocaleDateString('zh-CN',{month:'numeric',day:'numeric'});
+  return`${f(mon)} — ${f(sun)}`;
+}
+function getSnap(yr,wk,pid,projects){
+  const weeks=LW(),k=wkKey(yr,wk);
+  if(weeks[k]&&weeks[k][pid]!==undefined)return weeks[k][pid];
+  const sorted=Object.keys(weeks).filter(x=>x<=k).sort();
+  for(let i=sorted.length-1;i>=0;i--)
+    if(weeks[sorted[i]]&&weeks[sorted[i]][pid]!==undefined)return{...weeks[sorted[i]][pid]};
+  const p=projects.find(x=>x.id===pid);
+  return p?{status:p.defStatus||'g',stage:p.defStage||0,risk:'',next:'',decision:'无',
+    coreOutput:'',coreAction:'',incident:'',crossDept:'',knowledge:''}:
+    {status:'g',stage:0,risk:'',next:'',decision:'无',coreOutput:'',coreAction:'',incident:'',crossDept:'',knowledge:''};
+}
+function setSnap(yr,wk,pid,snap){
+  const weeks=LW(),k=wkKey(yr,wk);
+  if(!weeks[k])weeks[k]={};weeks[k][pid]=snap;SW(weeks);
+}
+
+const NOW=new Date(); const {yr:CYR,wk:CWK}=isoWk(NOW);
+let S={tab:'weekly',yr:CYR,wk:CWK,editId:null,wkEditId:null,
+  pendingDelId:null,pendingArchId:null,pendingUnarchId:null,
+  showArch:false,form:{},wform:{},meetingEditId:null,meetingForm:null};
+function isNow(){return S.yr===CYR&&S.wk===CWK}
+function canEdit(){return true} // 允许编辑任意周（包括历史补录）
+function todayStr(){return new Date().toLocaleDateString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit'})}
+
+function seed(){
+  if(LP().length)return;
+  const ps=[ {id:1,name:'示例项目',area:'1200㎡',startDate:'',schemeDate:'',designDate:'',siteDate:'',completionDate:'',openDate:'',prepOwner:'张三',designOwner:'李四',archived:false,defStatus:'g',defStage:0} ];
+  SP(ps);
+  const snap={ 1:{status:'g',stage:0,risk:'',next:'',decision:'无',coreOutput:'示例',coreAction:'',incident:'',crossDept:'',knowledge:''} };
+  const weeks=LW();weeks[wkKey(CYR,CWK)]=snap;SW(weeks);
+}
+
+function sc(s){return s==='r'?'r':s==='y'?'y':'g'}
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function blankProj(){return{name:'',area:'',startDate:'',schemeDate:'',designDate:'',siteDate:'',completionDate:'',openDate:'',prepOwner:'',designOwner:'',defStatus:'g',defStage:0}}
+function blankWkForm(pid){return getSnap(S.yr,S.wk,pid,LP())}
+
+function renderWeekly(){
+  const projects=LP();
+  const active=projects.filter(p=>!p.archived).sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
+  const snaps=active.map(p=>({...p,...getSnap(S.yr,S.wk,p.id,projects)}));
+  const r=snaps.filter(p=>p.status==='r').length, y=snaps.filter(p=>p.status==='y').length, g=snaps.filter(p=>p.status==='g').length;
+  const blk=snaps.filter(p=>p.decision&&p.decision!=='无'&&p.status==='r');
+  // 风险卡点：只有 status='r' 且 risk 字段有实际内容（非空且不是"无"）才计入
+  const redProjects=snaps.filter(p=>p.status==='r' && p.risk && p.risk.trim() && p.risk.trim()!=='无');
+  const now=isNow();
+
+  return`
+  <div class="print-hd"><h1>华力集团｜研策部周报</h1><p>${wkLabel(S.yr,S.wk)}（${wkRange(S.yr,S.wk)}）</p></div>
+  <div class="io-bar no-print">
+    <button class="io-btn" onclick="window.print()">📄 导出 PDF</button>
+    <button class="io-btn" onclick="openExport()">📤 导出备份</button>
+    <button class="io-btn imp" onclick="openImport()">📥 导入数据</button>
+  </div>
+  ${!syncConfigured()?`
+  <div style="background:#fffbe6;border:1.5px solid #e8c840;border-radius:var(--r);padding:14px 18px;margin-bottom:14px">
+    <div style="font-size:13px;font-weight:700;color:#7a5800;margin-bottom:8px">💡 当前未配置云端同步，数据仅保存在本地</div>
+    <div style="font-size:12px;color:#7a5800;line-height:1.9">
+      请参考代码要求替换 <code style="background:#f0d878;padding:2px 6px;border-radius:3px">PROXY_URL</code> 以开启多人协作。
+    </div>
+  </div>`:''}
+  <div class="wkbar">
+    <div><div class="wkbar-l">${wkLabel(S.yr,S.wk)}</div>
+    <div class="wkbar-sub">${wkRange(S.yr,S.wk)}${now?' · <span style="color:var(--gt);font-weight:700">本周</span>':' · <span style="color:var(--t3)">历史查阅</span>'}</div></div>
+    ${now?`<button class="add-btn" onclick="ST('input')">＋ 新增项目</button>`:''}
+  </div>
+  <div class="metrics" style="grid-template-columns:repeat(5,1fr)">
+    <div class="mc"><div class="lb">重点事项</div><div class="vl">${active.length}</div></div>
+    <div class="mc"><div class="lb">需决策/卡住</div><div class="vl r">${r}</div></div>
+    <div class="mc"><div class="lb">需关注</div><div class="vl y">${y}</div></div>
+    <div class="mc"><div class="lb">正常推进</div><div class="vl g">${g}</div></div>
+    <div class="mc" style="cursor:pointer" onclick="ST('meeting')"><div class="lb">本周会议</div><div class="vl" style="color:var(--gold)">${(()=>{const wk=LW()[wkKey(S.yr,S.wk)];return wk&&wk.__meetings?wk.__meetings.length:0})()}</div></div>
+  </div>
+  ${blk.length?`<div class="notice"><strong>本周有 ${blk.length} 个项目需要管理层决策</strong>
+    <div class="blk-list">${blk.map(p=>`<div class="blk-item"><div class="blk-nm" style="flex:0 0 120px">${esc(p.name)}</div><div class="blk-dc">${esc(p.decision)}</div></div>`).join('')}</div>
+  </div>`:''}
+  ${redProjects.length?`<div class="notice" style="background:var(--rb);border-color:var(--rbd)"><strong style="color:var(--rt)">本周有 ${redProjects.length} 个项目存在风险卡点</strong>
+    <div class="blk-list">${redProjects.map(p=>`<div class="blk-item" style="background:rgba(176,0,32,.12)"><div class="blk-nm" style="flex:0 0 120px">${esc(p.name)}</div><div class="blk-dc">${esc(p.risk||'未填写具体风险')}</div></div>`).join('')}</div>
+  </div>`:''}
+  <div class="sh"><div class="sh-t">重点事项（${active.length}）${now?'<span style="font-size:10px;color:var(--t3);font-weight:400;margin-left:8px">长按卡片可拖动排序</span>':''}</div>
+    <div class="leg">
+      <div class="li"><div class="ls" style="background:var(--rt)"></div>需决策</div>
+      <div class="li"><div class="ls" style="background:var(--yt)"></div>需关注</div>
+      <div class="li"><div class="ls" style="background:#1a6830"></div>正常</div>
+    </div>
+  </div>
+  <div class="pgrid" id="sortable-grid">
+    ${snaps.map(p=>renderWeekCard(p,now,false)).join('')}
+    ${!snaps.length?`<div class="empty">本周暂无重点事项</div>`:''}
+  </div>`;
+}
+
+function renderWeekCard(p,now,isArch){
+  const segs=STAGES.map((_,i)=>`<div class="ss ${i<p.stage?'dn':i===p.stage?'ac':''}"></div>`).join('');
+  const canEdit = canEditProject(p);
+  const drag=now&&!isArch&&canEdit?'draggable="true" data-id="'+p.id+'" onmousedown="startLongPress(event,'+p.id+')" onmouseup="cancelLongPress()" ontouchstart="startLongPress(event,'+p.id+')" ontouchend="cancelLongPress()" ondragstart="onDragStart(event)" ondragover="onDragOver(event)" ondrop="onDrop(event)" ondragend="onDragEnd(event)"':'';
+  const lastEditor = p._updatedBy ? `${esc(p._updatedBy)} · ${esc(p._updatedAt||'')}` : '';
+  return`<div class="pc ${sc(p.status)}" ${drag} id="pc-${p.id}">
+    <div class="pc-top">
+      <div class="pc-nm">${now&&!isArch&&canEdit?'<span style="color:var(--t3);font-size:12px;margin-right:4px;cursor:grab">⠿</span>':''} ${esc(p.name)}
+        ${!canEdit&&now?`<span style="font-size:10px;color:var(--t3);margin-left:6px;font-weight:400">🔒 只读</span>`:''}
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        ${lastEditor?`<span style="font-size:10px;color:var(--t3)">✏ ${lastEditor}</span>`:''}
+        <div class="badge ${sc(p.status)}"><div class="dot ${sc(p.status)}"></div>${SL[p.status]||''}</div>
+      </div>
+    </div>
+    <div class="pc-keys">
+      <div class="pk"><div class="pk-lb">开业时间</div><div class="pk-vl">${esc(p.openDate||'待定')}</div></div>
+      <div class="pk"><div class="pk-lb">筹备负责人</div><div class="pk-vl">${esc(p.prepOwner||'—')}</div></div>
+      <div class="pk"><div class="pk-lb">研策负责人</div><div class="pk-vl">${esc(p.designOwner||'—')}</div></div>
+    </div>
+    <div class="stages" style="margin-bottom:9px">${segs}</div>
+    <div class="dims">
+      <div class="dim d1"><div class="dim-hd" style="color:#2563a8">上周工作完成情况</div><div class="dim-body" style="color:var(--t2);white-space:pre-wrap">${esc(p.coreOutput)||'—'}</div></div>
+      <div class="dim d2"><div class="dim-hd">本周计划</div><div class="dim-body" style="white-space:pre-wrap">${esc(p.coreAction)||'—'}</div></div>
+      <div class="dim d3"><div class="dim-hd" style="color:#b00020">风险 / 卡点</div><div class="dim-body" style="color:#b00020;white-space:pre-wrap">${esc(p.risk)||'—'}</div></div>
+      <div class="dim d4"><div class="dim-hd" style="color:#2563a8">跨部门支援</div><div class="dim-body" style="white-space:pre-wrap">${esc(p.crossDept)||'本周无需跨部门支援'}</div></div>
+    </div>
+    ${canEdit?`<div class="ca">
+      <button class="bs" style="font-size:11px;padding:4px 9px" onclick="openWkEdit(${p.id})">✏ ${S.yr>CYR||(S.yr===CYR&&S.wk>=CWK)?'更新本周状态':'补录历史数据'}</button>
+      ${isDirector()?`<button class="bs" style="font-size:11px;padding:4px 9px" onclick="editProj(${p.id})">编辑项目</button>`:''}
+      <button class="bp" style="font-size:11px;padding:4px 12px;background:var(--gold)" onclick="askSubmitProject(${p.id})">📤 提交</button>
+      ${isDirector()&&isNow()?`<button class="ba" onclick="askArch(${p.id})">归档</button>`:''}
+      ${isDirector()&&isNow()?`<button class="bd" onclick="askDel(${p.id})">删除</button>`:''}
+    </div>`:!canEdit?`<div class="ca" style="justify-content:flex-end">
+      <span style="font-size:11px;color:var(--t3)">此项目由 ${esc(p.prepOwner||p.designOwner||'其他人')} 负责</span>
+    </div>`:''}
+  </div>`;
+}
+
+function renderOverview(){
+  const projects=LP(); const active=projects.filter(p=>!p.archived); const arch=projects.filter(p=>p.archived);
+  const renderOvCard=(p)=>{
+    const snap=getSnap(S.yr,S.wk,p.id,projects);
+    const segs=STAGES.map((_,i)=>`<div class="ss ${i<snap.stage?'dn':i===snap.stage?'ac':''}"></div>`).join('');
+    const fields=[
+      ['面积',p.area],['筹备负责人',p.prepOwner],['研策负责人',p.designOwner],
+      ['设计启动',p.startDate],['方案完成',p.schemeDate],['设计完成',p.designDate],
+      ['进场时间',p.siteDate],['竣工时间',p.completionDate],['开业时间',p.openDate],
+    ];
+    return`<div class="ov-card">
+      <div class="ov-top"><div class="ov-nm">${esc(p.name)}</div>${p.archived?`<div class="badge arch">已归档</div>`:`<div class="badge ${sc(snap.status)}"><div class="dot ${sc(snap.status)}"></div>${SL[snap.status]||''}</div>`}</div>
+      <div class="ov-grid">${fields.map(([lb,vl])=>`<div class="og"><div class="og-lb">${lb}</div><div class="og-vl">${esc(vl||'—')}</div></div>`).join('')}</div>
+      <div class="ov-stages">${segs}</div>
+      <div class="ov-stage-lbl">当前阶段：<span>${STAGES[snap.stage]||'—'}</span></div>
+      ${isNow()?`<div class="io-bar no-print" style="justify-content:flex-end;margin-top:8px;padding-top:8px;border-top:0.5px solid var(--bdr)">
+        <button class="io-btn" onclick="submitProjectInfo(${p.id})">☁ 项目提交</button>
+        <button class="bs" style="font-size:11px;padding:4px 9px" onclick="editProj(${p.id})">编辑项目信息</button>
+        ${isDirector()?`<button class="bd" style="font-size:11px;padding:4px 9px" onclick="askDel(${p.id})">删除</button>`:''}
+      </div>`:''}
+    </div>`;
+  };
+  return`
+  <div class="print-hd"><h1>华力集团 · 研策部项目总览</h1><p>${wkLabel(S.yr,S.wk)}（${wkRange(S.yr,S.wk)}）</p></div>
+  <div class="io-bar no-print">
+    ${isNow()?`<button class="io-btn" onclick="ST('input')">＋ 新增项目</button>`:''}
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+    <div style="font-size:14px;font-weight:700">项目总览</div>
+  </div>
+  <div class="sh"><div class="sh-t">在建项目（${active.length}）</div></div>
+  ${active.map(renderOvCard).join('')}
+  ${!active.length?`<div class="empty">暂无在建项目</div>`:''}
+  ${arch.length?`<div class="arch-toggle" onclick="toggleArch()"><span>${S.showArch?'▾':'▸'}</span>已归档项目（${arch.length}）</div>
+  ${S.showArch?arch.map(renderOvCard).join(''):''}`:''}`; 
+}
+
+function renderCharts(){
+  const projects=LP(); const active=projects.filter(p=>!p.archived);
+  const snaps=active.map(p=>({...p,...getSnap(S.yr,S.wk,p.id,projects)}));
+  const sc2={r:0,y:0,g:0}; snaps.forEach(p=>sc2[p.status]=(sc2[p.status]||0)+1);
+  const sd=Array(STAGES.length).fill(0); snaps.forEach(p=>sd[Math.min(p.stage,STAGES.length-1)]++);
+  const maxSD=Math.max(...sd,1);
+  const sorted=[...snaps].sort((a,b)=>({'r':0,'y':1,'g':2}[a.status]||0)-({'r':0,'y':1,'g':2}[b.status]||0));
+  const redProjects=snaps.filter(p=>p.status==='r' && p.risk && p.risk.trim() && p.risk.trim()!=='无');
+  const yelProjects=snaps.filter(p=>p.status==='y');
+  const grnProjects=snaps.filter(p=>p.status==='g');
+
+  // 时间轴数据
+  const today=new Date(); today.setHours(0,0,0,0);
+  const tlItems=active.map(p=>{
+    const snap=snaps.find(s=>s.id===p.id)||{};
+    const start=p.startDate?new Date(p.startDate.replace(/\//g,'-')):null;
+    const end=p.completionDate?new Date(p.completionDate.replace(/\//g,'-')):null;
+    const dFS=start?Math.round((today-start)/86400000):null;
+    const dTE=end?Math.round((end-today)/86400000):null;
+    return{...p,status:snap.status||'g',start,end,dFS,dTE};
+  }).filter(p=>p.start||p.end);
+  const allDates=[...tlItems.map(p=>p.start),today,...tlItems.map(p=>p.end)].filter(Boolean);
+  const minD=allDates.reduce((a,b)=>a<b?a:b,today);
+  const maxD=allDates.reduce((a,b)=>a>b?a:b,today);
+  const span=Math.max((maxD-minD)/86400000,1);
+  const minS=(minD-today)/86400000;
+
+  return`
+  <div class="print-hd" style="--print-title:'华力集团｜研策部可视化周报'"><h1>华力集团｜研策部可视化周报</h1><p>${wkLabel(S.yr,S.wk)}（${wkRange(S.yr,S.wk)}）</p></div>
+  <div class="io-bar no-print">
+    <span id="_sync_label_charts" class="io-btn" style="cursor:default">☁ 已同步</span>
+    <button class="io-btn" onclick="window.print()">📄 导出 PDF</button>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+    <div style="font-size:14px;font-weight:700">${wkLabel(S.yr,S.wk)} · 可视化看板</div>
+  </div>
+
+  <div class="cc">
+    <div class="cc-t">项目健康度总览</div>
+    <div class="health-grid">
+      ${sorted.map(p=>`<div class="hc ${sc(p.status)}">
+        <div class="hc-nm">${esc(p.name)}</div>
+        <div class="hc-stage">${STAGES[p.stage]||'—'} 阶段</div>
+        <div class="hc-risks">
+          ${p.risk&&p.risk!=='正常推进'?`<div class="hc-risk">${esc(p.risk)}</div>`:'<div class="hc-risk">正常推进</div>'}
+        </div>
+      </div>`).join('')}
+    </div>
+  </div>
+
+  <div class="cc">
+    <div class="cc-t">项目状态分布</div>
+    <div class="bch">
+      ${(()=>{
+        const tot=active.length||1;
+        return[
+          {lb:'需决策/卡住',cl:'#c0392b',cnt:sc2['r']||0,ps:redProjects},
+          {lb:'需关注',cl:'#d4840a',cnt:sc2['y']||0,ps:yelProjects},
+          {lb:'正常推进',cl:'#27ae60',cnt:sc2['g']||0,ps:grnProjects}
+        ].map(({lb,cl,cnt,ps})=>`<div class="br" style="align-items:flex-start;margin-bottom:6px">
+          <div class="bl" style="padding-top:3px">${lb}</div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+            <div style="width:100%;height:20px;background:var(--bdr);border-radius:4px;overflow:hidden">
+              <div style="width:${cnt/tot*100}%;height:100%;background:${cl};border-radius:4px;transition:width .4s;${cnt===0?'display:none':''}"></div>
+            </div>
+            ${cnt>0&&ps?`<div style="display:flex;flex-wrap:wrap;gap:3px">${ps.map(p=>`<span style="font-size:10px;padding:2px 7px;border-radius:3px;background:${cl}22;color:${cl};border:0.5px solid ${cl}55">${esc(p.name.length>10?p.name.slice(0,10)+'…':p.name)}</span>`).join('')}</div>`:''}
+          </div>
+          <div style="min-width:36px;text-align:right;font-size:12px;font-weight:700;color:${cnt>0?cl:'var(--t3)'};">${cnt} 个</div>
+        </div>`).join('');
+      })()}
+    </div>
+  </div>
+
+  <div class="cc">
+    <div class="cc-t">各设计阶段分布</div>
+    <div class="bch">
+      ${STAGES.map((s,i)=>sd[i]?`<div class="br">
+        <div class="bl">${s}</div>
+        <div class="bt" style="height:18px"><div class="bf" style="width:${Math.round(sd[i]/maxSD*100)}%;background:var(--gold)"></div></div>
+        <div class="bv">${sd[i]}个</div>
+      </div>`:'').join('')}
+      ${sd.every(v=>!v)?`<div class="empty">暂无数据</div>`:''}
+    </div>
+  </div>
+
+  ${tlItems.length?`<div class="cc">
+    <div class="cc-t">项目时间轴</div>
+    <div class="tlw">
+      ${tlItems.map(p=>{
+        const cl=p.status==='r'?'#b00020':p.status==='y'?'#9a7200':'#1a6830';
+        const s2=p.start?Math.max(0,Math.round((-(p.dFS||0)-minS)/span*100)):0;
+        const e2=p.end?Math.min(100,Math.round((span-(p.dTE||0)+(-minS))/span*100)):70;
+        const tPct=Math.round(-minS/span*100);
+        const barL=Math.max(0,Math.min(s2,e2));
+        const barR=Math.min(100,Math.max(barL+2,Math.max(s2,e2)));
+        const dc=p.dTE!==null?(p.dTE<=30?'var(--rt)':p.dTE<=60?'var(--yt)':'var(--t3)'):'var(--t3)';
+        return`<div class="tlr">
+          <div class="tln" title="${esc(p.name)}">${esc(p.name.length>13?p.name.slice(0,13)+'…':p.name)}</div>
+          <div class="tlt">
+            <div class="tlb" style="left:${barL}%;width:${barR-barL}%;background:${cl}"></div>
+            <div style="position:absolute;top:-4px;left:${tPct}%;width:1px;height:calc(100% + 8px);border-left:2px dashed var(--rt);opacity:.7;z-index:2"></div>
+          </div>
+          <div class="tlds" style="color:${dc}">${p.dTE!==null?p.dTE+'天':'待定'}</div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="font-size:10px;color:var(--t3);margin-top:7px">虚线=今天 · 数字=距竣工天数</div>
+  </div>`:''}
+
+  <div class="cc">
+    <div class="cc-t">本周行动汇总</div>
+    <div class="ali">
+      ${snaps.map((p,idx)=>`<div class="ai">
+        <div style="flex-shrink:0;width:20px;height:20px;border-radius:50%;background:var(--gl);color:var(--gold);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center">${idx+1}</div>
+        <div><div class="badge ${sc(p.status)}" style="font-size:10px;margin-bottom:3px">${esc(p.name.length>8?p.name.slice(0,8)+'…':p.name)}</div></div>
+        <div class="at">${esc(p.coreAction||p.next)||'—'}</div>
+      </div>`).join('')}
+      ${!snaps.length?`<div class="empty">暂无数据</div>`:''}
+    </div>
+  </div>`;
+}
+
+function getMeetings(yr,wk){ return(LW()[wkKey(yr,wk)]||{}).__meetings||[]; }
+function setMeetings(yr,wk,meetings){ const w=LW(),k=wkKey(yr,wk); if(!w[k])w[k]={}; w[k].__meetings=meetings; SW(w); }
+
+function renderMeeting(){
+  const meetings=getMeetings(S.yr,S.wk);
+
+  // 渲染编辑表单
+  if(S.meetingEditId!==null){
+    const mf=S.meetingForm||{title:'',time:'',initiator:'',attendees:'',content:'',issues:''};
+    return`
+    <div class="io-bar no-print">
+      <button class="bs" onclick="cancelMeeting()">← 返回</button>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div style="font-size:14px;font-weight:700">${S.meetingEditId===0?'新增会议':'编辑会议'}</div>
+    </div>
+    <div class="fc">
+      <div class="fg">
+        <div class="ff" style="grid-column:1/-1"><label>会议名称 *</label>
+          <input value="${esc(mf.title)}" placeholder="例：西安熙地港方案汇报会" oninput="S.meetingForm.title=this.value"></div>
+        <div class="ff"><label>会议时间</label>
+          <input type="datetime-local" value="${toDateTimeLocal(mf.time)}" onchange="S.meetingForm.time=fromDateTimeLocal(this.value)"></div>
+        <div class="ff"><label>发起人</label>
+          <input value="${esc(mf.initiator)}" placeholder="姓名" oninput="S.meetingForm.initiator=this.value"></div>
+        <div class="ff" style="grid-column:1/-1"><label>参与人</label>
+          <input value="${esc(mf.attendees)}" placeholder="例：张三、李四、设计公司王总" oninput="S.meetingForm.attendees=this.value"></div>
+        <div class="ff" style="grid-column:1/-1"><label>主要内容</label>
+          <textarea class="auto-h" placeholder="会议主要讨论内容和结论" oninput="S.meetingForm.content=this.value">${esc(mf.content)}</textarea></div>
+        <div class="ff" style="grid-column:1/-1"><label>需要解决的问题（无则留空）</label>
+          <textarea class="auto-h" placeholder="例：业主需3天内确认平面方案" oninput="S.meetingForm.issues=this.value">${esc(mf.issues)}</textarea></div>
+      </div>
+      <div class="ar">
+        <button class="bs" onclick="cancelMeeting()">取消</button>
+        <button class="bp" onclick="saveMeeting()">保存</button>
+      </div>
+    </div>`;
+  }
+
+  const renderMCard=(m,idx)=>`
+  <div style="background:var(--card);border:0.5px solid var(--bdr);border-radius:var(--r);padding:14px 16px;margin-bottom:9px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:22px;height:22px;border-radius:50%;background:var(--gl);color:var(--gold);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${idx+1}</div>
+        <div style="font-size:14px;font-weight:700">${esc(m.title)||'（未命名）'}</div>
+      </div>
+      ${m.time?`<div style="font-size:11px;color:var(--t3)">${esc(m.time)}</div>`:''}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;margin-bottom:8px">
+      <div style="background:var(--bg);border-radius:var(--rr);padding:7px 10px"><div style="font-size:10px;color:var(--t3);font-weight:700;margin-bottom:3px">发起人</div><div>${esc(m.initiator||'—')}</div></div>
+      <div style="background:var(--bg);border-radius:var(--rr);padding:7px 10px"><div style="font-size:10px;color:var(--t3);font-weight:700;margin-bottom:3px">参与人</div><div>${esc(m.attendees||'—')}</div></div>
+      <div style="background:var(--bg);border-radius:var(--rr);padding:7px 10px;grid-column:1/-1"><div style="font-size:10px;color:var(--t3);font-weight:700;margin-bottom:3px">主要内容</div><div style="line-height:1.5">${esc(m.content||'—')}</div></div>
+      ${m.issues?`<div style="background:var(--rb);border:0.5px solid var(--rbd);border-radius:var(--rr);padding:7px 10px;grid-column:1/-1"><div style="font-size:10px;color:var(--rt);font-weight:700;margin-bottom:3px">需要解决的问题</div><div style="color:var(--rt);line-height:1.5">${esc(m.issues)}</div></div>`:''}
+    </div>
+    <div class="io-bar no-print" style="justify-content:flex-end;margin-top:8px;padding-top:8px;border-top:0.5px solid var(--bdr)">
+      <button class="io-btn" onclick="submitMeeting(${m.id})">☁ 会议提交</button>
+      <button class="bs" style="font-size:11px;padding:4px 9px" onclick="editMeeting(${m.id})">编辑</button>
+      <button class="bd" onclick="delMeeting(${m.id})">删除</button>
+    </div>
+  </div>`;
+
+  return`
+  <div class="print-hd"><h1>华力集团 · 研策部本周重点会议</h1><p>${wkLabel(S.yr,S.wk)}（${wkRange(S.yr,S.wk)}）</p></div>
+  <div class="io-bar no-print">
+    <button class="io-btn" onclick="newMeeting()">＋ 新增会议</button>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+    <div>
+      <div style="font-size:14px;font-weight:700">本周重点会议</div>
+      <div style="font-size:11px;color:var(--t3);margin-top:2px">${wkLabel(S.yr,S.wk)} · ${wkRange(S.yr,S.wk)}</div>
+    </div>
+  </div>
+  ${meetings.length?meetings.map(renderMCard).join(''):`<div class="empty">本周暂无会议记录，点击右上角「新增会议」添加</div>`}`;
+}
+
+window.newMeeting=function(){
+  S.meetingEditId=0;
+  S.meetingForm={id:Date.now(),title:'',time:'',initiator:_currentUser||'',attendees:'',content:'',issues:''};
+  render();
+};
+window.editMeeting=function(id){
+  const m=getMeetings(S.yr,S.wk).find(x=>x.id===id);
+  if(!m)return;
+  S.meetingEditId=id; S.meetingForm={...m}; render();
+};
+window.cancelMeeting=function(){ S.meetingEditId=null; S.meetingForm=null; render(); };
+window.saveMeeting=async function(){
+  const mf=S.meetingForm;
+  if(!mf||!mf.title.trim()){alert('请填写会议名称');return;}
+  const ms=getMeetings(S.yr,S.wk);
+  let updatedList;
+  if(S.meetingEditId===0){
+    const newMeeting = {...mf, id: Date.now()};
+    updatedList = [...ms, newMeeting];
+  }else{
+    updatedList = ms.map(m=>m.id===S.meetingEditId?{...mf}:m);
+  }
+  setMeetings(S.yr,S.wk,updatedList);
+  S.meetingEditId=null; S.meetingForm=null; render();
+  
+  // 自动同步到云端
+  if(_syncOk && syncConfigured()){
+    showSyncStatus('saving');
+    try{
+      const remoteId = 'meeting_' + S.yr + '_' + S.wk;
+      await _dbSet(remoteId, {data: updatedList, _v: Date.now()});
+      showSyncStatus('saved');
+      setTimeout(() => showSyncStatus('sync'), 2000);
+    }catch(e){
+      console.error('保存会议同步失败:', e);
+      showSyncStatus('err');
+    }
+  }
+};
+window.delMeeting=async function(id){
+  if(!confirm('确认删除该会议记录？'))return;
+  
+  // 先本地删除
+  setMeetings(S.yr,S.wk,getMeetings(S.yr,S.wk).filter(m=>m.id!==id));
+  render();
+  
+  // 同步删除到云端
+  if(_syncOk && syncConfigured()){
+    showSyncStatus('saving');
+    try{
+      const remoteId = 'meeting_' + S.yr + '_' + S.wk;
+      const rec = await _dbGet(remoteId);
+      if(rec && rec.data){
+        const updatedList = rec.data.filter(m => m.id !== id);
+        await _dbSet(remoteId, {data: updatedList, _v: Date.now()});
+        showSyncStatus('saved');
+        setTimeout(() => showSyncStatus('sync'), 2000);
+        _showOfflineToast('会议已删除并同步到云端', 'online');
+      }
+    }catch(e){
+      console.error('删除会议同步失败:', e);
+      showSyncStatus('err');
+      _showOfflineToast('删除同步失败，将重试', 'pending');
+    }
+  }
+};
+
+// 会议提交到云端
+window.submitMeeting=async function(id){
+  const m = getMeetings(S.yr,S.wk).find(x => x.id === id);
+  if(!m){ alert('会议不存在'); return; }
+  
+  if(!syncConfigured()){ alert('云端未配置'); return; }
+  if(!_syncOk){
+    // 离线：存入本地队列
+    const remoteId = 'meeting_' + S.yr + '_' + S.wk + '_' + id;
+    const newV = String(Date.now());
+    _queueAdd({id: remoteId, obj: {...m, _v: newV, _updatedBy: _currentUser, _updatedAt: new Date().toLocaleString('zh-CN')}, extra: undefined, ts: Date.now()});
+    _showOfflineToast('网络不可用，已存入本地队列');
+    return;
+  }
+  
+  showSyncStatus('saving');
+  try{
+    const remoteId = 'meeting_' + S.yr + '_' + S.wk;
+    // 获取现有会议列表
+    let meetingList = [];
+    try{
+      const rec = await _dbGet(remoteId);
+      meetingList = (rec && rec.data) || [];
+    }catch(e){}
+    
+    // 更新或添加这个会议
+    const idx = meetingList.findIndex(x => x.id === id);
+    const updatedM = {...m, _updatedBy: _currentUser, _updatedAt: new Date().toLocaleString('zh-CN')};
+    if(idx >= 0){
+      meetingList[idx] = updatedM;
+    }else{
+      meetingList.push(updatedM);
+    }
+    
+    await _dbSet(remoteId, {data: meetingList, _v: Date.now()});
+    showSyncStatus('saved');
+    setTimeout(() => showSyncStatus('sync'), 2000);
+    _showOfflineToast('会议已提交到云端', 'online');
+  }catch(e){
+    console.error('submitMeeting error:', e);
+    showSyncStatus('err');
+    alert('会议提交失败：' + e.message);
+  }
+};
+
+function renderArchive(){
+  const projects=LP().filter(p=>p.archived);
+  if(!projects.length) return `<div style="font-size:14px;font-weight:700;margin-bottom:14px">归档项目</div><div class="empty">暂无归档项目</div>`;
+  return`
+  <div class="io-bar no-print">
+    <span id="_sync_label_archive" class="io-btn" style="cursor:default">☁ 已同步</span>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+    <div style="font-size:14px;font-weight:700">归档项目（${projects.length}）</div>
+    <div style="font-size:11px;color:var(--t3)">归档项目可随时释放恢复</div>
+  </div>
+  ${projects.map(p=>{
+    const snap=getSnap(S.yr,S.wk,p.id,LP());
+    const segs=STAGES.map((_,i)=>`<div class="ss ${i<snap.stage?'dn':i===snap.stage?'ac':''}"></div>`).join('');
+    return`<div class="arch-card">
+      <div class="arch-card-top"><div class="arch-card-nm">${esc(p.name)}</div><div class="badge arch">已归档</div></div>
+      <div class="arch-card-meta"><span>开业：${esc(p.openDate||'待定')}</span><span>筹备：${esc(p.prepOwner||'—')}</span><span>研策：${esc(p.designOwner||'—')}</span></div>
+      <div class="stages" style="margin:8px 0 4px">${segs}</div>
+      <div style="font-size:10px;color:var(--t3);margin-bottom:10px">阶段：${STAGES[snap.stage]||'—'}</div>
+      <div class="ca" style="padding-top:8px;border-top:0.5px solid var(--bdr)">
+        ${isDirector()?`<button class="bp" style="font-size:11px;padding:5px 14px" onclick="askUnarch(${p.id})">释放回在建</button>`:''}
+        ${isDirector()?`<button class="bd" onclick="askDel(${p.id})">删除</button>`:''}
+      </div>
+    </div>`;
+  }).join('')}`;
+}
+
+function renderHistory(){
+  const weeks=LW();
+  const keys=Object.keys(weeks).sort().reverse();
+  if(!keys.length) return`<div style="font-size:14px;font-weight:700;margin-bottom:14px">历史记录</div><div class="empty">暂无历史数据<br><span style="font-size:11px">提交项目后将在此显示历史记录</span></div>`;
+  return`
+  <div class="io-bar no-print">
+    <span id="_sync_label_history" class="io-btn" style="cursor:default">☁ 已同步</span>
+    <button class="io-btn" onclick="openExport()">📤 导出备份</button>
+    <button class="io-btn imp" onclick="openImport()">📥 导入</button>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <div style="font-size:14px;font-weight:700">历史周报记录</div>
+  </div>
+  <div class="hw"><div class="hw-hd">所有周次（点击跳转查阅）</div>
+    ${keys.map(k=>{
+      const info=parseWkKey(k); if(!info)return'';
+      const snaps=Object.values(weeks[k]||{}).filter(s=>s&&typeof s==='object'&&s.status);
+      const r=snaps.filter(s=>s.status==='r').length;
+      const y=snaps.filter(s=>s.status==='y').length;
+      const g=snaps.filter(s=>s.status==='g').length;
+      const isCur=info.yr===CYR&&info.wk===CWK;
+      return`<div class="wki" onclick="jumpWk(${info.yr},${info.wk})">
+        <div style="flex:1">
+          <div class="wki-l">${wkLabel(info.yr,info.wk)}${isCur?' <span style="font-size:10px;background:var(--gb);color:var(--gt);padding:1px 5px;border-radius:6px;font-weight:400">当前</span>':''}</div>
+          <div class="wki-s">${wkRange(info.yr,info.wk)}</div>
+        </div>
+        <div class="wk-cnt">
+          ${r?`<div class="wk-dot r">🔴 ${r}</div>`:''}
+          ${y?`<div class="wk-dot y">🟡 ${y}</div>`:''}
+          ${g?`<div class="wk-dot g">🟢 ${g}</div>`:''}
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+window.jumpWk=function(yr,wk){ S.yr=yr; S.wk=wk; S.tab='weekly'; updL(); render(); };
+window.toggleArch=function(){ S.showArch=!S.showArch; render(); };
+window.askUnarch=function(id){
+  if(!confirm('将该项目从归档中释放，恢复到在建项目？'))return;
+  SP(LP().map(p=>p.id===id?{...p,archived:false}:p)); render();
+};
+
+function renderProjForm(){
+  const f=S.form; const isEdit=S.editId!==null;
+  const sp=STAGES.map((s,i)=>`<div class="spi ${i<f.defStage?'ds':i===f.defStage?'as':''}" onclick="setStage(${i})">${esc(s)}</div>`).join('');
+  function toDateInput(v){ return v?(v.replace(/\//g,'-')):''; }
+  function fromDateInput(v){ return v?(v.replace(/-/g,'/')):''; }
+  return`
+  <div class="io-bar no-print">
+    <span id="_sync_label_input" class="io-btn" style="cursor:default">☁ 已同步</span>
+    <button class="io-btn" onclick="ST('weekly')">← 返回</button>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+    <div style="font-size:14px;font-weight:700">${isEdit?'编辑项目':'新增项目'}</div>
+  </div>
+  <div class="fc">
+    <div class="fc-t">项目基本信息</div>
+    <div class="fg">
+      <div class="ff" style="grid-column:1/-1"><label>项目名称 *</label>
+        <input value="${esc(f.name)}" placeholder="例：杭州湖滨银泰 IN77" oninput="UF('name',this.value)">
+      </div>
+      <div class="ff"><label>项目面积</label>
+        <input value="${esc(f.area||'')}" placeholder="例：3500㎡" oninput="UF('area',this.value)">
+      </div>
+      <div class="ff"><label>筹备负责人</label>
+        <input value="${esc(f.prepOwner||'')}" placeholder="姓名" oninput="UF('prepOwner',this.value)">
+      </div>
+      <div class="ff"><label>研策负责人</label>
+        <input value="${esc(f.designOwner||'')}" placeholder="姓名" oninput="UF('designOwner',this.value)">
+      </div>
+    </div>
+
+    <div class="fc-sub">关键时间节点</div>
+    <div class="fg g3">
+      <div class="ff"><label>设计启动时间</label>
+        <input type="date" value="${toDateInput(f.startDate)}" onchange="UF('startDate',this.value.replace(/-/g,'/'))">
+      </div>
+      <div class="ff"><label>方案设计完成</label>
+        <input type="date" value="${toDateInput(f.schemeDate)}" onchange="UF('schemeDate',this.value.replace(/-/g,'/'))">
+      </div>
+      <div class="ff"><label>设计完成时间</label>
+        <input type="date" value="${toDateInput(f.designDate)}" onchange="UF('designDate',this.value.replace(/-/g,'/'))">
+      </div>
+      <div class="ff"><label>进场时间</label>
+        <input type="date" value="${toDateInput(f.siteDate)}" onchange="UF('siteDate',this.value.replace(/-/g,'/'))">
+      </div>
+      <div class="ff"><label>竣工时间</label>
+        <input type="date" value="${toDateInput(f.completionDate)}" onchange="UF('completionDate',this.value.replace(/-/g,'/'))">
+      </div>
+      <div class="ff"><label>开业时间</label>
+        <input type="date" value="${toDateInput(f.openDate)}" onchange="UF('openDate',this.value.replace(/-/g,'/'))">
+      </div>
+    </div>
+
+    <div class="fc-sub">默认状态</div>
+    <div class="ff" style="margin-bottom:11px">
+      <label>默认项目状态</label>
+      <div class="ssel">
+        <div class="sopt${(f.defStatus||'g')==='r'?' sr':''}" onclick="UF('defStatus','r');render()">🔴 需决策/卡住</div>
+        <div class="sopt${(f.defStatus||'g')==='y'?' sy':''}" onclick="UF('defStatus','y');render()">🟡 需关注</div>
+        <div class="sopt${(f.defStatus||'g')==='g'?' sg':''}" onclick="UF('defStatus','g');render()">🟢 正常推进</div>
+      </div>
+    </div>
+    <div class="ff"><label>默认当前阶段</label>
+      <div class="spk">${sp}</div>
+    </div>
+
+    <div class="ar">
+      <button class="bs" onclick="ST('weekly')">取消</button>
+      <button class="bp" onclick="saveProj()">${isEdit?'保存':'创建项目'}</button>
+    </div>
+  </div>`;
+}
+
+function renderWkForm(){
+  const f=S.wform;
+  const p=LP().find(x=>x.id===S.wkEditId);
+  if(!p) return `<div class="empty">项目不存在</div>`;
+  const sp=STAGES.map((s,i)=>`<div class="spi ${i<f.stage?'ds':i===f.stage?'as':''}" onclick="setWkStage(${i})">${esc(s)}</div>`).join('');
+  return`
+  <div class="io-bar no-print">
+    <span id="_sync_label_wkinput" class="io-btn" style="cursor:default">☁ 已同步</span>
+    <button class="io-btn" onclick="ST('weekly')">← 返回</button>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+    <div>
+      <div style="font-size:14px;font-weight:700">更新本周状态</div>
+      <div style="font-size:11px;color:var(--t3);margin-top:2px">${esc(p.name)} · ${wkLabel(S.yr,S.wk)}</div>
+    </div>
+  </div>
+  <div class="fc">
+    <div class="fc-t" style="font-size:12px;color:var(--t2);font-weight:400">未改动的字段将自动继承上周数据，只填有变化的内容即可</div>
+
+    <div class="ff" style="margin-bottom:11px">
+      <label>项目状态</label>
+      <div class="ssel">
+        <div class="sopt${f.status==='r'?' sr':''}" onclick="UW('status','r');render()">🔴 需决策/卡住</div>
+        <div class="sopt${f.status==='y'?' sy':''}" onclick="UW('status','y');render()">🟡 需关注</div>
+        <div class="sopt${f.status==='g'?' sg':''}" onclick="UW('status','g');render()">🟢 正常推进</div>
+      </div>
+    </div>
+
+    <div class="ff" style="margin-bottom:11px">
+      <label>当前阶段</label>
+      <div class="spk">${sp}</div>
+    </div>
+
+    <div class="fc-sub d1">维度一：上周工作完成情况</div>
+    <div class="fg full">
+      <div class="ff"><label>上周完成的主要工作</label>
+        <textarea class="auto-h" placeholder="上周完成的主要成果" oninput="UW('coreOutput',this.value);autoH(this)">${esc(f.coreOutput)}</textarea>
+      </div>
+    </div>
+
+    <div class="fc-sub d2">维度二：本周计划</div>
+    <div class="fg full">
+      <div class="ff"><label>本周必须完成的关键事项</label>
+        <textarea class="auto-h" placeholder="例：完成深化方案并提交大区" oninput="UW('coreAction',this.value);autoH(this)">${esc(f.coreAction)}</textarea>
+      </div>
+    </div>
+
+    <div class="fc-sub d1">维度三：风险 / 卡点</div>
+    <div style="font-size:11px;color:var(--rt);margin-bottom:6px;padding:4px 8px;background:var(--rb);border-radius:var(--rr);border:0.5px solid var(--rbd)">
+      ⚠ 填入风险内容或需管理层决策的事后，项目状态将自动标记为「需决策/卡住」<br>
+      📌 风险填写规则：如有风险则填写具体内容；如无风险则填写"无"或留空，项目不会出现在风险卡点汇总中
+    </div>
+    <div class="fg full">
+      <div class="ff"><label>最大风险 / 已卡住的问题</label>
+        <textarea class="auto-h" placeholder="本周最大的风险或已卡住的问题（如无风险请填写'无'或留空）" oninput="UW('risk',this.value);autoH(this);autoStatus()">${esc(f.risk)}</textarea>
+      </div>
+      <div class="ff"><label>需管理层决策的事（无则填"无"）</label>
+        <input value="${esc(f.decision)}" placeholder="无" oninput="UW('decision',this.value);autoStatus()">
+      </div>
+    </div>
+
+    <div class="fc-sub d3">维度四：跨部门支援</div>
+    <div class="fg full">
+      <div class="ff"><label>本周需要哪些部门协助（无则留空）</label>
+        <textarea class="auto-h" placeholder='例："需采购部协助核价2项"' oninput="UW('crossDept',this.value);autoH(this)">${esc(f.crossDept)}</textarea>
+      </div>
+    </div>
+
+    <div class="ar">
+      <button class="bs" onclick="ST('weekly')">取消</button>
+      <button class="bp" onclick="saveWk()">保存本周状态</button>
+    </div>
+  </div>`;
+}
+
+window.autoStatus=function(){
+  const risk=(S.wform.risk||'').trim();
+  const dec=(S.wform.decision||'').trim();
+  // 风险判断规则：有实际内容且不是"无"才算有风险
+  const hasRisk=risk.length>0 && risk!=='无';
+  const hasDec=dec.length>0&&dec!=='无';
+  const target=hasRisk||hasDec?'r':'g';
+  if(S.wform.status===target)return;
+  S.wform.status=target;
+  document.querySelectorAll('.sopt').forEach(el=>{
+    el.classList.remove('sr','sy','sg');
+    if(el.textContent.includes('需决策')&&target==='r')el.classList.add('sr');
+    if(el.textContent.includes('需关注')&&target==='y')el.classList.add('sy');
+    if(el.textContent.includes('正常推进')&&target==='g')el.classList.add('sg');
+  });
+};
+
+function renderUsersPage(){
+  if(!isDirector()) return '<div class="empty">无权限查看此页面</div>';
+  return `
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <div>
+      <div style="font-size:14px;font-weight:700">团队成员管理</div>
+      <div style="font-size:11px;color:var(--t3);margin-top:2px">录入成员姓名和角色，成员使用录入的姓名直接登录</div>
+    </div>
+    <button class="bs" style="font-size:11px;padding:5px 12px" onclick="_loadUserRegistry().then(renderUserPanel)">🔄 刷新</button>
+  </div>
+  <div id="user-panel-content">加载中…</div>`;
+}
+
+function render(){
+  let html='';
+  if(S.tab==='weekly')html=renderWeekly();
+  else if(S.tab==='charts')html=renderCharts();
+  else if(S.tab==='input')html=renderProjForm();
+  else if(S.tab==='overview')html=renderOverview();
+  else if(S.tab==='meeting')html=renderMeeting();
+  else if(S.tab==='archive')html=renderArchive();
+  else if(S.tab==='history')html=renderHistory();
+  else if(S.tab==='wkinput')html=renderWkForm();
+  else if(S.tab==='users')html=renderUsersPage();
+  document.getElementById('content').innerHTML=html;
+  const TABS=['weekly','charts','input','overview','meeting','archive','history'];
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',TABS[i]===S.tab||(S.tab==='wkinput'&&TABS[i]==='weekly')));
+  if(S.tab==='weekly')initDrag();
+  if(S.tab==='users')renderUserPanel();
+  document.querySelectorAll('textarea.auto-h').forEach(t=>{autoH(t);});
+  setTimeout(()=>{ window._initTabsDrag&&_initTabsDrag(); window.updateTabIndicator&&updateTabIndicator(); }, 50);
+  // 更新当前页面的同步状态标签
+  if(_syncOk) showSyncStatus('sync');
+  else if(_pendingSync) showSyncStatus('pending');
+  else showSyncStatus('local');
+}
+
+const _ACT_KEY = 'hlzc_activity';
+function _getActivity(){ try{ return JSON.parse(localStorage.getItem(_ACT_KEY)||'[]'); }catch{ return []; } }
+function _addActivityLog(entry){
+  const logs = _getActivity();
+  logs.unshift(entry); if(logs.length > 100) logs.length = 100;
+  localStorage.setItem(_ACT_KEY, JSON.stringify(logs)); renderActivityBar();
+}
+function _relativeTime(ts){ if(!ts) return ''; const diff = Math.floor((Date.now()-ts)/1000); return diff<60?'刚刚':diff<3600?Math.floor(diff/60)+'分钟前':Math.floor(diff/3600)+'小时前'; }
+function renderActivityBar(){
+  const logs = _getActivity(); const el = document.getElementById('act-scroll'); if(!el) return;
+  if(!logs.length){ el.innerHTML = '<span class="act-item" style="color:var(--t3)">暂无记录</span>'; return; }
+  const items = logs.map(l=>`<span class="act-item"><span class="act-user">${esc(l.user)}</span><span style="color:var(--t3);margin:0 3px">提交了</span><span class="act-proj">「${esc(l.proj)}」</span><span class="act-time" style="margin-left:4px">${_relativeTime(l.ts)}</span></span>`).join('');
+  el.innerHTML = items + items;
+}
+
+// ── 主题切换 ──
+// ════ 数据导出 / 导入 / 备份 ════
+window.openExport = function(){
+  const data = {
+    projects: LP(),
+    weeks: LW(),
+    users: JSON.parse(localStorage.getItem('hlzc_users')||'{}'),
+    activity: JSON.parse(localStorage.getItem(_ACT_KEY)||'[]'),
+    exportedAt: new Date().toISOString(),
+    exportedBy: _currentUser,
+    version: 2
+  };
+  const json = JSON.stringify(data, null, 2);
+  const m = document.getElementById('io-modal');
+  document.getElementById('io-title').textContent = '📤 导出备份数据';
+  document.getElementById('io-desc').textContent = '复制下方全部内容保存，或点击按钮直接下载文件。此备份包含所有项目、历史周报及会议数据。';
+  document.getElementById('io-text').value = json;
+  document.getElementById('io-text').readOnly = true;
+  document.getElementById('io-err').style.display = 'none';
+  const btn = document.getElementById('io-action-btn');
+  btn.textContent = '⬇ 下载备份文件';
+  btn.onclick = ()=>{
+    const blob = new Blob([json], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '华力研策周报备份_' + new Date().toLocaleDateString('zh-CN').replace(/\//g,'-') + '.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    btn.textContent = '✅ 已下载';
+    setTimeout(()=>btn.textContent='⬇ 下载备份文件', 2000);
+  };
+  // 同时提供复制按钮
+  const copyBtn = document.getElementById('io-copy-btn');
+  if(copyBtn){
+    copyBtn.style.display='inline-block';
+    copyBtn.onclick=()=>{ navigator.clipboard.writeText(json).then(()=>{copyBtn.textContent='✅ 已复制';setTimeout(()=>copyBtn.textContent='复制JSON',1500);}); };
+  }
+  m.style.display = 'flex';
+};
+
+window.openImport = function(){
+  const m = document.getElementById('io-modal');
+  document.getElementById('io-title').textContent = '📥 导入备份数据';
+  document.getElementById('io-desc').textContent = '粘贴备份的JSON内容，或选择备份文件导入。⚠ 导入将合并数据（不会删除现有项目，只会添加/更新）。';
+  document.getElementById('io-text').value = '';
+  document.getElementById('io-text').readOnly = false;
+  document.getElementById('io-err').style.display = 'none';
+  const btn = document.getElementById('io-action-btn');
+  btn.textContent = '确认导入';
+  btn.onclick = ()=>{
+    try{
+      const raw = document.getElementById('io-text').value.trim();
+      if(!raw) throw new Error('请粘贴备份数据');
+      const d = JSON.parse(raw);
+      if(!d.projects || !d.weeks) throw new Error('数据格式不正确，缺少 projects 或 weeks 字段');
+      if(!confirm('确认导入？将与现有数据合并（不删除现有项目）。')) return;
+      // 合并 projects（按 id 去重，保留最新）
+      const existPs = LP();
+      const newPs = d.projects || [];
+      const merged = [...existPs];
+      newPs.forEach(np=>{
+        const idx = merged.findIndex(p=>p.id===np.id);
+        if(idx>=0) merged[idx]={...merged[idx],...np}; else merged.push(np);
+      });
+      localStorage.setItem('hlzc_p', JSON.stringify(merged));
+      // 合并 weeks
+      const existW = LW();
+      const newW = d.weeks || {};
+      Object.keys(newW).forEach(wk=>{
+        if(!existW[wk]) existW[wk]=newW[wk];
+        else Object.assign(existW[wk], newW[wk]);
+      });
+      localStorage.setItem('hlzc_w', JSON.stringify(existW));
+      m.style.display='none';
+      alert('✅ 导入成功！共导入 '+ newPs.length +' 个项目，'+ Object.keys(newW).length +' 周数据。');
+      render();
+    }catch(e){
+      const err = document.getElementById('io-err');
+      err.textContent = '❌ 解析失败：' + e.message;
+      err.style.display = 'block';
+    }
+  };
+  // 文件导入
+  const fileBtn = document.getElementById('io-file-btn');
+  if(fileBtn){
+    fileBtn.style.display = 'inline-block';
+    fileBtn.onclick = ()=>{
+      const input = document.createElement('input');
+      input.type='file'; input.accept='.json,application/json';
+      input.onchange = e=>{
+        const file = e.target.files[0]; if(!file) return;
+        const reader = new FileReader();
+        reader.onload = ev=>{ document.getElementById('io-text').value = ev.target.result; };
+        reader.readAsText(file);
+      };
+      input.click();
+    };
+  }
+  m.style.display = 'flex';
+};
+
+(function(){
+  // 初始化：读取保存的主题偏好
+  const saved = localStorage.getItem('hlzc_theme');
+  if(saved) document.documentElement.className = saved;
+  // 更新按钮图标
+  function updateThemeBtn(){
+    const btn = document.getElementById('theme-btn');
+    if(!btn) return;
+    const isDark = document.documentElement.classList.contains('dark') ||
+      (!document.documentElement.classList.contains('light') &&
+       window.matchMedia('(prefers-color-scheme:dark)').matches);
+    btn.textContent = isDark ? '☀️' : '🌙';
+    btn.title = isDark ? '切换到白天模式' : '切换到夜间模式';
+  }
+  window.toggleTheme = function(){
+    const root = document.documentElement;
+    const isDark = root.classList.contains('dark') ||
+      (!root.classList.contains('light') && window.matchMedia('(prefers-color-scheme:dark)').matches);
+    if(isDark){ root.classList.remove('dark'); root.classList.add('light'); localStorage.setItem('hlzc_theme','light'); }
+    else { root.classList.remove('light'); root.classList.add('dark'); localStorage.setItem('hlzc_theme','dark'); }
+    updateThemeBtn();
+  };
+  // 页面加载后同步按钮图标
+  document.addEventListener('DOMContentLoaded', ()=>setTimeout(updateThemeBtn,100));
+  window._updateThemeBtn = updateThemeBtn;
+})();
+
+window.logoutUser = async function(){
+  if(!confirm('确认退出？')) return; _currentUser = ''; localStorage.removeItem('hlzc_user'); updateUserBadge();
+  _showLoginModal(()=>{ updateUserBadge(); render(); });
+};
+
+window.askSubmitProject=function(projId){
+  if(!_syncOk&&syncConfigured()){ alert('云端未连接，请稍后再试');return; }
+  const proj=LP().find(p=>p.id===projId); if(!proj)return;
+  const m=document.getElementById('submit-modal');
+  m.querySelector('h3').textContent='📤 提交「'+proj.name+'」';
+
+  // 先显示"对比中"，再异步加载 diff
+  document.getElementById('submit-diff').innerHTML=
+    '<div style="color:var(--t3);padding:20px 0;text-align:center;font-size:12px">⏳ 正在对比云端数据…</div>';
+  document.getElementById('submit-confirm-btn').onclick=null;
+  document.getElementById('submit-cancel-btn').onclick=()=>{ m.style.display='none'; };
+  m.style.display='flex';
+
+  // 异步加载 diff
+  (async()=>{
+    // 只读云端快照用于diff，不写入本地（防止覆盖刚填好的数据）
+    // 直接从云端读快照（只用于diff对比，不写入本地）
+    const remoteRec = await _dbGet('snap_'+projId).catch(()=>null);
+    const remote = remoteRec ? remoteRec.data : null;
+    const localSnap = LW_proj(projId);
+
+    // 字段标签
+    const SNAP_FIELDS = ['status','stage','risk','coreOutput','coreAction','decision','crossDept'];
+    const wkeys = Object.keys(localSnap)
+      .filter(k=>!['_v','_updatedBy','_updatedAt'].includes(k))
+      .sort().reverse();
+
+    let html = '';
+    let hasChanges = false;
+
+    wkeys.forEach(wk=>{
+      const ls = localSnap[wk];
+      const rs = (remote && remote[wk]) ? remote[wk] : {};
+      const diffs = SNAP_FIELDS.map(k=>{
+        const ov = fieldVal(k, rs[k]);
+        const nv = fieldVal(k, ls[k]);
+        return ov!==nv ? {label:FIELD_LABELS[k]||k, from:ov, to:nv} : null;
+      }).filter(Boolean);
+
+      if(diffs.length){
+        hasChanges = true;
+        html += `<div class="diff-section-title">📅 ${wk}</div><div class="diff-proj">`;
+        diffs.forEach(d=>{
+          const fromTxt = d.from.length>28 ? d.from.slice(0,28)+'…' : d.from;
+          const toTxt   = d.to.length>28   ? d.to.slice(0,28)+'…'   : d.to;
+          html += `<div class="diff-row">
+            <span class="diff-field">${esc(d.label)}</span>
+            <span class="diff-from">${esc(fromTxt)}</span>
+            <span class="diff-arrow">→</span>
+            <span class="diff-to">${esc(toTxt)}</span>
+          </div>`;
+        });
+        html += '</div>';
+      }
+    });
+
+    if(!hasChanges){
+      html = `<div style="color:var(--gt);padding:14px 0;text-align:center;font-size:12px">
+        ✓ 与云端数据一致，无变更内容<br>
+        <span style="color:var(--t3);font-size:11px">仍可点击确认提交以刷新时间戳</span>
+      </div>`;
+    }
+
+    const t = new Date().toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    html += `<div class="diff-meta">提交人：${esc(_currentUser)} · ${t}</div>`;
+    document.getElementById('submit-diff').innerHTML = html;
+
+    // 设置确认按钮
+    document.getElementById('submit-confirm-btn').onclick = async()=>{
+      m.style.display='none';
+      const ok = await submitProject(projId);
+
+      if(ok === 'queued'){
+        const el2=document.getElementById('submit-result');
+        el2.innerHTML='<div style="font-size:28px;margin-bottom:8px">📥</div>已存入本地队列<div style="font-size:12px;color:var(--t3);font-weight:400;margin-top:6px">网络恢复后自动上传</div>';
+        el2.style.color='var(--yt)';
+        document.getElementById('submit-result-modal').style.display='flex';
+        return;
+      }
+      if(ok === 'CONFLICT'){
+        alert('❌ 提交被拦截：云端数据刚刚已被他人更新！\n\n系统将自动为您拉取最新数据，请重新核对后再提交。');
+        await pullProject(projId); render(); return;
+      }
+      if(ok){
+        const ps=LP().map(p=>p.id===projId?{...p,
+          _updatedBy:_currentUser,
+          _updatedAt:new Date().toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})
+        }:p);
+        localStorage.setItem('hlzc_p',JSON.stringify(ps));
+        await _saveMainBin({projects:ps,_v:Date.now()});
+      }
+      const el=document.getElementById('submit-result');
+      el.innerHTML=ok
+        ?`<div style="font-size:32px;margin-bottom:8px">✅</div>提交成功！<div style="font-size:12px;color:var(--t3);font-weight:400;margin-top:6px">其他人刷新后即可看到最新数据</div>`
+        :`<div style="font-size:32px;margin-bottom:8px">❌</div>提交失败，请检查网络后重试`;
+      el.style.color=ok?'var(--gt)':'var(--rt)';
+      document.getElementById('submit-result-modal').style.display='flex';
+      if(ok) render();
+    };
+  })();
+};
+
+window.ST=function(t){ S.tab=t; if(t==='input'){S.editId=null;S.form=blankProj();} render(); updateTabIndicator(); };
+
+// ── Tabs 拖动滚动 + 指示器 ──
+(function(){
+  let isDown=false, startX=0, scrollLeft=0;
+  function initTabsDrag(){
+    const el = document.getElementById('tabs');
+    if(!el || el._dragInit) return;
+    el._dragInit = true;
+    el.addEventListener('mousedown', e=>{
+      // 只在非按钮区域触发拖动
+      if(e.target.tagName==='BUTTON') return;
+      isDown=true; el.classList.add('is-dragging');
+      startX=e.pageX-el.offsetLeft; scrollLeft=el.scrollLeft;
+    });
+    el.addEventListener('mouseleave', ()=>{ isDown=false; el.classList.remove('is-dragging'); });
+    el.addEventListener('mouseup', ()=>{ isDown=false; el.classList.remove('is-dragging'); });
+    el.addEventListener('mousemove', e=>{
+      if(!isDown) return;
+      e.preventDefault();
+      const x=e.pageX-el.offsetLeft;
+      el.scrollLeft = scrollLeft-(x-startX)*1.5;
+      updateTabIndicator();
+    });
+    el.addEventListener('scroll', updateTabIndicator);
+  }
+  window.updateTabIndicator = function(){
+    const el = document.getElementById('tabs');
+    const bar = document.getElementById('tab-indicator-bar');
+    const wrap = document.getElementById('tab-indicator');
+    if(!el||!bar||!wrap) return;
+    const scrollW = el.scrollWidth - el.clientWidth;
+    if(scrollW<=0){ wrap.style.opacity='0'; return; }
+    wrap.style.opacity='1';
+    const pct = el.scrollLeft / scrollW;
+    const barW = Math.max(20, el.clientWidth/el.scrollWidth*100);
+    const barL = pct * (100-barW);
+    bar.style.width = barW+'%';
+    bar.style.left = barL+'%';
+  };
+  // 延迟初始化（等DOM渲染）
+  document.addEventListener('DOMContentLoaded', ()=>setTimeout(initTabsDrag,300));
+  window._initTabsDrag = initTabsDrag;
+})();
+window.prevWk=function(){S.wk--;if(S.wk<1){S.yr--;S.wk=52}updL();render();};
+window.nextWk=function(){S.wk++;if(S.wk>52){S.yr++;S.wk=1}updL();render();};
+function updL(){document.getElementById('wl').textContent=`${S.yr} W${S.wk}`;}
+window.autoH=function(el){ el.style.height='auto'; el.style.height=Math.max(60,el.scrollHeight)+'px'; };
+
+let _dragId=null,_lpTimer=null;
+window.startLongPress=function(e,id){ _lpTimer=setTimeout(()=>{const el=document.getElementById('pc-'+id);if(el){el.setAttribute('draggable','true');el.classList.add('dragging');}},400); };
+window.cancelLongPress=function(){clearTimeout(_lpTimer);};
+window.onDragStart=function(e){ _dragId=+e.currentTarget.dataset.id; e.currentTarget.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; };
+window.onDragOver=function(e){ e.preventDefault();e.dataTransfer.dropEffect='move'; document.querySelectorAll('.pc.drag-over').forEach(el=>el.classList.remove('drag-over')); e.currentTarget.classList.add('drag-over'); };
+window.onDrop=function(e){
+  e.preventDefault(); const targetId=+e.currentTarget.dataset.id; if(!_dragId||_dragId===targetId)return;
+  const ps=LP(); const active=ps.filter(p=>!p.archived).sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
+  const fromIdx=active.findIndex(p=>p.id===_dragId); const toIdx=active.findIndex(p=>p.id===targetId);
+  if(fromIdx<0||toIdx<0)return;
+  const reordered=[...active]; const [moved]=reordered.splice(fromIdx,1); reordered.splice(toIdx,0,moved);
+  reordered.forEach((p,i)=>{p.sortOrder=i;});
+  const updated=ps.map(p=>{const r=reordered.find(x=>x.id===p.id);return r?{...p,sortOrder:r.sortOrder}:p;});
+  SP(updated);render();
+};
+window.onDragEnd=function(e){ e.currentTarget.classList.remove('dragging'); document.querySelectorAll('.pc.drag-over').forEach(el=>el.classList.remove('drag-over')); _dragId=null; };
+function initDrag(){ document.querySelectorAll('#sortable-grid .pc[data-id]').forEach(el=>el.setAttribute('draggable','true')); }
+
+window.UF=function(k,v){S.form[k]=v;}; window.setStage=function(i){S.form.defStage=i;render();};
+window.editProj=function(id){ const p=LP().find(x=>x.id===id);if(!p)return; S.editId=id;S.form={...p};S.tab='input';render(); };
+window.saveProj=function(){
+  const f=S.form;if(!f.name.trim()){alert('请填写名称');return;}
+  const ps=LP();
+  if(S.editId!==null){ SP(ps.map(p=>p.id===S.editId?{...p,...f}:p)); }else{
+    const id=Math.max(0,...ps.map(p=>p.id),0)+1; const sortOrder=ps.filter(p=>!p.archived).length;
+    SP([...ps,{id,...f,archived:false,sortOrder}]); setSnap(S.yr,S.wk,id,{status:f.defStatus||'g',stage:f.defStage||0,risk:'',next:'',decision:'无',coreOutput:'',coreAction:'',incident:'',crossDept:'',knowledge:''});
+  }
+  S.editId=null;S.tab='weekly';render();
+};
+
+// 项目信息提交到云端（项目总览用）
+window.submitProjectInfo=async function(projId){
+  const p = LP().find(x => x.id === projId);
+  if(!p){ alert('项目不存在'); return; }
+  
+  if(!syncConfigured()){ alert('云端未配置'); return; }
+  
+  // 检查是否离线
+  if(!_syncOk){
+    // 离线：存入本地队列
+    const remoteId = 'projinfo_' + projId;
+    const newV = String(Date.now());
+    _queueAdd({id: remoteId, obj: {...p, _v: newV, _updatedBy: _currentUser, _updatedAt: new Date().toLocaleString('zh-CN')}, extra: undefined, ts: Date.now()});
+    _showOfflineToast('网络不可用，已存入本地队列，恢复后自动同步');
+    return;
+  }
+  
+  showSyncStatus('saving');
+  try{
+    // 获取现有项目列表
+    let projList = [];
+    try{
+      const rec = await _dbGet('projects');
+      projList = (rec && rec.projects) || [];
+    }catch(e){}
+    
+    // 更新或添加这个项目
+    const idx = projList.findIndex(x => x.id === projId);
+    const updatedP = {...p, _updatedBy: _currentUser, _updatedAt: new Date().toLocaleString('zh-CN')};
+    if(idx >= 0){
+      projList[idx] = updatedP;
+    }else{
+      projList.push(updatedP);
+    }
+    
+    await _dbSet('projects', {projects: projList, _v: Date.now()});
+    showSyncStatus('saved');
+    setTimeout(() => showSyncStatus('sync'), 2000);
+    _showOfflineToast('项目信息已提交到云端', 'online');
+  }catch(e){
+    console.error('submitProjectInfo error:', e);
+    showSyncStatus('err');
+    alert('项目提交失败：' + e.message);
+  }
+};
+
+window.UW=function(k,v){S.wform[k]=v;}; window.setWkStage=function(i){S.wform.stage=i;render();};
+window.openWkEdit=function(id){ S.wkEditId=id;S.wform={...blankWkForm(id)};S.tab='wkinput';render(); };
+window.saveWk=function(){ setSnap(S.yr,S.wk,S.wkEditId,_stampSnap({...S.wform})); S.tab='weekly';render(); };
+
+window.askArch=function(id){ S.pendingArchId=id; document.getElementById('arch-modal').style.display='flex'; };
+window.clArch=function(){document.getElementById('arch-modal').style.display='none';};
+window.cfArch = function(){
+  if(!confirm('确定要归档所有已选项目吗？归档后不再显示在项目总览中。')) return;
+  const pwd = document.getElementById('arch-pwd').value;
+  if(pwd !== DEL_PWD){
+    document.getElementById('arch-err').style.display = 'block';
+    return;
+  }
+  document.getElementById('arch-err').style.display = 'none';
+  SP(LP().map(p=>({...p,archived:true})));
+  clArch(); render();
+};
+window.askDel = function(id){ S.pendingDelId=id; document.getElementById('del-modal').style.display='flex'; };
+window.clDel  = function(){document.getElementById('del-modal').style.display='none';};
+window.cfDel  = function(){
+  const pwd = document.getElementById('del-pwd').value;
+  if(pwd !== DEL_PWD){
+    document.getElementById('del-err').style.display = 'block';
+    return;
+  }
+  document.getElementById('del-err').style.display = 'none';
+  SP(LP().filter(p => p.id !== S.pendingDelId));
+  clDel(); render();
+};
+
+window.addEventListener('beforeunload', function(e){ if(_pendingSync){ e.preventDefault(); e.returnValue = '有未提交的项目数据。'; } });
+
+initStorage(async ()=>{
+  try {
+    console.log('[Init] 开始初始化...');
+    seed(); updL(); _appReady=true;
+    console.log('[Init] seed 和 updL 完成');
+    const ov=document.getElementById('loading-overlay');
+    if(ov){
+      ov.style.opacity='0'; ov.style.transition='opacity .25s';
+      console.log('[Init] loading-overlay 淡出中...');
+      setTimeout(()=>{
+        ov.remove();
+        console.log('[Init] loading-overlay 已移除, 调用 ensureUser...');
+        ensureUser(()=>{ updateUserBadge(); renderActivityBar(); render(); });
+      },280);
+    } else {
+      console.log('[Init] loading-overlay 不存在, 直接调用 ensureUser...');
+      ensureUser(()=>{ updateUserBadge(); renderActivityBar(); render(); });
+    }
+  } catch(e) {
+    console.error('[Init] 初始化失败:', e);
+    const ov = document.getElementById('loading-overlay');
+    if(ov) {
+      ov.innerHTML = '<div style="color:#b00020">初始化失败，请刷新页面</div>';
+    }
+  }
+});
+</script>
+</body>
+</html>
