@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>华力集团 · 研策部周报系统</title>
+
+<!-- CloudBase JS SDK（用于实时监听 WebSocket） -->
+<script src="https://static.cloudbase.net/cloudbase-js-sdk/latest/cloudbase.full.js"></script>
+
+<!-- 全局样式 -->
+<link rel="stylesheet" href="/app/css/main.css">
+</head>
+<body>
+
+<!-- ── 全局刷新按钮（固定左侧） ── -->
+<button id="global-refresh-btn" onclick="doRefresh()">
+  有同事更新数据<br>请刷新
+  <span class="_new_data_badge">0</span>
+</button>
+
+<!-- ── 顶部导航栏 ── -->
+<div class="topbar">
+  <div class="topinner">
+    <div class="logo">华力集团 · 研策部<em>周报系统</em></div>
+    <div class="tabs-wrap">
+      <div class="tabs-scroll" id="tabs">
+        <button class="tab on"  onclick="ST('weekly')">项目周报</button>
+        <button class="tab"     onclick="ST('charts')">可视化看板</button>
+        <button class="tab"     onclick="ST('input')">录入数据</button>
+        <button class="tab"     onclick="ST('overview')">项目总览</button>
+        <button class="tab"     onclick="ST('meeting')">本周会议</button>
+        <button class="tab"     onclick="ST('archive')">归档项目</button>
+        <button class="tab"     onclick="ST('history')">历史记录</button>
+        <button class="tab" id="tab-users" style="display:none" onclick="ST('users')">👥 成员管理</button>
+      </div>
+      <div class="tab-indicator" id="tab-indicator">
+        <div class="tab-indicator-bar" id="tab-indicator-bar"></div>
+      </div>
+    </div>
+    <div class="week-sw">
+      <button class="wb" onclick="prevWk()">‹</button>
+      <div class="wl" id="wl">—</div>
+      <button class="wb" onclick="nextWk()">›</button>
+    </div>
+    <div id="user-badge" style="font-size:11px;padding:4px 10px;background:var(--gl);border-radius:20px;color:var(--gold);font-weight:700;white-space:nowrap"></div>
+    <button id="users-btn" onclick="ST('users')" style="display:none;font-size:11px;padding:3px 9px;border:0.5px solid var(--gold);background:var(--gl);color:var(--gold);border-radius:12px;cursor:pointer;font-family:var(--fn)" title="用户管理">👥 管理</button>
+    <button id="theme-btn" onclick="toggleTheme()" style="font-size:14px;padding:3px 7px;border:0.5px solid var(--bdr);background:transparent;border-radius:8px;cursor:pointer;line-height:1" title="切换日夜模式">🌙</button>
+    <button onclick="window.logoutUser&&logoutUser()" style="font-size:11px;padding:3px 9px;border:0.5px solid var(--bdr);background:transparent;color:var(--t3);border-radius:12px;cursor:pointer;font-family:var(--fn)" title="退出当前用户">退出</button>
+  </div>
+</div>
+
+<!-- ── 主内容区 ── -->
+<div class="shell"><div class="content" id="content"></div></div>
+
+<!-- ── 初始化加载遮罩 ── -->
+<div id="loading-overlay" style="position:fixed;inset:0;background:var(--bg);z-index:990;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px">
+  <div style="font-size:18px;font-weight:700;color:var(--gold)">华力集团 · 研策部周报系统</div>
+  <div style="font-size:13px;color:var(--t2)">正在初始化…</div>
+  <div style="width:80px;height:1px;background:rgba(255,255,255,.1);border-radius:1px;overflow:hidden;margin-top:12px">
+    <div id="load-bar" style="height:100%;width:0%;background:var(--gold);border-radius:1px;transition:width .5s ease"></div>
+  </div>
+</div>
+
+<!-- ── 弹窗：删除确认 ── -->
+<div class="overlay" id="del-modal" style="display:none">
+  <div class="modal">
+    <h3>删除确认</h3>
+    <p>删除后数据不可恢复，请输入管理密码。</p>
+    <input type="password" id="del-pwd" placeholder="管理密码" onkeydown="if(event.key==='Enter')cfDel()">
+    <div class="modal-err" id="del-err" style="display:none">密码错误</div>
+    <div class="modal-btns">
+      <button class="bs" onclick="clDel()">取消</button>
+      <button class="bd" onclick="cfDel()">确认删除</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 弹窗：云端同步配置说明 ── -->
+<div class="overlay" id="fb-guide-modal" style="display:none">
+  <div class="modal" style="width:480px;max-height:84vh;overflow-y:auto">
+    <h3 style="margin-bottom:10px">☁ 云端同步配置说明</h3>
+    <p style="font-size:12px;line-height:1.7;color:var(--t2);margin-bottom:10px">配置步骤请参照说明文件设置腾讯云代理。</p>
+    <div class="modal-btns" style="margin-top:12px">
+      <button class="bp" onclick="document.getElementById('fb-guide-modal').style.display='none'">知道了</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 弹窗：归档确认 ── -->
+<div class="overlay" id="arch-modal" style="display:none">
+  <div class="modal">
+    <h3>归档确认</h3>
+    <p>归档后项目将移入「归档项目」栏，可随时释放恢复。请输入管理密码。</p>
+    <input type="password" id="arch-pwd" placeholder="管理密码" onkeydown="if(event.key==='Enter')cfArch()">
+    <div class="modal-err" id="arch-err" style="display:none">密码错误</div>
+    <div class="modal-btns">
+      <button class="bs" onclick="clArch()">取消</button>
+      <button class="ba" onclick="cfArch()">确认归档</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 弹窗：释放确认 ── -->
+<div class="overlay" id="unarch-modal" style="display:none">
+  <div class="modal">
+    <h3>释放确认</h3>
+    <p>将该项目从归档中释放，恢复到在建项目。请输入管理密码。</p>
+    <input type="password" id="unarch-pwd" placeholder="管理密码" onkeydown="if(event.key==='Enter')cfUnarch()">
+    <div class="modal-err" id="unarch-err" style="display:none">密码错误</div>
+    <div class="modal-btns">
+      <button class="bs" onclick="clUnarch()">取消</button>
+      <button class="bp" onclick="cfUnarch()">确认释放</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 弹窗：导入/导出 ── -->
+<div class="overlay" id="io-modal" style="display:none">
+  <div class="modal" style="width:420px">
+    <h3 id="io-title">数据操作</h3>
+    <p id="io-desc" style="font-size:12px;color:var(--t2);margin-bottom:10px;line-height:1.6"></p>
+    <textarea id="io-text" style="width:100%;height:140px;font-size:11px;padding:7px;border:0.5px solid var(--bdr);border-radius:var(--rr);background:var(--bg);color:var(--tx);font-family:monospace;resize:vertical;margin-bottom:8px"></textarea>
+    <div class="modal-err" id="io-err" style="display:none;font-size:12px;color:var(--rt);margin-bottom:8px"></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+      <button class="bs" id="io-file-btn" style="display:none;font-size:12px">📁 选择文件</button>
+      <button class="bs" id="io-copy-btn" style="display:none;font-size:12px">复制JSON</button>
+      <button class="bs" onclick="document.getElementById('io-modal').style.display='none'">关闭</button>
+      <button class="bp" id="io-action-btn" style="font-size:12px"></button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 底部活动流 ── -->
+<div class="act-bar" id="act-bar">
+  <div class="act-bar-label">动态</div>
+  <div class="act-scroll-wrap">
+    <div class="act-scroll-inner" id="act-scroll">
+      <span class="act-item" style="color:var(--t3)">暂无提交记录，数据提交后将在此显示</span>
+    </div>
+  </div>
+</div>
+
+<!-- ── 弹窗：用户登录 ── -->
+<div class="overlay" id="user-modal" style="display:none">
+  <div class="modal" style="width:400px;padding:32px 28px;box-shadow:0 8px 40px rgba(0,0,0,.18)">
+    <div id="user-modal-body"></div>
+  </div>
+</div>
+
+<!-- ── 弹窗：提交确认（带Diff） ── -->
+<div class="overlay" id="submit-modal" style="display:none">
+  <div class="modal" style="width:420px">
+    <h3 style="margin-bottom:6px">📤 提交项目更新</h3>
+    <p style="font-size:12px;color:var(--t2);margin-bottom:10px">以下是本次修改内容，确认后将同步到云端：</p>
+    <div id="submit-diff" style="background:var(--bg);border-radius:var(--rr);padding:10px 12px;font-size:12px;max-height:280px;overflow-y:auto;margin-bottom:12px"></div>
+    <div class="modal-btns">
+      <button class="bs" id="submit-cancel-btn">取消</button>
+      <button class="bp" id="submit-confirm-btn" style="background:var(--gold)">确认提交</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 弹窗：提交结果 ── -->
+<div class="overlay" id="submit-result-modal" style="display:none">
+  <div class="modal" style="width:300px;text-align:center;padding:28px 24px">
+    <div id="submit-result" style="font-size:16px;font-weight:700;margin-bottom:16px"></div>
+    <button class="bp" style="width:100%" onclick="document.getElementById('submit-result-modal').style.display='none'">关闭</button>
+  </div>
+</div>
+
+<!-- ── 弹窗：同步到云端 ── -->
+<div class="overlay" id="sync-modal" style="display:none">
+  <div class="modal" style="width:420px">
+    <h3 style="margin-bottom:6px">☁ 同步到云端</h3>
+    <p style="font-size:12px;color:var(--t2);margin-bottom:10px">以下内容将被上传，所有团队成员的数据将更新为本版本：</p>
+    <div id="sync-summary" style="background:var(--bg);border-radius:var(--rr);padding:10px 12px;font-size:12px;color:var(--tx);line-height:2;margin-bottom:12px;max-height:240px;overflow-y:auto"></div>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:12px;padding:6px 10px;background:var(--yb);border-radius:var(--rr);border:0.5px solid var(--ybd)">
+      ⚠ 上传将覆盖云端旧数据。如其他人也有本地修改，请先让他们同步后再上传。
+    </div>
+    <div class="modal-btns">
+      <button class="bs" id="sync-cancel-btn">取消</button>
+      <button class="bp" id="sync-confirm-btn" style="background:var(--gold)">确认上传</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 弹窗：同步结果 ── -->
+<div class="overlay" id="sync-result-modal" style="display:none">
+  <div class="modal" style="width:320px;text-align:center;padding:28px 24px">
+    <div id="sync-result" style="font-size:16px;font-weight:700;margin-bottom:16px"></div>
+    <button class="bp" style="width:100%" onclick="document.getElementById('sync-result-modal').style.display='none'">关闭</button>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     模块加载顺序（依赖关系由上到下）：
+     1. config    — 常量配置
+     2. utils     — 纯工具函数
+     3. storage   — 本地存储 + 快照操作
+     4. sync      — 云端同步 + 实时监听
+     5. auth      — 用户认证 + 权限
+     6. render/*  — 各页面渲染函数
+     7. app       — 主控制器（状态 + render 分发 + 初始化）
+     ════════════════════════════════════════════════════ -->
+<script src="/app/js/config.js"></script>
+<script src="/app/js/utils.js"></script>
+<script src="/app/js/storage.js"></script>
+<script src="/app/js/sync.js"></script>
+<script src="/app/js/auth.js"></script>
+<script src="/app/js/render/weekly.js"></script>
+<script src="/app/js/render/charts.js"></script>
+<script src="/app/js/render/meeting.js"></script>
+<script src="/app/js/render/archive.js"></script>
+<script src="/app/js/render/forms.js"></script>
+<script src="/app/js/render/users.js"></script>
+<script src="/app/js/app.js"></script>
+
+</body>
+</html>

@@ -8,8 +8,10 @@ function _renderItemListDisplay(v, emptyText){
     return `<span style="color:var(--t3)">${emptyText||'—'}</span>`;
   }
   if(typeof v==='string'){
-    // 旧格式：原样展示
-    return `<span style="white-space:pre-wrap">${esc(v)}</span>`;
+    // 旧格式：按换行分割，去除开头的序号后渲染为列表
+    const lines = v.split(/\n/).map(l=>l.replace(/^[\d１２３４５６７８９０]+[、.．。]\s*/,'').trim()).filter(Boolean);
+    if(lines.length<=1) return `<span style="white-space:pre-wrap">${esc(v)}</span>`;
+    return `<ol class="dim-item-list">${lines.map(l=>`<li>${esc(l)}</li>`).join('')}</ol>`;
   }
   if(Array.isArray(v)){
     const items = v.filter(item=>item.text&&item.text.trim());

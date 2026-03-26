@@ -24,11 +24,15 @@ echo ""
 # 2. 上传到CloudBase静态托管
 echo "☁️  上传文件到 CloudBase..."
 
-echo "  → 上传 index_fixed.html → /weekly/index.html"
-tcb hosting deploy ./index_fixed.html /weekly/index.html 2>&1 | grep -v "^$"
+echo "  → 生成 weekly_index.html（绝对路径版）并上传 → /weekly/index.html"
+sed 's|href="css/|href="/app/css/|g' ./app/index.html | sed 's|src="js/|src="/app/js/|g' > ./weekly_index.html
+tcb hosting deploy ./weekly_index.html /weekly/index.html 2>&1 | grep -v "^$"
 
 echo "  → 上传 portal.html → /index.html"
 tcb hosting deploy ./portal.html /index.html 2>&1 | grep -v "^$"
+
+echo "  → 上传 app/ → /app/"
+tcb hosting deploy ./app /app 2>&1 | grep -E "✔|✖|file"
 
 echo ""
 echo "🚀 推送代码到 GitHub..."

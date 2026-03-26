@@ -246,10 +246,22 @@ async function _startRealtime(){
     await _cbApp.auth.signInAnonymously();
     console.log('[Realtime] CloudBase 匿名登录成功');
     const db=_cbApp.database();
-    const w1=db.collection('weeklydata').where({_id:db.command.eq('projects')}).watch({onChange:(s)=>{if(s&&s.docChanges&&s.docChanges.length>0){console.log('[Realtime] projects 变化');_onRealtimeChange('projects');}},onError:(e)=>{console.warn('[Realtime] projects watcher error:',e);_handleRealtimeError();}});
-    const w2=db.collection('weeklydata').where({_id:db.command.eq('activity_log')}).watch({onChange:(s)=>{if(s&&s.docChanges&&s.docChanges.length>0){console.log('[Realtime] activity_log 变化');_onRealtimeChange('activity_log');}},onError:(e)=>{console.warn('[Realtime] activity_log watcher error:',e);_handleRealtimeError();}});
-    const w3=db.collection('weeklydata').where({_id:/^snap_/}).watch({onChange:(s)=>{if(s&&s.docChanges&&s.docChanges.length>0){console.log('[Realtime] snap 变化');_onRealtimeChange('snap');}},onError:(e)=>{console.warn('[Realtime] snap watcher error:',e);_handleRealtimeError();}});
+    // 等待 SDK 内部 WebSocket 握手完成，避免 "nextevent ignored" 警告
+    await new Promise(r=>setTimeout(r,800));
+    // 建立 watcher 前先标记已就绪，避免初始推送被丢弃
+    let _watchersReady=false;
+    const _guardChange=(type,s)=>{
+      if(!_watchersReady||!s||!s.docChanges||!s.docChanges.length) return;
+      console.log('[Realtime]',type,'变化');
+      _onRealtimeChange(type);
+    };
+    const w1=db.collection('weeklydata').where({_id:db.command.eq('projects')}).watch({onChange:(s)=>_guardChange('projects',s),onError:(e)=>{console.warn('[Realtime] projects watcher error:',e);_handleRealtimeError();}});
+    const w2=db.collection('weeklydata').where({_id:db.command.eq('activity_log')}).watch({onChange:(s)=>_guardChange('activity_log',s),onError:(e)=>{console.warn('[Realtime] activity_log watcher error:',e);_handleRealtimeError();}});
+    const w3=db.collection('weeklydata').where({_id:/^snap_/}).watch({onChange:(s)=>_guardChange('snap',s),onError:(e)=>{console.warn('[Realtime] snap watcher error:',e);_handleRealtimeError();}});
     _cbWatchers=[w1,w2,w3];
+    // 等一帧再开放事件接收，跳过 SDK 初始握手推送
+    await new Promise(r=>setTimeout(r,200));
+    _watchersReady=true;
     console.log('[Realtime] ✅ 实时监听已建立（3个集合），停止轮询');
     return true;
   }catch(e){ console.warn('[Realtime] 初始化失败:',e.message,'→ 降级到轮询'); return false; }
