@@ -184,13 +184,13 @@ body{font-family:var(--fn);background:var(--bg);color:var(--tx);min-height:100vh
 }
 .gantt-table th.th-task{text-align:left;padding-left:20px;min-width:200px}
 .gantt-table th.th-proj{text-align:left;min-width:80px}
-.gantt-table td{padding:6px 6px;border-bottom:0.5px solid var(--bdr);vertical-align:middle}
+.gantt-table td{padding:3px 6px;border-bottom:0.5px solid var(--bdr);vertical-align:middle}
 .gantt-table td.td-task{padding-left:16px;padding-right:8px}
 .gantt-table tr:last-child td{border-bottom:none}
 .gantt-table tr:hover td{background:rgba(0,0,0,.018)}
-.task-text{font-size:12px;color:var(--tx);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}
+.task-text{font-size:12px;color:var(--tx);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}
 .task-text.done{text-decoration:line-through;color:var(--t3)}
-.proj-label{font-size:11px;color:var(--t3);line-height:1.4}
+.proj-label{font-size:11px;color:var(--t3);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100px}
 
 /* 甘特条 */
 .bar-cell{padding:4px 4px;position:relative}
@@ -202,9 +202,9 @@ body{font-family:var(--fn);background:var(--bg);color:var(--tx);min-height:100vh
 }
 
 /* 状态控件 */
-.status-cell{padding:4px 10px 4px 4px}
-.status-wrap{display:flex;flex-direction:row;align-items:center;gap:6px;flex-wrap:wrap}
-.status-btns{display:flex;gap:6px;flex-wrap:wrap}
+.status-cell{padding:3px 10px 3px 4px}
+.status-wrap{display:flex;flex-direction:row;align-items:center;gap:6px;flex-wrap:nowrap;white-space:nowrap}
+.status-btns{display:flex;gap:6px;flex-wrap:nowrap}
 .status-btn{
   padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;
   cursor:pointer;border:1.5px solid transparent;transition:all .15s;font-family:var(--fn);
@@ -217,12 +217,12 @@ body{font-family:var(--fn);background:var(--bg);color:var(--tx);min-height:100vh
 .status-btn.readonly{cursor:default;pointer-events:none}
 
 /* 完成时间 */
-.due-row{display:flex;align-items:center;gap:4px}
+.due-row{display:inline-flex;align-items:center;gap:3px;flex-shrink:0}
 .due-label{font-size:10px;color:var(--t3);white-space:nowrap}
 .due-input{
   font-size:11px;border:1px solid var(--bdr);border-radius:7px;
-  padding:3px 8px;background:var(--bg);color:var(--tx);
-  font-family:var(--fn);cursor:pointer;width:108px;
+  padding:3px 6px;background:var(--bg);color:var(--tx);
+  font-family:var(--fn);cursor:pointer;width:94px;
 }
 .due-input:focus{border-color:var(--gold);outline:none}
 .carry-tag{
@@ -238,6 +238,16 @@ body{font-family:var(--fn);background:var(--bg);color:var(--tx);min-height:100vh
 }
 .submit-tip{font-size:11px;color:var(--t3)}
 .submit-tip.warn{color:var(--yt)}
+
+/* 得分卡片进度条 */
+.sc-progress{margin-top:8px}
+.sc-prog-bar{height:4px;border-radius:2px;background:var(--bdr);overflow:hidden;margin-top:3px}
+.sc-prog-fill{height:100%;border-radius:2px;transition:width .4s}
+.sc-prog-label{font-size:10px;color:var(--t3);display:flex;justify-content:space-between}
+
+/* 项目来源标签（甘特图内） */
+.proj-src{font-size:10px;color:var(--t3);margin-top:1px;line-height:1.3}
+.proj-src-dot{display:inline-block;width:5px;height:5px;border-radius:50%;margin-right:3px;vertical-align:middle}
 
 /* 同步状态 */
 .sync-badge{
@@ -304,6 +314,7 @@ body{font-family:var(--fn);background:var(--bg);color:var(--tx);min-height:100vh
         <button class="wb" onclick="nextWk()">›</button>
       </div>
       <button class="theme-btn" id="theme-btn" onclick="toggleTheme()" title="切换日夜">🌙</button>
+      <a href="/kpi/calendar.html" style="padding:6px 12px;border-radius:8px;border:0.5px solid var(--bdr);font-size:12px;color:var(--t2);text-decoration:none;display:flex;align-items:center;gap:4px" title="年度统计视图">📊 统计</a>
     </div>
   </div>
 </div>
@@ -518,27 +529,37 @@ function setTaskStatus(owner,projId,taskIdx,status,dueDate){
   saveTBData(d);
 }
 
-// 日期格式化：只显示月/日
+// 日期格式化：只显示MMDD（如0326），不显示年份
 function fmtMonDay(d){
   if(!d) return '';
   const p=d.split('-');
-  return p.length>=3 ? parseInt(p[1])+'月'+parseInt(p[2])+'日' : d;
+  if(p.length>=3){
+    const mm=String(parseInt(p[1])).padStart(2,'0');
+    const dd=String(parseInt(p[2])).padStart(2,'0');
+    return mm+dd;
+  }
+  return d;
 }
 // ════════════════════════════════════════════════════════════════
 // ▌ 模块五：解析与计算
 // ════════════════════════════════════════════════════════════════
 function parseTasks(coreAction){
   if(!coreAction) return [];
-  // 兼容数组格式（周报系统存储的格式：[{text, dueDate}]）
+  // 新格式：数组（周报系统存储的格式：[{text, dueDate}]）
   if(Array.isArray(coreAction)){
-    return coreAction.map(item=>typeof item==='object'?(item.text||''):String(item)).filter(s=>s.trim().length>0);
+    return coreAction
+      .map(item=>typeof item==='object'?(item.text||''):String(item))
+      .map(s=>s.trim())
+      .filter(s=>s.length>0);
   }
-  // 兼容字符串格式（旧格式，换行/分号分隔）
+  // 旧格式：纯字符串，只按换行拆分，不按逗号/分号拆
+  // 注意：事项内容本身可能含有逗号（如日期描述），不能拆
   if(typeof coreAction!=='string') return [];
   return coreAction
-    .replace(/\r/g,'').split('\n')
-    .flatMap(s=>s.split(/[；;、，,]+/))
-    .map(s=>s.trim()).filter(s=>s.length>0);
+    .replace(/\r/g,'')
+    .split('\n')
+    .map(s=>s.replace(/^[\d１２３４５６７８９０]+[、.．。]\s*/,'').trim())  // 去掉行首序号
+    .filter(s=>s.length>0);
 }
 
 function calcScore(owner, projects){
@@ -615,13 +636,13 @@ function renderBarCells(taskIdx, taskText){
 // ▌ 模块七：主渲染
 // ════════════════════════════════════════════════════════════════
 function getOwners(projects){
+  // 收集所有未归档项目的 designOwner，只要负责人不为空就纳入统计
+  // 不过滤"本周是否有coreAction"，这样本周无事项的人会显示 -5 分
+  // ⚠️ 不能用 DIRECTORS 过滤：总监可能同时是某项目的研策负责人（如冷耀秋→巴黎人）
+  //    DIRECTORS 只控制评分操作权限，不决定是否出现在统计里
   const s=new Set();
-  projects.filter(p=>!p.archived).forEach(p=>{
-    const snap=getSnap(curYr,curWk,p.id);
-    const hasAction = Array.isArray(snap.coreAction)
-      ? snap.coreAction.length > 0
-      : (snap.coreAction && snap.coreAction.trim());
-    if(p.designOwner && hasAction) s.add(p.designOwner);
+  projects.filter(p=>!p.archived&&p.designOwner&&p.designOwner.trim()).forEach(p=>{
+    s.add(p.designOwner.trim());
   });
   return [...s].sort();
 }
@@ -651,16 +672,23 @@ function renderScoreOverview(owners,projects){
     const sc=calcScore(owner,projects);
     const cls=scoreClass(sc.score,sc.total);
     const scoreText=sc.total===0?'-5':(sc.score>=0?'+'+sc.score:String(sc.score));
+    const pct=sc.total>0?Math.round(sc.done/sc.total*100):0;
+    const progColor=cls==='great'?'#34c759':cls==='ok'?'var(--gold)':cls==='warn'?'#ff9500':'#ff3b30';
+    const pending=sc.total-sc.done-sc.undone;
     return `<div class="score-card s-${cls}" onclick="scrollToMember('${esc(owner)}')">
       <div class="sc-name" title="${esc(owner)}">${esc(owner)}</div>
       <div class="sc-score s-${cls}">${scoreText}</div>
-      <div class="sc-label">本周得分</div>
+      <div class="sc-label">本周得分 · ${sc.total}项事务</div>
       <div class="sc-tags">
-        ${sc.done?`<span class="sc-tag done">✓ ${sc.done}完成</span>`:''}
+        ${sc.done?`<span class="sc-tag done">✓ ${sc.done}已完成</span>`:''}
         ${sc.undone?`<span class="sc-tag undone">✗ ${sc.undone}未完成</span>`:''}
-        ${sc.total===0?`<span class="sc-tag zero">无事项 -5</span>`:''}
-        ${!sc.done&&!sc.undone&&sc.total>0?`<span class="sc-tag zero">待确认</span>`:''}
+        ${pending>0?`<span class="sc-tag zero">⏳ ${pending}待确认</span>`:''}
+        ${sc.total===0?`<span class="sc-tag zero">无事项 −5分</span>`:''}
       </div>
+      ${sc.total>0?`<div class="sc-progress">
+        <div class="sc-prog-label"><span>完成率</span><span>${pct}%</span></div>
+        <div class="sc-prog-bar"><div class="sc-prog-fill" style="width:${pct}%;background:${progColor}"></div></div>
+      </div>`:''}
     </div>`;
   }).join('');
 }
@@ -688,7 +716,22 @@ function renderMemberBlocks(owners,projects){
       });
     });
 
-    if(!rows.length) return '';
+    if(!rows.length){
+      // 无事项：渲染空白卡片（不是直接跳过），显示"本周暂无计划"
+      return `<div class="member-block" id="mb-${esc(owner)}">
+        <div class="member-hd">
+          <div class="member-avatar" style="background:${aColor}">${esc(initials)}</div>
+          <div class="member-info">
+            <div class="member-name">${esc(owner)}</div>
+            <div class="member-sub">本周暂无计划 · ${esc(wkLabel(curYr,curWk))}</div>
+          </div>
+          <span class="member-score-badge" style="${scoreBadgeStyle('bad')}">得分 -5</span>
+        </div>
+        <div style="padding:24px 20px;text-align:center;color:var(--t3);font-size:13px">
+          📋 周报「本周计划」暂未填写，自动扣 5 分
+        </div>
+      </div>`;
+    }
 
     const rowsHtml=rows.map(row=>{
       const isDone  =row.status==='done';
@@ -696,6 +739,10 @@ function renderMemberBlocks(owners,projects){
       const canAct  =isDirector();
 
       // 状态按钮
+      const isCarried=row.task.startsWith('[顺延]');
+      const taskDisplay=isCarried
+        ?`<span class="carry-tag" style="margin-right:4px;font-size:9px">↗顺延</span>${esc(row.task.replace(/^\[顺延\]\s*/,''))}`
+        :esc(row.task);
       const btnDone  =`<button class="status-btn done ${isDone?'active':''} ${canAct?'':'readonly'}"
         onclick="toggleStatus('${esc(owner)}',${row.proj.id},${row.rawIdx},'done')">✓ 完成</button>`;
       const btnUndone=`<button class="status-btn undone ${isUndone?'active':''} ${canAct?'':'readonly'}"
@@ -703,23 +750,37 @@ function renderMemberBlocks(owners,projects){
       const btnPend  =canAct?'':`<span class="status-btn pending active readonly">${
         isDone?'✓ 完成':isUndone?'✗ 未完成':'待确认'}</span>`;
 
-      const dueHtml=isUndone?`<div class="due-row">
-        <span class="due-label">预计：</span>
-        ${canAct
+      // 日期显示：只显示MMDD（如0326），不显示年份
+      const dueDateDisplay = row.dueDate
+        ? (()=>{
+            const p=row.dueDate.split('-');
+            if(p.length>=3){
+              const mm=String(parseInt(p[1])).padStart(2,'0');
+              const dd=String(parseInt(p[2])).padStart(2,'0');
+              return mm+dd;
+            }
+            return row.dueDate;
+          })()
+        : '';
+
+      // 日期控件（紧跟在未完成按钮后面，单行并排）
+      const dueHtml=isUndone
+        ? (canAct
           ?`<input type="date" class="due-input" value="${esc(row.dueDate)}"
+              title="${esc(dueDateDisplay||'点击选择日期')}"
               onchange="setDue('${esc(owner)}',${row.proj.id},${row.rawIdx},this.value)">`
-          :`<span style="font-size:11px;color:var(--yt);font-weight:600">${fmtMonDay(row.dueDate)||'待填写'}</span>`}
-      </div>`:'';
+          :`<span style="font-size:11px;color:var(--yt);font-weight:600;white-space:nowrap">${dueDateDisplay||'待填写'}</span>`)
+        :'';
 
       const carryTag=row.dueDate&&isUndone
-        ?`<span class="carry-tag">↗ 顺延</span>`:'';
+        ?`<span class="carry-tag">↗顺延</span>`:'';
 
       return `<tr>
         <td class="td-task">
-          <div class="task-text ${isDone?'done':''}" title="${esc(row.task)}">${esc(row.task)}${carryTag}</div>
+          <div class="task-text ${isDone?'done':''}" title="${esc(row.task)}">${taskDisplay}${carryTag}</div>
         </td>
-        <td style="padding:6px 6px;vertical-align:middle">
-          <div class="proj-label">${esc(row.proj.name.length>10?row.proj.name.slice(0,10)+'…':row.proj.name)}</div>
+        <td style="padding:3px 6px;vertical-align:middle">
+          <div class="proj-label">${esc(row.proj.name.length>12?row.proj.name.slice(0,12)+'…':row.proj.name)}</div>
         </td>
         ${renderBarCells(row.idx,row.task)}
         <td class="status-cell">
@@ -733,9 +794,15 @@ function renderMemberBlocks(owners,projects){
 
     // 未完成顺延提示
     const undoneWithDue=rows.filter(r=>r.status==='undone'&&r.dueDate);
-    const submitTip=undoneWithDue.length
-      ?`<span class="submit-tip warn">⚠ ${undoneWithDue.length} 项未完成将顺延至下周</span>`
-      :`<span class="submit-tip">${rows.filter(r=>r.status==='done').length}/${rows.length} 已确认完成</span>`;
+    const undoneNoDue=rows.filter(r=>r.status==='undone'&&!r.dueDate);
+    let submitTip='';
+    if(undoneNoDue.length){
+      submitTip=`<span class="submit-tip warn">⚠ ${undoneNoDue.length} 项未完成请先填写预计完成时间</span>`;
+    } else if(undoneWithDue.length){
+      submitTip=`<span class="submit-tip warn">↗ ${undoneWithDue.length} 项未完成将自动顺延至下周计划</span>`;
+    } else {
+      submitTip=`<span class="submit-tip">${rows.filter(r=>r.status==='done').length}/${rows.length} 项已确认完成</span>`;
+    }
 
     const submitBar=isDirector()?`<div class="submit-bar">
       ${submitTip}
@@ -804,6 +871,23 @@ async function submitMember(owner){
   if(!isDirector()){ showToast('仅总监可提交','#ff3b30'); return; }
   const projects=getProjects();
 
+  // 检查：未完成事项是否都填了完成时间
+  let missingDueCount=0;
+  projects.filter(p=>!p.archived&&p.designOwner===owner).forEach(proj=>{
+    const snap=getSnap(curYr,curWk,proj.id);
+    const tasks=Array.isArray(snap.coreAction)?snap.coreAction:parseTasks(snap.coreAction).map(t=>({text:t,dueDate:''}));
+    tasks.forEach((taskObj,idx)=>{
+      const taskText=typeof taskObj==='object'?(taskObj.text||''):String(taskObj);
+      if(!taskText.trim()) return;
+      const st=getTaskStatus(owner,proj.id,idx);
+      if(st.status==='undone'&&!st.dueDate) missingDueCount++;
+    });
+  });
+  if(missingDueCount>0){
+    showToast(`⚠ 还有 ${missingDueCount} 项未完成事项未填写预计时间，请先填写`,'#ff9500');
+    return;
+  }
+
   // 收集未完成事项，顺延到下周
   const nyr=curWk<52?curYr:curYr+1;
   const nwk=curWk<52?curWk+1:1;
@@ -811,21 +895,33 @@ async function submitMember(owner){
 
   projects.filter(p=>!p.archived&&p.designOwner===owner).forEach(proj=>{
     const snap=getSnap(curYr,curWk,proj.id);
-    const tasks=parseTasks(snap.coreAction);
+    const tasks=Array.isArray(snap.coreAction)
+      ? snap.coreAction
+      : parseTasks(snap.coreAction).map(t=>({text:t,dueDate:''}));
+
     const carries=[];
-    tasks.forEach((task,idx)=>{
+    tasks.forEach((taskObj,idx)=>{
+      const taskText=typeof taskObj==='object'?(taskObj.text||''):String(taskObj);
+      if(!taskText.trim()) return;
       const st=getTaskStatus(owner,proj.id,idx);
-      if(st.status==='undone'&&task.trim()){
-        carries.push(`【顺延${st.dueDate?'·预计'+st.dueDate:''}】${task}`);
+      if(st.status==='undone'){
+        // 顺延：保持数组格式，标记[顺延]前缀，携带新的预计完成时间
+        const carryText=taskText.startsWith('[顺延]')?taskText:'[顺延] '+taskText;
+        carries.push({text:carryText, dueDate:st.dueDate||''});
         carryCount++;
       }
     });
+
     if(carries.length){
       const nextSnap=getSnap(nyr,nwk,proj.id);
-      const existing=parseTasks(nextSnap.coreAction);
-      const newTasks=[...existing,...carries.filter(c=>!existing.includes(c))];
-      // 保持数组格式（与周报系统一致）
-      nextSnap.coreAction=newTasks.map(t=>({text:t,dueDate:''}));
+      // 保持数组格式
+      const existing=Array.isArray(nextSnap.coreAction)
+        ? nextSnap.coreAction
+        : parseTasks(nextSnap.coreAction).map(t=>({text:t,dueDate:''}));
+      // 去重：同样的文本不重复加
+      const existingTexts=new Set(existing.map(t=>(typeof t==='object'?t.text:t).replace(/^\[顺延\]\s*/,'')));
+      const newCarries=carries.filter(c=>!existingTexts.has(c.text.replace(/^\[顺延\]\s*/,'')));
+      nextSnap.coreAction=[...existing,...newCarries];
       setSnap(nyr,nwk,proj.id,nextSnap);
     }
   });
@@ -836,8 +932,8 @@ async function submitMember(owner){
   await _syncWeeksToCloud(projects.filter(p=>!p.archived&&p.designOwner===owner));
 
   showToast(carryCount>0
-    ?`✅ ${owner} 评审提交，${carryCount}项顺延至下周`
-    :`✅ ${owner} 评审提交，本周全部完成`,'#34c759');
+    ?`✅ ${owner} 评审提交，${carryCount}项已顺延至下周计划`
+    :`✅ ${owner} 评审提交，本周全部完成！`,'#34c759');
   renderAll();
 }
 
@@ -1036,9 +1132,12 @@ async function initApp(){
     renderAll();
     showSyncStatus('sync');
 
-    // 轻量轮询（30秒，只更新评分数据，不重复拉取周报快照）
+    // 轮询（30秒）：同时拉取周报快照 + 评分数据，实现周报更新→KPI实时单向同步
     setInterval(async()=>{
-      try{ await _loadTBFromCloud(); renderAll(); }catch(e){}
+      try{
+        await Promise.all([_loadWeeklyData(), _loadTBFromCloud()]);
+        renderAll();
+      }catch(e){ _warn('轮询刷新失败:',e.message); }
     }, 30000);
 
   }catch(e){
