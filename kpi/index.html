@@ -911,31 +911,38 @@ async function _loadTBFromCloud(){
 // 从云端拉取周报数据
 async function _loadWeeklyData(){
   try{
-    const [projRec,actRec]=await Promise.all([
-      dbGet('projects'),
-      dbGet('activity_log')
-    ]);
-    if(projRec&&projRec.projects)
-      localStorage.setItem('hlzc_p',JSON.stringify(projRec.projects));
+    // 第一步：拉项目列表（优先，决定后续 snap 拉取数量）
+    const projRec = await dbGet('projects');
+    if(projRec && projRec.projects){
+      localStorage.setItem('hlzc_p', JSON.stringify(projRec.projects));
+    } else {
+      _warn('云端 projects 为空或格式异常:', projRec);
+    }
 
-    // 拉取每个项目的快照
-    const projects=getProjects();
-    const allWeeks=getWeeks();
-    for(const proj of projects){
-      const snapRec=await dbGet('snap_'+proj.id);
-      if(snapRec&&snapRec.data){
+    // 第二步：并行拉取所有项目快照（基于刚拉到的 projects 列表）
+    const projects = getProjects();
+    if(!projects.length){
+      _warn('项目列表为空，跳过 snap 拉取');
+      return;
+    }
+
+    const allWeeks = getWeeks(); // 以本地缓存为基础
+    const snapPromises = projects.map(proj => dbGet('snap_'+proj.id).then(snapRec=>{
+      if(snapRec && snapRec.data){
         Object.keys(snapRec.data).forEach(wk=>{
           if(!allWeeks[wk]) allWeeks[wk]={};
-          allWeeks[wk][proj.id]=snapRec.data[wk];
+          allWeeks[wk][proj.id] = snapRec.data[wk]; // 云端覆盖本地
         });
       }
-    }
-    localStorage.setItem('hlzc_w',JSON.stringify(allWeeks));
-    _syncOk=true;
-    showSyncStatus('sync');
+    }).catch(e=>{ _warn('snap 拉取失败 proj'+proj.id+':', e.message); }));
+
+    await Promise.all(snapPromises); // 所有 snap 并行拉
+    localStorage.setItem('hlzc_w', JSON.stringify(allWeeks));
+    _syncOk = true;
+    _log('周报数据加载完成，项目数:', projects.length);
   }catch(e){
-    _warn('周报数据拉取失败:',e.message);
-    showSyncStatus('err');
+    _warn('周报数据拉取失败:', e.message);
+    throw e; // 向上抛出，让 initApp 处理
   }
 }
 
@@ -998,31 +1005,74 @@ async function initApp(){
   const badge=document.getElementById('user-badge');
   badge.textContent=_currentUser+(isDirector()?' 👑 总监':'');
   document.getElementById('btn-submit-all').style.display=isDirector()?'inline-block':'none';
-
   updWeekLabel();
-  showSyncStatus('local');
 
-  // 先渲染本地缓存数据（即时可见）
-  renderAll();
+  // 显示加载骨架（score 是独立页面，必须等云端数据就绪才有内容）
+  _showLoading(true);
+  showSyncStatus('saving');
 
-  // 再从云端拉取最新数据
   try{
+    // 第一步：连通性检测
     await _proxy('ping');
-    showSyncStatus('saving');
+
+    // 第二步：并行拉取周报数据 + 评分数据
     await Promise.all([_loadWeeklyData(), _loadTBFromCloud()]);
+
+    // 第三步：数据就绪后渲染
+    _showLoading(false);
     renderAll();
     showSyncStatus('sync');
-    // 启动轻量轮询（30秒心跳，检测他人是否更新评分）
+
+    // 轻量轮询（30秒，只更新评分数据，不重复拉取周报快照）
     setInterval(async()=>{
-      try{
-        await _loadTBFromCloud();
-        renderAll();
-      }catch(e){}
+      try{ await _loadTBFromCloud(); renderAll(); }catch(e){}
     }, 30000);
+
   }catch(e){
-    _warn('云端初始化失败，使用本地缓存:',e.message);
-    showSyncStatus('local');
+    _warn('云端初始化失败:', e.message);
+    _showLoading(false);
+    // 降级：用本地缓存（可能为空，显示提示）
+    renderAll();
+    showSyncStatus('err');
+    _showConnectErr();
   }
+}
+
+// 加载状态显示/隐藏
+function _showLoading(show){
+  const over = document.getElementById('score-overview');
+  const blocks = document.getElementById('member-blocks');
+  if(show){
+    over.innerHTML = `<div style="grid-column:1/-1;padding:20px 0;display:flex;gap:12px">
+      ${Array(3).fill('<div class="skeleton" style="flex:1;height:120px;border-radius:16px"></div>').join('')}
+    </div>`;
+    blocks.innerHTML = `<div class="skeleton" style="height:200px;border-radius:16px;margin-bottom:12px"></div>
+      <div class="skeleton" style="height:160px;border-radius:16px"></div>`;
+  }
+}
+
+// 云端连接失败提示
+function _showConnectErr(){
+  const el = document.getElementById('score-overview');
+  if(!el) return;
+  const hasLocal = getProjects().length > 0;
+  if(hasLocal) return; // 有本地缓存，不显示错误
+  el.innerHTML = `<div style="grid-column:1/-1">
+    <div style="background:var(--rb);border:0.5px solid var(--rbd);border-radius:12px;
+      padding:16px 20px;display:flex;align-items:flex-start;gap:12px">
+      <div style="font-size:24px">⚠️</div>
+      <div>
+        <div style="font-weight:700;color:var(--rt);margin-bottom:4px">无法连接到云端</div>
+        <div style="font-size:12px;color:var(--t2);line-height:1.6">
+          请检查网络后刷新页面。<br>
+          如果问题持续，请先打开<a href="/weekly/" style="color:var(--gold)">周报系统</a>登录后再返回此页面。
+        </div>
+        <button onclick="location.reload()" style="margin-top:10px;padding:6px 16px;
+          background:var(--gold);color:#fff;border:none;border-radius:8px;
+          font-size:12px;font-weight:700;cursor:pointer;font-family:var(--fn)">重新连接</button>
+      </div>
+    </div>
+  </div>`;
 }
 
 // 页面加载：自动登录（有缓存用户名）或显示登录弹窗
