@@ -528,7 +528,13 @@ function fmtMonDay(d){
 // ▌ 模块五：解析与计算
 // ════════════════════════════════════════════════════════════════
 function parseTasks(coreAction){
-  if(!coreAction||!coreAction.trim()) return [];
+  if(!coreAction) return [];
+  // 兼容数组格式（周报系统存储的格式：[{text, dueDate}]）
+  if(Array.isArray(coreAction)){
+    return coreAction.map(item=>typeof item==='object'?(item.text||''):String(item)).filter(s=>s.trim().length>0);
+  }
+  // 兼容字符串格式（旧格式，换行/分号分隔）
+  if(typeof coreAction!=='string') return [];
   return coreAction
     .replace(/\r/g,'').split('\n')
     .flatMap(s=>s.split(/[；;、，,]+/))
@@ -612,7 +618,10 @@ function getOwners(projects){
   const s=new Set();
   projects.filter(p=>!p.archived).forEach(p=>{
     const snap=getSnap(curYr,curWk,p.id);
-    if(p.designOwner&&snap.coreAction&&snap.coreAction.trim()) s.add(p.designOwner);
+    const hasAction = Array.isArray(snap.coreAction)
+      ? snap.coreAction.length > 0
+      : (snap.coreAction && snap.coreAction.trim());
+    if(p.designOwner && hasAction) s.add(p.designOwner);
   });
   return [...s].sort();
 }
@@ -815,7 +824,8 @@ async function submitMember(owner){
       const nextSnap=getSnap(nyr,nwk,proj.id);
       const existing=parseTasks(nextSnap.coreAction);
       const newTasks=[...existing,...carries.filter(c=>!existing.includes(c))];
-      nextSnap.coreAction=newTasks.join('\n');
+      // 保持数组格式（与周报系统一致）
+      nextSnap.coreAction=newTasks.map(t=>({text:t,dueDate:''}));
       setSnap(nyr,nwk,proj.id,nextSnap);
     }
   });
@@ -869,8 +879,11 @@ async function _syncWeeksToCloud(projects){
       const nextYr=curWk<52?curYr:curYr+1;
       const nextWk=curWk<52?curWk+1:1;
       const nextSnap=getSnap(nextYr,nextWk,proj.id);
-      // 写入下周快照
-      if(nextSnap.coreAction){
+      // 写入下周快照（兼容数组格式和字符串格式）
+      const hasNextAction = Array.isArray(nextSnap.coreAction)
+        ? nextSnap.coreAction.length > 0
+        : (nextSnap.coreAction && nextSnap.coreAction.trim());
+      if(hasNextAction){
         const weeks=getWeeks(), k=wkKey(nextYr,nextWk);
         if(!weeks[k]) weeks[k]={};
         weeks[k][proj.id]=nextSnap;
