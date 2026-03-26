@@ -93,24 +93,24 @@
         <div class="module-badge">已上线</div>
       </div>
       
-      <!-- 项目管理（预留） -->
-      <div class="module-card" onclick="showComingSoon('项目管理')">
-        <div class="module-icon module-2">📋</div>
-        <div class="module-title">项目管理系统</div>
+      <!-- 项目管理 - 周计划统计 KPI -->
+      <div class="module-card" onclick="location.href='/kpi/'">
+        <div class="module-icon module-2">📊</div>
+        <div class="module-title">周计划 KPI 评分</div>
         <div class="module-desc">
-          项目立项、资源分配、里程碑跟踪、交付物管理。全生命周期数字化管理。
+          员工本周计划完成情况统计与评分。按员工拆分甘特图，总监可确认完成状态并提交评审，未完成事项自动顺延至下周。
         </div>
         <div class="module-stats">
           <div class="stat-item">
-            <div class="stat-value">0</div>
-            <div class="stat-label">进行中</div>
+            <div class="stat-value" id="kpi-members">-</div>
+            <div class="stat-label">参与人员</div>
           </div>
           <div class="stat-item">
-            <div class="stat-value">0</div>
-            <div class="stat-label">已完成</div>
+            <div class="stat-value" id="kpi-tasks">-</div>
+            <div class="stat-label">本周事项</div>
           </div>
         </div>
-        <div class="module-badge">开发中</div>
+        <div class="module-badge" style="background:linear-gradient(135deg,#e8f5ea,#50c070);color:#145c28;border-color:#a8ddb8">已上线</div>
       </div>
       
       <!-- 数据分析（预留） -->
@@ -171,15 +171,40 @@
         const storedProjects = localStorage.getItem('hlzc_p');
         if (storedProjects) {
           const projects = JSON.parse(storedProjects);
-          const today = new Date();
-          const currentWeek = today.getFullYear() + '-' + (today.getMonth() + 1) + '-' + today.getDate();
-          
+
           // 项目总数
           document.getElementById('weekly-projects').textContent = projects.length || 0;
-          
-          // 活跃项目数（最近7天有更新的）
-          // 这里简化逻辑，实际可以从快照数据计算
-          document.getElementById('weekly-active').textContent = projects.length > 0 ? projects.length : '-';
+          // 活跃项目数
+          document.getElementById('weekly-active').textContent = projects.filter(p=>!p.archived).length || '-';
+
+          // KPI 统计：从 hlzc_w 读取本周数据
+          try {
+            const storedWeeks = localStorage.getItem('hlzc_w');
+            if (storedWeeks) {
+              const weeks = JSON.parse(storedWeeks);
+              // 计算当前 ISO 周
+              const now = new Date();
+              const t = new Date(now); t.setHours(0,0,0,0);
+              t.setDate(t.getDate()+3-(t.getDay()+6)%7);
+              const w4 = new Date(t.getFullYear(),0,4);
+              const wkNum = 1+Math.round(((t-w4)/864e5-(3-(w4.getDay()+6)%7))/7);
+              const wkKey = `${t.getFullYear()}-W${String(wkNum).padStart(2,'0')}`;
+              const wkData = weeks[wkKey] || {};
+              const owners = new Set();
+              let totalTasks = 0;
+              projects.filter(p=>!p.archived).forEach(p => {
+                const snap = wkData[p.id];
+                if(snap && snap.coreAction && snap.coreAction.trim() && p.designOwner) {
+                  owners.add(p.designOwner);
+                  const tasks = snap.coreAction.replace(/\r/g,'').split('\n')
+                    .flatMap(s=>s.split(/[；;、，,]+/)).map(s=>s.trim()).filter(s=>s.length>0);
+                  totalTasks += tasks.length;
+                }
+              });
+              document.getElementById('kpi-members').textContent = owners.size || '-';
+              document.getElementById('kpi-tasks').textContent = totalTasks || '-';
+            }
+          } catch(e2) {}
         }
       } catch(e) {
         console.log('无法获取周报数据（可能未登录）');
