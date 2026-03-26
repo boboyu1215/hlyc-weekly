@@ -34,13 +34,7 @@ function _itemListText(v){
 
 function renderWeekly(){
   const projects=LP();
-  // 当前登录用户负责的项目（designOwner匹配）置顶，其余按原有sortOrder排序
-  const active=projects.filter(p=>!p.archived).sort((a,b)=>{
-    const aIsMe = a.designOwner===_currentUser ? 0 : 1;
-    const bIsMe = b.designOwner===_currentUser ? 0 : 1;
-    if(aIsMe!==bIsMe) return aIsMe-bIsMe;
-    return (a.sortOrder||0)-(b.sortOrder||0);
-  });
+  const active=projects.filter(p=>!p.archived).sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
   const snaps=active.map(p=>({...p,...getSnap(S.yr,S.wk,p.id,projects)}));
   const r=snaps.filter(p=>p.status==='r').length, y=snaps.filter(p=>p.status==='y').length, g=snaps.filter(p=>p.status==='g').length;
   const blk=snaps.filter(p=>{
@@ -107,11 +101,9 @@ function renderWeekCard(p,now,isArch){
   const lastEditor = p._updatedBy ? `${esc(p._updatedBy)} · ${esc(p._updatedAt||'')}` : '';
   // 检查是否有本地已改未提交的数据
   const hasPending = now && getPendingSubmit().has(p.id);
-  const isMyProj = _currentUser && p.designOwner === _currentUser;
-  return`<div class="pc ${sc(p.status)}${isMyProj?' my-proj':''}" ${drag} id="pc-${p.id}">
+  return`<div class="pc ${sc(p.status)}" ${drag} id="pc-${p.id}">
     <div class="pc-top">
       <div class="pc-nm">${now&&!isArch&&canEdit?'<span style="color:var(--t3);font-size:12px;margin-right:4px;cursor:grab">⠿</span>':''} ${esc(p.name)}
-        ${isMyProj?`<span style="font-size:10px;background:var(--gold);color:#fff;padding:1px 6px;border-radius:6px;font-weight:600;margin-left:6px;vertical-align:middle">我的</span>`:''}
         ${!canEdit&&now?`<span style="font-size:10px;color:var(--t3);margin-left:6px;font-weight:400">🔒 只读</span>`:''}
       </div>
       <div style="display:flex;align-items:center;gap:6px">
