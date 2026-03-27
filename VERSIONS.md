@@ -15,5 +15,11 @@
 - 门户页面（portal.html）
 - 周报主页面（weekly_index.html）
 
+## v2 - 2026-03-27
+- 完成 moodway 完整网站代码架构
+- 新增 favicon.ico
+- 补充 CLAUDE.md 完整开发规范文档
+- 新增 moodway_稳定版_v1.20260327 存档目录
+
 ## v1 - 2026-03-27
 - feat: 完成v25稳定版，更新开发规范文档，清理旧版本存档
