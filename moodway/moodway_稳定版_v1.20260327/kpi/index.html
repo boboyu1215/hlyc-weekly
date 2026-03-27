@@ -1,0 +1,1204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>华力｜研策部员工周计划完成KPI</title>
+<style>
+/* ════ 基础变量 ════ */
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --gold:#8a6400;--gl:#f5e9c0;--gm:#c4a030;
+  --rb:#fff0f0;--rt:#b00020;--rbd:#f5c0c0;
+  --yb:#fffbeb;--yt:#7a5400;--ybd:#f0d878;
+  --gb:#f0faf2;--gt:#145c28;--gbd:#a8ddb8;
+  --bg:#f2f0ea;--card:#ffffff;--bdr:#d8d4cc;
+  --tx:#111111;--t2:#444444;--t3:#888888;
+  --r:16px;--rr:10px;
+  --fn:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+  --shadow:0 2px 12px rgba(0,0,0,.07);
+  --shadow-lg:0 8px 32px rgba(0,0,0,.10);
+}
+@media(prefers-color-scheme:dark){:root:not(.light){
+  --bg:#141210;--card:#1e1c18;--bdr:#302e28;
+  --tx:#f0ece0;--t2:#b0a888;--t3:#686050;
+  --gold:#c4a030;--gl:#2e2808;
+  --rb:#2a1010;--rt:#f06060;--rbd:#5a2020;
+  --yb:#2a2008;--yt:#d4a030;--ybd:#5a4010;
+  --gb:#0e2618;--gt:#50c070;--gbd:#205030;
+}}
+:root.dark{
+  --bg:#141210;--card:#1e1c18;--bdr:#302e28;
+  --tx:#f0ece0;--t2:#b0a888;--t3:#686050;
+  --gold:#c4a030;--gl:#2e2808;
+  --rb:#2a1010;--rt:#f06060;--rbd:#5a2020;
+  --yb:#2a2008;--yt:#d4a030;--ybd:#5a4010;
+  --gb:#0e2618;--gt:#50c070;--gbd:#205030;
+}
+:root.light{
+  --bg:#f2f0ea;--card:#ffffff;--bdr:#d8d4cc;
+  --tx:#111111;--t2:#444444;--t3:#888888;
+  --gold:#8a6400;
+}
+
+body{font-family:var(--fn);background:var(--bg);color:var(--tx);min-height:100vh;font-size:14px;-webkit-font-smoothing:antialiased}
+
+/* ════ 顶栏 ════ */
+.topbar{
+  background:var(--card);border-bottom:1px solid var(--bdr);
+  position:sticky;top:0;z-index:200;
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+}
+.topinner{
+  max-width:1100px;margin:0 auto;
+  display:flex;align-items:center;height:56px;padding:0 20px;gap:12px;
+}
+.logo-back{
+  display:flex;align-items:center;gap:8px;
+  font-size:13px;color:var(--t3);text-decoration:none;
+  padding:5px 10px;border-radius:8px;transition:background .15s;
+}
+.logo-back:hover{background:var(--bg)}
+.logo-back svg{width:16px;height:16px;fill:currentColor}
+.logo-title{font-size:15px;font-weight:700;color:var(--gold);flex:1;text-align:center}
+.topbar-right{display:flex;align-items:center;gap:8px}
+.week-sw{display:flex;align-items:center;gap:4px}
+.wb{width:28px;height:28px;border:0.5px solid var(--bdr);border-radius:7px;
+  background:var(--card);color:var(--t2);cursor:pointer;font-size:14px;
+  display:flex;align-items:center;justify-content:center;transition:all .15s}
+.wb:hover{border-color:var(--gold);color:var(--gold)}
+.wl{font-size:12px;color:var(--t2);min-width:88px;text-align:center;font-weight:600}
+.theme-btn{width:30px;height:30px;border:0.5px solid var(--bdr);border-radius:8px;
+  background:transparent;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
+
+/* ════ 登录层 ════ */
+.login-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.45);
+  display:flex;align-items:center;justify-content:center;z-index:500;
+  backdrop-filter:blur(6px);
+}
+.login-card{
+  background:var(--card);border-radius:20px;padding:36px 32px;width:340px;
+  box-shadow:var(--shadow-lg);text-align:center;
+}
+.login-card h2{font-size:20px;font-weight:800;margin-bottom:6px;color:var(--tx)}
+.login-card p{font-size:13px;color:var(--t3);margin-bottom:24px}
+.login-input{
+  width:100%;padding:11px 14px;border:1.5px solid var(--bdr);border-radius:10px;
+  font-size:14px;background:var(--bg);color:var(--tx);font-family:var(--fn);
+  margin-bottom:12px;transition:border-color .15s;
+}
+.login-input:focus{border-color:var(--gold);outline:none}
+.btn-primary{
+  width:100%;padding:11px;background:var(--gold);color:#fff;border:none;
+  border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--fn);
+  transition:opacity .15s;
+}
+.btn-primary:hover{opacity:.88}
+.login-err{color:var(--rt);font-size:12px;margin-top:8px;min-height:18px}
+.login-tip{font-size:11px;color:var(--t3);margin-top:12px}
+
+/* ════ 主内容 ════ */
+.shell{max-width:1100px;margin:0 auto;padding:24px 20px 80px}
+
+/* ════ 周信息栏 ════ */
+.week-info-bar{
+  background:var(--card);border:0.5px solid var(--bdr);border-radius:var(--r);
+  padding:16px 20px;margin-bottom:20px;
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;
+}
+.week-info-main{display:flex;flex-direction:column;gap:2px}
+.week-info-title{font-size:18px;font-weight:800;color:var(--tx)}
+.week-info-sub{font-size:12px;color:var(--t3)}
+.week-info-actions{display:flex;gap:8px;align-items:center}
+.btn-sm{
+  padding:7px 16px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;
+  font-family:var(--fn);border:1.5px solid transparent;transition:all .15s;
+}
+.btn-outline{background:transparent;border-color:var(--bdr);color:var(--t2)}
+.btn-outline:hover{border-color:var(--gold);color:var(--gold)}
+.btn-gold{background:var(--gold);color:#fff;border-color:var(--gold)}
+.btn-gold:hover{opacity:.88}
+.btn-danger{background:var(--rt);color:#fff;border-color:var(--rt)}
+
+/* ════ 员工得分总览卡片 ════ */
+.score-overview{
+  display:flex;flex-wrap:nowrap;gap:12px;margin-bottom:24px;
+  /* 强制单行，所有卡片均分宽度，与下方甘特卡片严格对齐 */
+}
+.score-card{
+  background:var(--card);border:0.5px solid var(--bdr);border-radius:var(--r);
+  padding:18px 16px;position:relative;overflow:hidden;
+  transition:box-shadow .2s,transform .2s;cursor:pointer;
+  flex:1 1 0;          /* 等比分配，不设最小宽度限制 */
+  min-width:0;         /* 允许压缩 */
+  overflow:hidden;
+}
+.score-card:hover{box-shadow:var(--shadow-lg);transform:translateY(-2px)}
+.score-card::after{
+  content:'';position:absolute;top:0;left:0;right:0;height:4px;border-radius:var(--r) var(--r) 0 0;
+}
+.score-card.s-great::after{background:linear-gradient(90deg,#34c759,#30d158)}
+.score-card.s-ok::after{background:linear-gradient(90deg,var(--gold),#d4a030)}
+.score-card.s-warn::after{background:linear-gradient(90deg,#ff9500,#ffcc00)}
+.score-card.s-bad::after{background:linear-gradient(90deg,#ff3b30,#ff6b6b)}
+.sc-name{font-size:13px;font-weight:700;margin-bottom:6px;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.sc-score{font-size:38px;font-weight:900;line-height:1;margin-bottom:4px}
+.sc-score.s-great{color:#34c759}.sc-score.s-ok{color:var(--gold)}
+.sc-score.s-warn{color:#ff9500}.sc-score.s-bad{color:#ff3b30}
+.sc-label{font-size:10px;color:var(--t3);margin-bottom:8px}
+.sc-tags{display:flex;flex-wrap:wrap;gap:4px}
+.sc-tag{padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700}
+.sc-tag.done{background:var(--gb);color:var(--gt)}
+.sc-tag.undone{background:var(--rb);color:var(--rt)}
+.sc-tag.zero{background:var(--bg);color:var(--t3);border:0.5px solid var(--bdr)}
+
+/* ════ 员工评分区块 ════ */
+.member-block{
+  background:var(--card);border:0.5px solid var(--bdr);border-radius:var(--r);
+  margin-bottom:16px;overflow:hidden;box-shadow:var(--shadow);
+}
+.member-hd{
+  display:flex;align-items:center;gap:14px;padding:16px 20px;
+  border-bottom:0.5px solid var(--bdr);
+}
+.member-avatar{
+  width:42px;height:42px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:16px;color:#fff;
+}
+.member-info{flex:1;min-width:0}
+.member-name{font-size:15px;font-weight:700}
+.member-sub{font-size:11px;color:var(--t3);margin-top:2px}
+.member-score-badge{
+  padding:6px 16px;border-radius:20px;font-size:14px;font-weight:800;flex-shrink:0;
+}
+
+/* ════ 甘特表格 ════ */
+.gantt-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.gantt-table{width:100%;border-collapse:collapse;min-width:720px}
+.gantt-table th{
+  font-size:10px;font-weight:700;color:var(--t3);padding:8px 10px;
+  text-align:center;border-bottom:0.5px solid var(--bdr);background:var(--bg);
+  letter-spacing:.06em;white-space:nowrap;
+}
+.gantt-table th.th-task{text-align:left;padding-left:20px;min-width:200px}
+.gantt-table th.th-proj{text-align:left;min-width:80px}
+.gantt-table td{padding:3px 6px;border-bottom:0.5px solid var(--bdr);vertical-align:middle}
+.gantt-table td.td-task{padding-left:16px;padding-right:8px}
+.gantt-table tr:last-child td{border-bottom:none}
+.gantt-table tr:hover td{background:rgba(0,0,0,.018)}
+.task-text{font-size:12px;color:var(--tx);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}
+.task-text.done{text-decoration:line-through;color:var(--t3)}
+.proj-label{font-size:11px;color:var(--t3);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100px}
+
+/* 甘特条 */
+.bar-cell{padding:4px 4px;position:relative}
+.gantt-bar{
+  height:16px;border-radius:8px;display:flex;align-items:center;
+  padding:0 6px;font-size:10px;color:rgba(255,255,255,.85);font-weight:600;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  box-shadow:0 1px 4px rgba(0,0,0,.10);
+}
+
+/* 状态控件 */
+.status-cell{padding:3px 10px 3px 4px}
+.status-wrap{display:flex;flex-direction:row;align-items:center;gap:6px;flex-wrap:nowrap;white-space:nowrap}
+.status-btns{display:flex;gap:6px;flex-wrap:nowrap}
+.status-btn{
+  padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;
+  cursor:pointer;border:1.5px solid transparent;transition:all .15s;font-family:var(--fn);
+}
+.status-btn.done{background:var(--gb);color:var(--gt);border-color:var(--gbd)}
+.status-btn.undone{background:var(--rb);color:var(--rt);border-color:var(--rbd)}
+.status-btn.pending{background:var(--bg);color:var(--t3);border-color:var(--bdr)}
+.status-btn:not(.active){opacity:.38}
+.status-btn.active{opacity:1}
+.status-btn.readonly{cursor:default;pointer-events:none}
+
+/* 完成时间 */
+.due-row{display:inline-flex;align-items:center;gap:3px;flex-shrink:0}
+.due-label{font-size:10px;color:var(--t3);white-space:nowrap}
+.due-input{
+  font-size:11px;border:1px solid var(--bdr);border-radius:7px;
+  padding:3px 6px;background:var(--bg);color:var(--tx);
+  font-family:var(--fn);cursor:pointer;width:94px;
+}
+.due-input:focus{border-color:var(--gold);outline:none}
+.carry-tag{
+  display:inline-flex;align-items:center;gap:3px;
+  padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700;
+  background:var(--yb);color:var(--yt);border:0.5px solid var(--ybd);margin-left:6px;
+}
+
+/* 提交栏 */
+.submit-bar{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:12px 20px;border-top:0.5px solid var(--bdr);background:var(--bg);flex-wrap:wrap;gap:8px;
+}
+.submit-tip{font-size:11px;color:var(--t3)}
+.submit-tip.warn{color:var(--yt)}
+
+/* 得分卡片进度条 */
+.sc-progress{margin-top:8px}
+.sc-prog-bar{height:4px;border-radius:2px;background:var(--bdr);overflow:hidden;margin-top:3px}
+.sc-prog-fill{height:100%;border-radius:2px;transition:width .4s}
+.sc-prog-label{font-size:10px;color:var(--t3);display:flex;justify-content:space-between}
+
+/* 项目来源标签（甘特图内） */
+.proj-src{font-size:10px;color:var(--t3);margin-top:1px;line-height:1.3}
+.proj-src-dot{display:inline-block;width:5px;height:5px;border-radius:50%;margin-right:3px;vertical-align:middle}
+
+/* 同步状态 */
+.sync-badge{
+  position:fixed;bottom:20px;right:20px;z-index:300;
+  padding:5px 14px;border-radius:20px;font-size:11px;font-weight:700;
+  pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.12);
+  transition:all .3s;
+}
+
+/* 提示 toast */
+.toast{
+  position:fixed;bottom:60px;left:50%;transform:translateX(-50%);z-index:400;
+  padding:10px 22px;border-radius:24px;font-size:13px;font-weight:600;color:#fff;
+  box-shadow:0 4px 16px rgba(0,0,0,.18);pointer-events:none;
+  opacity:0;transition:opacity .3s;white-space:nowrap;
+}
+.toast.show{opacity:1}
+
+/* 空状态 */
+.empty-state{
+  padding:60px 20px;text-align:center;
+}
+.empty-state .emoji{font-size:48px;margin-bottom:16px}
+.empty-state .title{font-size:16px;font-weight:700;margin-bottom:8px}
+.empty-state .desc{font-size:13px;color:var(--t3);line-height:1.6}
+
+/* 权限提示 */
+.readonly-tip{
+  background:var(--yb);border:0.5px solid var(--ybd);border-radius:var(--rr);
+  padding:10px 16px;font-size:12px;color:var(--yt);margin-bottom:16px;
+  display:flex;align-items:center;gap:8px;
+}
+
+/* 加载骨架 */
+.skeleton{
+  background:linear-gradient(90deg,var(--bdr) 25%,var(--bg) 50%,var(--bdr) 75%);
+  background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:8px;
+}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+@media(max-width:640px){
+  .topinner{padding:0 12px}
+  .shell{padding:16px 12px 80px}
+  .score-overview{flex-wrap:wrap}
+      .score-card{flex:1 1 40%;min-width:120px}
+  .member-hd{padding:12px 14px;gap:10px}
+}
+</style>
+</head>
+<body>
+
+<!-- 顶栏 -->
+<div class="topbar">
+  <div class="topinner">
+    <a class="logo-back" href="/" title="返回主页">
+      <svg viewBox="0 0 20 20"><path d="M12.5 15l-5-5 5-5"/></svg>
+      主页
+    </a>
+    <div class="logo-title">📊 华力｜研策部员工周计划完成KPI</div>
+    <div class="topbar-right">
+      <div class="week-sw">
+        <button class="wb" onclick="prevWk()">‹</button>
+        <div class="wl" id="wl">—</div>
+        <button class="wb" onclick="nextWk()">›</button>
+      </div>
+      <button class="theme-btn" id="theme-btn" onclick="toggleTheme()" title="切换日夜">🌙</button>
+      <a href="/kpi/calendar.html" style="padding:6px 12px;border-radius:8px;border:0.5px solid var(--bdr);font-size:12px;color:var(--t2);text-decoration:none;display:flex;align-items:center;gap:4px" title="年度统计视图">📊 统计</a>
+    </div>
+  </div>
+</div>
+
+<!-- 登录弹窗 -->
+<div class="login-overlay" id="login-overlay">
+  <div class="login-card">
+    <div style="font-size:40px;margin-bottom:12px">🔐</div>
+    <h2>登录评分系统</h2>
+    <p>请输入你的姓名进入系统</p>
+    <input class="login-input" id="login-name" type="text" placeholder="请输入真实姓名" autocomplete="off"
+      onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="btn-primary" onclick="doLogin()">进入系统</button>
+    <div class="login-err" id="login-err"></div>
+    <div class="login-tip">总监账号可确认状态并提交评分</div>
+  </div>
+</div>
+
+<!-- 主内容 -->
+<div class="shell" id="shell" style="display:none">
+  <!-- 周信息栏 -->
+  <div class="week-info-bar">
+    <div class="week-info-main">
+      <div class="week-info-title" id="week-title">—</div>
+      <div class="week-info-sub" id="week-range">—</div>
+    </div>
+    <div class="week-info-actions">
+      <span id="user-badge" style="font-size:12px;padding:5px 12px;background:var(--gl);border-radius:16px;color:var(--gold);font-weight:700"></span>
+      <button class="btn-sm btn-gold" id="btn-submit-all" style="display:none" onclick="submitAll()">📤 全员提交</button>
+      <button class="btn-sm btn-outline" onclick="doLogout()">退出</button>
+    </div>
+  </div>
+
+  <!-- 权限只读提示 -->
+  <div class="readonly-tip" id="readonly-tip" style="display:none">
+    ℹ 当前为只读模式，状态确认由总监（张建波、冷耀秋）操作
+  </div>
+
+  <!-- 员工得分总览 -->
+  <div style="font-size:11px;font-weight:700;color:var(--t3);letter-spacing:.07em;text-transform:uppercase;margin-bottom:10px">员工得分总览</div>
+  <div class="score-overview" id="score-overview"></div>
+
+  <!-- 员工甘特区块 -->
+  <div style="font-size:11px;font-weight:700;color:var(--t3);letter-spacing:.07em;text-transform:uppercase;margin:20px 0 10px">本周计划甘特</div>
+  <div id="member-blocks"></div>
+</div>
+
+<!-- 同步状态 -->
+<div class="sync-badge" id="sync-badge" style="background:#e8f5ea;color:#1a6830;border:0.5px solid #a8ddb8">☁ 已同步</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════════
+// ▌ 配置（与周报系统共享同一个云端）
+// ════════════════════════════════════════════════════════════════
+const PROXY_URL = 'https://ycb-zb-0g7962fmca5676a3-1255322631.ap-shanghai.app.tcloudbase.com/weeklyProxy';
+const DIRECTORS = ['张建波','冷耀秋','Kenbe'];
+const DEBUG = false;
+const _log  = (...a) => DEBUG && console.log(...a);
+const _warn = (...a) => DEBUG && console.warn(...a);
+
+// ════ 评分数据存储 Key ════
+const TB_STORE_KEY = 'hlzc_taskboard';   // localStorage（与周报系统共享）
+const TB_CLOUD_KEY = 'taskboard_scores'; // 云端集合文档 ID
+
+// ════════════════════════════════════════════════════════════════
+// ▌ 模块一：用户登录
+// ════════════════════════════════════════════════════════════════
+let _currentUser = localStorage.getItem('score_user') || '';
+let _users = {};        // 从云端拉取的用户注册表
+let _syncOk  = false;
+
+function isDirector(){ return DIRECTORS.includes(_currentUser); }
+
+function doLogin(){
+  const name = document.getElementById('login-name').value.trim();
+  if(!name){ showLoginErr('请输入姓名'); return; }
+  _currentUser = name;
+  localStorage.setItem('score_user', name);
+  document.getElementById('login-overlay').style.display = 'none';
+  document.getElementById('shell').style.display = 'block';
+  initApp();
+}
+
+function doLogout(){
+  _currentUser = '';
+  localStorage.removeItem('score_user');
+  location.reload();
+}
+
+function showLoginErr(msg){
+  document.getElementById('login-err').textContent = msg;
+  setTimeout(()=>document.getElementById('login-err').textContent='', 2500);
+}
+
+// ════════════════════════════════════════════════════════════════
+// ▌ 模块二：云端通信
+// ════════════════════════════════════════════════════════════════
+async function _proxy(action, id, data, extra){
+  const payload = {action, ...(id?{id}:{}), ...(data?{data}:{}), ...(extra||{})};
+  const controller = new AbortController();
+  const timer = setTimeout(()=>controller.abort(), 12000);
+  try{
+    const r = await fetch(PROXY_URL,{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload), signal:controller.signal
+    });
+    clearTimeout(timer);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const result = await r.json();
+    if(result && result.error) throw new Error(result.error);
+    return result;
+  }catch(e){ clearTimeout(timer); throw e; }
+}
+
+async function dbGet(id){
+  try{ return await _proxy('get',id); }catch(e){ return null; }
+}
+
+async function dbSet(id, obj){
+  return _proxy('set', id, obj);
+}
+
+// ════════════════════════════════════════════════════════════════
+// ▌ 模块三：日期工具
+// ════════════════════════════════════════════════════════════════
+function isoWk(d){
+  const t=new Date(d); t.setHours(0,0,0,0);
+  t.setDate(t.getDate()+3-(t.getDay()+6)%7);
+  const w=new Date(t.getFullYear(),0,4);
+  return{yr:t.getFullYear(), wk:1+Math.round(((t-w)/864e5-(3-(w.getDay()+6)%7))/7)};
+}
+function wkKey(yr,wk){ return `${yr}-W${String(wk).padStart(2,'0')}`; }
+function wkLabel(yr,wk){ return `${yr}年 第${wk}周`; }
+function wkRange(yr,wk){
+  const j4=new Date(yr,0,4);
+  const mon=new Date(j4); mon.setDate(j4.getDate()-(j4.getDay()||7)+1+(wk-1)*7);
+  const sun=new Date(mon); sun.setDate(mon.getDate()+6);
+  const f=d=>d.toLocaleDateString('zh-CN',{month:'numeric',day:'numeric'});
+  return `${f(mon)} — ${f(sun)}`;
+}
+
+const NOW=new Date();
+const {yr:CYR,wk:CWK}=isoWk(NOW);
+let curYr=CYR, curWk=CWK;
+
+function prevWk(){
+  curWk--; if(curWk<1){curYr--;curWk=52;}
+  updWeekLabel(); renderAll();
+}
+function nextWk(){
+  curWk++; if(curWk>52){curYr++;curWk=1;}
+  updWeekLabel(); renderAll();
+}
+function updWeekLabel(){
+  document.getElementById('wl').textContent = `${curYr} W${curWk}`;
+  document.getElementById('week-title').textContent = wkLabel(curYr,curWk);
+  document.getElementById('week-range').textContent = wkRange(curYr,curWk)
+    + (curYr===CYR&&curWk===CWK?' · 本周':'');
+}
+
+// ════════════════════════════════════════════════════════════════
+// ▌ 模块四：本地数据读写（周报系统格式兼容）
+// ════════════════════════════════════════════════════════════════
+// 读取周报项目列表（与周报系统共享 localStorage）
+function getProjects(){
+  try{ return JSON.parse(localStorage.getItem('hlzc_p')||'[]'); }catch{return[];}
+}
+
+// 读取周报快照
+function getWeeks(){
+  try{ return JSON.parse(localStorage.getItem('hlzc_w')||'{}'); }catch{return{};}
+}
+
+function getSnap(yr,wk,pid){
+  const weeks=getWeeks(), k=wkKey(yr,wk);
+  if(weeks[k]&&weeks[k][pid]!==undefined) return weeks[k][pid];
+  const sorted=Object.keys(weeks).filter(x=>x<=k).sort();
+  for(let i=sorted.length-1;i>=0;i--)
+    if(weeks[sorted[i]]&&weeks[sorted[i]][pid]!==undefined)
+      return{...weeks[sorted[i]][pid]};
+  return{status:'g',stage:0,risk:'',coreOutput:'',coreAction:'',decision:'无',crossDept:''};
+}
+
+function setSnap(yr,wk,pid,snap){
+  const weeks=getWeeks(), k=wkKey(yr,wk);
+  if(!weeks[k]) weeks[k]={};
+  weeks[k][pid]=snap;
+  localStorage.setItem('hlzc_w',JSON.stringify(weeks));
+}
+
+// ════ 评分数据读写 ════
+function getTBData(){
+  try{ return JSON.parse(localStorage.getItem(TB_STORE_KEY)||'{}'); }catch{return{};}
+}
+function saveTBData(d){ localStorage.setItem(TB_STORE_KEY,JSON.stringify(d)); }
+
+function getTaskStatus(owner,projId,taskIdx){
+  const d=getTBData(), k=wkKey(curYr,curWk);
+  return (d[k]&&d[k][`${projId}_${owner}`]&&d[k][`${projId}_${owner}`][taskIdx])
+    || {status:'pending',dueDate:''};
+}
+
+function setTaskStatus(owner,projId,taskIdx,status,dueDate){
+  const d=getTBData(), k=wkKey(curYr,curWk);
+  if(!d[k]) d[k]={};
+  const key=`${projId}_${owner}`;
+  if(!d[k][key]) d[k][key]={};
+  d[k][key][taskIdx]={status, dueDate:dueDate||''};
+  saveTBData(d);
+}
+
+// 日期格式化：只显示MMDD（如0326），不显示年份
+function fmtMonDay(d){
+  if(!d) return '';
+  const p=d.split('-');
+  if(p.length>=3){
+    const mm=String(parseInt(p[1])).padStart(2,'0');
+    const dd=String(parseInt(p[2])).padStart(2,'0');
+    return mm+dd;
+  }
+  return d;
+}
+// ════════════════════════════════════════════════════════════════
+// ▌ 模块五：解析与计算
+// ════════════════════════════════════════════════════════════════
+function parseTasks(coreAction){
+  if(!coreAction) return [];
+  // 新格式：数组（周报系统存储的格式：[{text, dueDate}]）
+  if(Array.isArray(coreAction)){
+    return coreAction
+      .map(item=>typeof item==='object'?(item.text||''):String(item))
+      .map(s=>s.trim())
+      .filter(s=>s.length>0);
+  }
+  // 旧格式：纯字符串，只按换行拆分，不按逗号/分号拆
+  // 注意：事项内容本身可能含有逗号（如日期描述），不能拆
+  if(typeof coreAction!=='string') return [];
+  return coreAction
+    .replace(/\r/g,'')
+    .split('\n')
+    .map(s=>s.replace(/^[\d１２３４５６７８９０]+[、.．。]\s*/,'').trim())  // 去掉行首序号
+    .filter(s=>s.length>0);
+}
+
+function calcScore(owner, projects){
+  const all=[];
+  projects.filter(p=>!p.archived&&p.designOwner===owner).forEach(proj=>{
+    const snap=getSnap(curYr,curWk,proj.id);
+    parseTasks(snap.coreAction).forEach((task,idx)=>{
+      const st=getTaskStatus(owner,proj.id,idx);
+      all.push({task,status:st.status,dueDate:st.dueDate,proj});
+    });
+  });
+  if(all.length===0) return{score:-5,done:0,undone:0,total:0,items:all};
+  const done  =all.filter(t=>t.status==='done').length;
+  const undone=all.filter(t=>t.status==='undone').length;
+  return{score:0-undone, done, undone, total:all.length, items:all};
+}
+
+function scoreClass(score,total){
+  if(total===0) return 'bad';
+  if(score>=0)  return 'great';
+  if(score>=-1) return 'ok';
+  if(score>=-3) return 'warn';
+  return 'bad';
+}
+function scoreBadgeStyle(cls){
+  const map={
+    great:'background:var(--gb);color:var(--gt)',
+    ok:   'background:var(--gl);color:var(--gold)',
+    warn: 'background:var(--yb);color:var(--yt)',
+    bad:  'background:var(--rb);color:var(--rt)',
+  };
+  return map[cls]||map.bad;
+}
+function avatarColor(name){
+  const colors=['#34c759','#007aff','#ff9500','#af52de','#ff3b30','#5ac8fa','#ff6b6b'];
+  let hash=0; for(const c of name) hash=(hash*31+c.charCodeAt(0))&0xffffffff;
+  return colors[Math.abs(hash)%colors.length];
+}
+
+// ════════════════════════════════════════════════════════════════
+// ▌ 模块六：甘特渲染
+// ════════════════════════════════════════════════════════════════
+const BAR_COLORS=[
+  'linear-gradient(90deg,#34c759,#28a745)',
+  'linear-gradient(90deg,#007aff,#5ac8fa)',
+  'linear-gradient(90deg,#c4a030,#e8c840)',
+  'linear-gradient(90deg,#af52de,#da8fff)',
+  'linear-gradient(90deg,#ff9500,#ffcc00)',
+  'linear-gradient(90deg,#ff3b30,#ff7f7f)',
+  'linear-gradient(90deg,#32ade6,#5ac8fa)',
+];
+
+function renderBarCells(taskIdx, taskText){
+  const colorIdx = taskIdx % BAR_COLORS.length;
+  const dayStart = taskIdx % 5;
+  const span     = Math.min(2, Math.max(1, Math.ceil(taskText.length/10)));
+  const dayEnd   = Math.min(dayStart+span-1, 6);
+  let cells='';
+  for(let d=0;d<7;d++){
+    if(d<dayStart||d>dayEnd){
+      cells+=`<td class="bar-cell"></td>`;
+    } else if(d===dayStart){
+      const colspan=dayEnd-dayStart+1;
+      cells+=`<td class="bar-cell" colspan="${colspan}">
+        <div class="gantt-bar" style="background:${BAR_COLORS[colorIdx]}"></div>
+      </td>`;
+      d=dayEnd;
+    }
+  }
+  return cells;
+}
+
+// ════════════════════════════════════════════════════════════════
+// ▌ 模块七：主渲染
+// ════════════════════════════════════════════════════════════════
+function getOwners(projects){
+  // 收集所有未归档项目的 designOwner，只要负责人不为空就纳入统计
+  // 不过滤"本周是否有coreAction"，这样本周无事项的人会显示 -5 分
+  // ⚠️ 不能用 DIRECTORS 过滤：总监可能同时是某项目的研策负责人（如冷耀秋→巴黎人）
+  //    DIRECTORS 只控制评分操作权限，不决定是否出现在统计里
+  const s=new Set();
+  projects.filter(p=>!p.archived&&p.designOwner&&p.designOwner.trim()).forEach(p=>{
+    s.add(p.designOwner.trim());
+  });
+  return [...s].sort();
+}
+
+function renderAll(){
+  const projects=getProjects();
+  const owners=getOwners(projects);
+  renderScoreOverview(owners,projects);
+  renderMemberBlocks(owners,projects);
+  const btn=document.getElementById('btn-submit-all');
+  if(btn) btn.style.display=isDirector()&&owners.length?'inline-block':'none';
+  document.getElementById('readonly-tip').style.display=isDirector()?'none':'flex';
+}
+
+// ── 得分总览 ──
+function renderScoreOverview(owners,projects){
+  const el=document.getElementById('score-overview');
+  if(!owners.length){
+    el.innerHTML=`<div style="grid-column:1/-1" class="empty-state">
+      <div class="emoji">📋</div>
+      <div class="title">本周暂无计划数据</div>
+      <div class="desc">各项目周报填写「本周计划」后<br>数据将自动汇总到此处</div>
+    </div>`;
+    return;
+  }
+  el.innerHTML=owners.map(owner=>{
+    const sc=calcScore(owner,projects);
+    const cls=scoreClass(sc.score,sc.total);
+    const scoreText=sc.total===0?'-5':(sc.score>=0?'+'+sc.score:String(sc.score));
+    const pct=sc.total>0?Math.round(sc.done/sc.total*100):0;
+    const progColor=cls==='great'?'#34c759':cls==='ok'?'var(--gold)':cls==='warn'?'#ff9500':'#ff3b30';
+    const pending=sc.total-sc.done-sc.undone;
+    return `<div class="score-card s-${cls}" onclick="scrollToMember('${esc(owner)}')">
+      <div class="sc-name" title="${esc(owner)}">${esc(owner)}</div>
+      <div class="sc-score s-${cls}">${scoreText}</div>
+      <div class="sc-label">本周得分 · ${sc.total}项事务</div>
+      <div class="sc-tags">
+        ${sc.done?`<span class="sc-tag done">✓ ${sc.done}已完成</span>`:''}
+        ${sc.undone?`<span class="sc-tag undone">✗ ${sc.undone}未完成</span>`:''}
+        ${pending>0?`<span class="sc-tag zero">⏳ ${pending}待确认</span>`:''}
+        ${sc.total===0?`<span class="sc-tag zero">无事项 −5分</span>`:''}
+      </div>
+      ${sc.total>0?`<div class="sc-progress">
+        <div class="sc-prog-label"><span>完成率</span><span>${pct}%</span></div>
+        <div class="sc-prog-bar"><div class="sc-prog-fill" style="width:${pct}%;background:${progColor}"></div></div>
+      </div>`:''}
+    </div>`;
+  }).join('');
+}
+
+// ── 员工甘特区块 ──
+function renderMemberBlocks(owners,projects){
+  const el=document.getElementById('member-blocks');
+  if(!owners.length){ el.innerHTML=''; return; }
+  el.innerHTML=owners.map(owner=>{
+    const sc=calcScore(owner,projects);
+    const cls=scoreClass(sc.score,sc.total);
+    const scoreText=sc.total===0?'-5':(sc.score>=0?'+'+sc.score:String(sc.score));
+    const bStyle=scoreBadgeStyle(cls);
+    const aColor=avatarColor(owner);
+    const initials=owner.slice(0,1);
+
+    // 收集事项行
+    const rows=[];
+    projects.filter(p=>!p.archived&&p.designOwner===owner).forEach(proj=>{
+      const snap=getSnap(curYr,curWk,proj.id);
+      parseTasks(snap.coreAction).forEach((task,idx)=>{
+        const st=getTaskStatus(owner,proj.id,idx);
+        rows.push({task,idx:rows.length,rawIdx:idx,proj,
+          status:st.status,dueDate:st.dueDate});
+      });
+    });
+
+    if(!rows.length){
+      // 无事项：渲染空白卡片（不是直接跳过），显示"本周暂无计划"
+      return `<div class="member-block" id="mb-${esc(owner)}">
+        <div class="member-hd">
+          <div class="member-avatar" style="background:${aColor}">${esc(initials)}</div>
+          <div class="member-info">
+            <div class="member-name">${esc(owner)}</div>
+            <div class="member-sub">本周暂无计划 · ${esc(wkLabel(curYr,curWk))}</div>
+          </div>
+          <span class="member-score-badge" style="${scoreBadgeStyle('bad')}">得分 -5</span>
+        </div>
+        <div style="padding:24px 20px;text-align:center;color:var(--t3);font-size:13px">
+          📋 周报「本周计划」暂未填写，自动扣 5 分
+        </div>
+      </div>`;
+    }
+
+    const rowsHtml=rows.map(row=>{
+      const isDone  =row.status==='done';
+      const isUndone=row.status==='undone';
+      const canAct  =isDirector();
+
+      // 状态按钮
+      const isCarried=row.task.startsWith('[顺延]');
+      const taskDisplay=isCarried
+        ?`<span class="carry-tag" style="margin-right:4px;font-size:9px">↗顺延</span>${esc(row.task.replace(/^\[顺延\]\s*/,''))}`
+        :esc(row.task);
+      const btnDone  =`<button class="status-btn done ${isDone?'active':''} ${canAct?'':'readonly'}"
+        onclick="toggleStatus('${esc(owner)}',${row.proj.id},${row.rawIdx},'done')">✓ 完成</button>`;
+      const btnUndone=`<button class="status-btn undone ${isUndone?'active':''} ${canAct?'':'readonly'}"
+        onclick="toggleStatus('${esc(owner)}',${row.proj.id},${row.rawIdx},'undone')">✗ 未完成</button>`;
+      const btnPend  =canAct?'':`<span class="status-btn pending active readonly">${
+        isDone?'✓ 完成':isUndone?'✗ 未完成':'待确认'}</span>`;
+
+      // 日期显示：只显示MMDD（如0326），不显示年份
+      const dueDateDisplay = row.dueDate
+        ? (()=>{
+            const p=row.dueDate.split('-');
+            if(p.length>=3){
+              const mm=String(parseInt(p[1])).padStart(2,'0');
+              const dd=String(parseInt(p[2])).padStart(2,'0');
+              return mm+dd;
+            }
+            return row.dueDate;
+          })()
+        : '';
+
+      // 日期控件（紧跟在未完成按钮后面，单行并排）
+      const dueHtml=isUndone
+        ? (canAct
+          ?`<input type="date" class="due-input" value="${esc(row.dueDate)}"
+              title="${esc(dueDateDisplay||'点击选择日期')}"
+              onchange="setDue('${esc(owner)}',${row.proj.id},${row.rawIdx},this.value)">`
+          :`<span style="font-size:11px;color:var(--yt);font-weight:600;white-space:nowrap">${dueDateDisplay||'待填写'}</span>`)
+        :'';
+
+      const carryTag=row.dueDate&&isUndone
+        ?`<span class="carry-tag">↗顺延</span>`:'';
+
+      return `<tr>
+        <td class="td-task">
+          <div class="task-text ${isDone?'done':''}" title="${esc(row.task)}">${taskDisplay}${carryTag}</div>
+        </td>
+        <td style="padding:3px 6px;vertical-align:middle">
+          <div class="proj-label">${esc(row.proj.name.length>12?row.proj.name.slice(0,12)+'…':row.proj.name)}</div>
+        </td>
+        ${renderBarCells(row.idx,row.task)}
+        <td class="status-cell">
+          <div class="status-wrap">
+            ${canAct?(btnDone+btnUndone):btnPend}
+            ${dueHtml}
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+
+    // 未完成顺延提示
+    const undoneWithDue=rows.filter(r=>r.status==='undone'&&r.dueDate);
+    const undoneNoDue=rows.filter(r=>r.status==='undone'&&!r.dueDate);
+    let submitTip='';
+    if(undoneNoDue.length){
+      submitTip=`<span class="submit-tip warn">⚠ ${undoneNoDue.length} 项未完成请先填写预计完成时间</span>`;
+    } else if(undoneWithDue.length){
+      submitTip=`<span class="submit-tip warn">↗ ${undoneWithDue.length} 项未完成将自动顺延至下周计划</span>`;
+    } else {
+      submitTip=`<span class="submit-tip">${rows.filter(r=>r.status==='done').length}/${rows.length} 项已确认完成</span>`;
+    }
+
+    const submitBar=isDirector()?`<div class="submit-bar">
+      ${submitTip}
+      <button class="btn-sm btn-gold" onclick="submitMember('${esc(owner)}')">📤 提交评审</button>
+    </div>`:'';
+
+    return `<div class="member-block" id="mb-${esc(owner)}">
+      <div class="member-hd">
+        <div class="member-avatar" style="background:${aColor}">${esc(initials)}</div>
+        <div class="member-info">
+          <div class="member-name">${esc(owner)}</div>
+          <div class="member-sub">${rows.length} 项本周计划 · ${esc(wkLabel(curYr,curWk))}</div>
+        </div>
+        <span class="member-score-badge" style="${bStyle}">得分 ${scoreText}</span>
+      </div>
+      <div class="gantt-wrap">
+        <table class="gantt-table">
+          <thead>
+            <tr>
+              <th class="th-task">事项</th>
+              <th class="th-proj">所属项目</th>
+              <th style="min-width:52px">周一</th><th style="min-width:52px">周二</th><th style="min-width:52px">周三</th>
+              <th style="min-width:52px">周四</th><th style="min-width:52px">周五</th><th style="min-width:52px">周六</th><th style="min-width:52px">周日</th>
+              <th style="min-width:150px;text-align:left;padding-left:8px">状态</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>
+      ${submitBar}
+    </div>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════════════════════════════
+// ▌ 模块八：交互操作
+// ════════════════════════════════════════════════════════════════
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+
+
+function toggleStatus(owner, projId, taskIdx, newStatus){
+  if(!isDirector()){ showToast('仅总监可确认状态','#ff3b30'); return; }
+  const cur=getTaskStatus(owner,projId,taskIdx);
+  const status=cur.status===newStatus?'pending':newStatus;
+  setTaskStatus(owner,projId,taskIdx,status,status==='undone'?cur.dueDate:'');
+  renderAll();
+  // 同步到云端
+  _syncTBToCloud();
+}
+
+function setDue(owner,projId,taskIdx,dueDate){
+  if(!isDirector()) return;
+  const cur=getTaskStatus(owner,projId,taskIdx);
+  setTaskStatus(owner,projId,taskIdx,cur.status,dueDate);
+  _syncTBToCloud();
+}
+
+function scrollToMember(owner){
+  const el=document.getElementById('mb-'+owner);
+  if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+// ── 提交单人 ──
+async function submitMember(owner){
+  if(!isDirector()){ showToast('仅总监可提交','#ff3b30'); return; }
+  const projects=getProjects();
+
+  // 检查：未完成事项是否都填了完成时间
+  let missingDueCount=0;
+  projects.filter(p=>!p.archived&&p.designOwner===owner).forEach(proj=>{
+    const snap=getSnap(curYr,curWk,proj.id);
+    const tasks=Array.isArray(snap.coreAction)?snap.coreAction:parseTasks(snap.coreAction).map(t=>({text:t,dueDate:''}));
+    tasks.forEach((taskObj,idx)=>{
+      const taskText=typeof taskObj==='object'?(taskObj.text||''):String(taskObj);
+      if(!taskText.trim()) return;
+      const st=getTaskStatus(owner,proj.id,idx);
+      if(st.status==='undone'&&!st.dueDate) missingDueCount++;
+    });
+  });
+  if(missingDueCount>0){
+    showToast(`⚠ 还有 ${missingDueCount} 项未完成事项未填写预计时间，请先填写`,'#ff9500');
+    return;
+  }
+
+  // 收集未完成事项，顺延到下周
+  const nyr=curWk<52?curYr:curYr+1;
+  const nwk=curWk<52?curWk+1:1;
+  let carryCount=0;
+
+  projects.filter(p=>!p.archived&&p.designOwner===owner).forEach(proj=>{
+    const snap=getSnap(curYr,curWk,proj.id);
+    const tasks=Array.isArray(snap.coreAction)
+      ? snap.coreAction
+      : parseTasks(snap.coreAction).map(t=>({text:t,dueDate:''}));
+
+    const carries=[];
+    tasks.forEach((taskObj,idx)=>{
+      const taskText=typeof taskObj==='object'?(taskObj.text||''):String(taskObj);
+      if(!taskText.trim()) return;
+      const st=getTaskStatus(owner,proj.id,idx);
+      if(st.status==='undone'){
+        // 顺延：保持数组格式，标记[顺延]前缀，携带新的预计完成时间
+        const carryText=taskText.startsWith('[顺延]')?taskText:'[顺延] '+taskText;
+        carries.push({text:carryText, dueDate:st.dueDate||''});
+        carryCount++;
+      }
+    });
+
+    if(carries.length){
+      const nextSnap=getSnap(nyr,nwk,proj.id);
+      // 保持数组格式
+      const existing=Array.isArray(nextSnap.coreAction)
+        ? nextSnap.coreAction
+        : parseTasks(nextSnap.coreAction).map(t=>({text:t,dueDate:''}));
+      // 去重：同样的文本不重复加
+      const existingTexts=new Set(existing.map(t=>(typeof t==='object'?t.text:t).replace(/^\[顺延\]\s*/,'')));
+      const newCarries=carries.filter(c=>!existingTexts.has(c.text.replace(/^\[顺延\]\s*/,'')));
+      nextSnap.coreAction=[...existing,...newCarries];
+      setSnap(nyr,nwk,proj.id,nextSnap);
+    }
+  });
+
+  // 同步评分数据到云端
+  await _syncTBToCloud();
+  // 同步周报快照到云端
+  await _syncWeeksToCloud(projects.filter(p=>!p.archived&&p.designOwner===owner));
+
+  showToast(carryCount>0
+    ?`✅ ${owner} 评审提交，${carryCount}项已顺延至下周计划`
+    :`✅ ${owner} 评审提交，本周全部完成！`,'#34c759');
+  renderAll();
+}
+
+// ── 全员提交 ──
+async function submitAll(){
+  if(!isDirector()) return;
+  const owners=getOwners(getProjects());
+  for(const o of owners) await submitMember(o);
+  showToast('✅ 全员评审已提交','#34c759');
+}
+
+// ════════════════════════════════════════════════════════════════
+// ▌ 模块九：云端同步
+// ════════════════════════════════════════════════════════════════
+let _syncTimer=null;
+
+// 评分数据同步到云端（防抖1.5秒）
+function _syncTBToCloud(){
+  clearTimeout(_syncTimer);
+  _syncTimer=setTimeout(async()=>{
+    try{
+      showSyncStatus('saving');
+      const d=getTBData();
+      await dbSet(TB_CLOUD_KEY,{data:d,_updatedAt:Date.now(),_updatedBy:_currentUser});
+      showSyncStatus('sync');
+    }catch(e){
+      _warn('评分同步失败:',e.message);
+      showSyncStatus('err');
+    }
+  },1500);
+}
+
+// 周报快照同步到云端
+async function _syncWeeksToCloud(projects){
+  try{
+    showSyncStatus('saving');
+    for(const proj of projects){
+      const snap=getSnap(curYr,curWk,proj.id);
+      const nextYr=curWk<52?curYr:curYr+1;
+      const nextWk=curWk<52?curWk+1:1;
+      const nextSnap=getSnap(nextYr,nextWk,proj.id);
+      // 写入下周快照（兼容数组格式和字符串格式）
+      const hasNextAction = Array.isArray(nextSnap.coreAction)
+        ? nextSnap.coreAction.length > 0
+        : (nextSnap.coreAction && nextSnap.coreAction.trim());
+      if(hasNextAction){
+        const weeks=getWeeks(), k=wkKey(nextYr,nextWk);
+        if(!weeks[k]) weeks[k]={};
+        weeks[k][proj.id]=nextSnap;
+        localStorage.setItem('hlzc_w',JSON.stringify(weeks));
+        // 同步到云端
+        const snapId='snap_'+proj.id;
+        const remoteSnap={};
+        Object.keys(weeks).forEach(wk=>{
+          if(weeks[wk][proj.id]) remoteSnap[wk]=weeks[wk][proj.id];
+        });
+        await dbSet(snapId,{data:remoteSnap,_v:String(Date.now()),_updatedBy:_currentUser});
+      }
+    }
+    showSyncStatus('sync');
+  }catch(e){
+    _warn('快照同步失败:',e.message);
+    showSyncStatus('err');
+  }
+}
+
+// 从云端拉取评分数据
+async function _loadTBFromCloud(){
+  try{
+    const rec=await dbGet(TB_CLOUD_KEY);
+    if(rec&&rec.data){
+      // 合并本地和云端（云端为准，但不丢弃本地更新的数据）
+      const local=getTBData();
+      const merged={...rec.data};
+      Object.keys(local).forEach(wk=>{
+        if(!merged[wk]) merged[wk]=local[wk];
+        else Object.assign(merged[wk],local[wk]);
+      });
+      saveTBData(merged);
+    }
+  }catch(e){ _warn('评分数据拉取失败:',e.message); }
+}
+
+// 从云端拉取周报数据
+async function _loadWeeklyData(){
+  try{
+    // 第一步：拉项目列表（优先，决定后续 snap 拉取数量）
+    const projRec = await dbGet('projects');
+    if(projRec && projRec.projects){
+      localStorage.setItem('hlzc_p', JSON.stringify(projRec.projects));
+    } else {
+      _warn('云端 projects 为空或格式异常:', projRec);
+    }
+
+    // 第二步：并行拉取所有项目快照（基于刚拉到的 projects 列表）
+    const projects = getProjects();
+    if(!projects.length){
+      _warn('项目列表为空，跳过 snap 拉取');
+      return;
+    }
+
+    const allWeeks = getWeeks(); // 以本地缓存为基础
+    const snapPromises = projects.map(proj => dbGet('snap_'+proj.id).then(snapRec=>{
+      if(snapRec && snapRec.data){
+        Object.keys(snapRec.data).forEach(wk=>{
+          if(!allWeeks[wk]) allWeeks[wk]={};
+          allWeeks[wk][proj.id] = snapRec.data[wk]; // 云端覆盖本地
+        });
+      }
+    }).catch(e=>{ _warn('snap 拉取失败 proj'+proj.id+':', e.message); }));
+
+    await Promise.all(snapPromises); // 所有 snap 并行拉
+    localStorage.setItem('hlzc_w', JSON.stringify(allWeeks));
+    _syncOk = true;
+    _log('周报数据加载完成，项目数:', projects.length);
+  }catch(e){
+    _warn('周报数据拉取失败:', e.message);
+    throw e; // 向上抛出，让 initApp 处理
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// ▌ 模块十：UI 工具
+// ════════════════════════════════════════════════════════════════
+function showSyncStatus(state){
+  const el=document.getElementById('sync-badge');
+  if(!el) return;
+  const M={
+    local: ['💻 本地模式','#f0ede4','#888'],
+    sync:  ['☁ 已同步 ⚡','#e8f5ea','#1a6830'],
+    saving:['💾 同步中…','#e8f0fe','#1a56a8'],
+    err:   ['⚠ 同步失败','#fff0f0','#b00020'],
+  };
+  const [t,bg,c]=M[state]||M.local;
+  el.textContent=t;
+  el.style.background=bg; el.style.color=c;
+  el.style.border=`0.5px solid ${c}44`;
+}
+
+let _toastTimer=null;
+function showToast(msg,color='#34c759'){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.style.background=color;
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer=setTimeout(()=>el.classList.remove('show'),3000);
+}
+
+// ── 主题切换 ──
+(function(){
+  const saved=localStorage.getItem('score_theme');
+  if(saved) document.documentElement.className=saved;
+  function updateBtn(){
+    const btn=document.getElementById('theme-btn');
+    if(!btn) return;
+    const isDark=document.documentElement.classList.contains('dark')
+      ||(!document.documentElement.classList.contains('light')
+         &&window.matchMedia('(prefers-color-scheme:dark)').matches);
+    btn.textContent=isDark?'☀️':'🌙';
+  }
+  window.toggleTheme=function(){
+    const root=document.documentElement;
+    const isDark=root.classList.contains('dark')
+      ||(!root.classList.contains('light')
+         &&window.matchMedia('(prefers-color-scheme:dark)').matches);
+    if(isDark){root.classList.remove('dark');root.classList.add('light');localStorage.setItem('score_theme','light');}
+    else{root.classList.remove('light');root.classList.add('dark');localStorage.setItem('score_theme','dark');}
+    updateBtn();
+  };
+  document.addEventListener('DOMContentLoaded',()=>setTimeout(updateBtn,100));
+})();
+
+// ════════════════════════════════════════════════════════════════
+// ▌ 模块十一：初始化
+// ════════════════════════════════════════════════════════════════
+async function initApp(){
+  // 更新用户标识
+  const badge=document.getElementById('user-badge');
+  badge.textContent=_currentUser+(isDirector()?' 👑 总监':'');
+  document.getElementById('btn-submit-all').style.display=isDirector()?'inline-block':'none';
+  updWeekLabel();
+
+  // 显示加载骨架（score 是独立页面，必须等云端数据就绪才有内容）
+  _showLoading(true);
+  showSyncStatus('saving');
+
+  try{
+    // 第一步：连通性检测
+    await _proxy('ping');
+
+    // 第二步：并行拉取周报数据 + 评分数据
+    await Promise.all([_loadWeeklyData(), _loadTBFromCloud()]);
+
+    // 第三步：数据就绪后渲染
+    _showLoading(false);
+    renderAll();
+    showSyncStatus('sync');
+
+    // 轮询（30秒）：同时拉取周报快照 + 评分数据，实现周报更新→KPI实时单向同步
+    setInterval(async()=>{
+      try{
+        await Promise.all([_loadWeeklyData(), _loadTBFromCloud()]);
+        renderAll();
+      }catch(e){ _warn('轮询刷新失败:',e.message); }
+    }, 30000);
+
+  }catch(e){
+    _warn('云端初始化失败:', e.message);
+    _showLoading(false);
+    // 降级：用本地缓存（可能为空，显示提示）
+    renderAll();
+    showSyncStatus('err');
+    _showConnectErr();
+  }
+}
+
+// 加载状态显示/隐藏
+function _showLoading(show){
+  const over = document.getElementById('score-overview');
+  const blocks = document.getElementById('member-blocks');
+  if(show){
+    over.innerHTML = `<div style="grid-column:1/-1;padding:20px 0;display:flex;gap:12px">
+      ${Array(3).fill('<div class="skeleton" style="flex:1;height:120px;border-radius:16px"></div>').join('')}
+    </div>`;
+    blocks.innerHTML = `<div class="skeleton" style="height:200px;border-radius:16px;margin-bottom:12px"></div>
+      <div class="skeleton" style="height:160px;border-radius:16px"></div>`;
+  }
+}
+
+// 云端连接失败提示
+function _showConnectErr(){
+  const el = document.getElementById('score-overview');
+  if(!el) return;
+  const hasLocal = getProjects().length > 0;
+  if(hasLocal) return; // 有本地缓存，不显示错误
+  el.innerHTML = `<div style="grid-column:1/-1">
+    <div style="background:var(--rb);border:0.5px solid var(--rbd);border-radius:12px;
+      padding:16px 20px;display:flex;align-items:flex-start;gap:12px">
+      <div style="font-size:24px">⚠️</div>
+      <div>
+        <div style="font-weight:700;color:var(--rt);margin-bottom:4px">无法连接到云端</div>
+        <div style="font-size:12px;color:var(--t2);line-height:1.6">
+          请检查网络后刷新页面。<br>
+          如果问题持续，请先打开<a href="/weekly/" style="color:var(--gold)">周报系统</a>登录后再返回此页面。
+        </div>
+        <button onclick="location.reload()" style="margin-top:10px;padding:6px 16px;
+          background:var(--gold);color:#fff;border:none;border-radius:8px;
+          font-size:12px;font-weight:700;cursor:pointer;font-family:var(--fn)">重新连接</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// 页面加载：自动登录（有缓存用户名）或显示登录弹窗
+document.addEventListener('DOMContentLoaded',()=>{
+  if(_currentUser){
+    document.getElementById('login-overlay').style.display='none';
+    document.getElementById('shell').style.display='block';
+    initApp();
+  }
+  // Enter 键提交登录
+  document.getElementById('login-name').addEventListener('keydown',e=>{
+    if(e.key==='Enter') doLogin();
+  });
+});
+</script>
+</body>
+</html>
