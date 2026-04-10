@@ -41,12 +41,14 @@ function render(){
   else if(S.tab==='archive')html=renderArchive();
   else if(S.tab==='history')html=renderHistory();
   else if(S.tab==='wkinput')html=renderWkForm();
+  else if(S.tab==='kpi')html=renderKpiPage();
   else if(S.tab==='users')html=renderUsersPage();
   document.getElementById('content').innerHTML=html;
   const TABS=['weekly','charts','input','overview','meeting','archive','history'];
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',TABS[i]===S.tab||(S.tab==='wkinput'&&TABS[i]==='weekly')));
   if(S.tab==='weekly')initDrag();
   if(S.tab==='users')renderUserPanel();
+  if(S.tab==='kpi') setTimeout(_loadKpiPanel, 50);
   document.querySelectorAll('textarea.auto-h').forEach(t=>{autoH(t);});
   setTimeout(()=>{ window._initTabsDrag&&_initTabsDrag(); window.updateTabIndicator&&updateTabIndicator(); }, 50);
   if(_syncOk) showSyncStatus('sync');
@@ -60,7 +62,20 @@ window.ST=function(t){ S.tab=t; if(t==='input'){S.editId=null;S.form=blankProj()
 // ════ 周导航 ════
 window.prevWk=function(){S.wk--;if(S.wk<1){S.yr--;S.wk=52}updL();render();};
 window.nextWk=function(){S.wk++;if(S.wk>52){S.yr++;S.wk=1}updL();render();};
-function updL(){document.getElementById('wl').textContent=`${S.yr} W${S.wk}`;}
+function updL(){
+  const el = document.getElementById('wl');
+  if(!el) return;
+  const isCurrent = (S.yr === CYR && S.wk === CWK);
+  el.textContent = `${S.yr} W${S.wk}`;
+  // 当前周：红色粗体 + 稍大字号，醒目提示
+  el.style.color      = isCurrent ? '#c0392b' : '';
+  el.style.fontWeight = isCurrent ? '900'     : '400';
+  el.style.fontSize   = isCurrent ? '13px'    : '';
+  el.style.background = isCurrent ? 'rgba(176,0,32,0.08)' : '';
+  el.style.borderRadius = isCurrent ? '6px'  : '';
+  el.style.padding    = isCurrent ? '2px 8px' : '';
+  el.title = isCurrent ? '本周' : '';
+}
 // 注：autoH 已在 utils.js 中定义
 
 // ════ 拖拽排序 ════

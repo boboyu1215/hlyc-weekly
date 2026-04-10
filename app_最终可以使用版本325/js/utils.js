@@ -56,6 +56,23 @@ function wkRange(yr,wk){
 
 function todayStr(){ return new Date().toLocaleDateString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit'}); }
 
+// 返回某年第几周的周一（ISO 周）的 Date 对象
+function wkMonday(yr, wk){
+  const j4 = new Date(yr, 0, 4);
+  const mon = new Date(j4);
+  mon.setDate(j4.getDate() - (j4.getDay() || 7) + 1 + (wk - 1) * 7);
+  mon.setHours(0, 0, 0, 0);
+  return mon;
+}
+
+// 判断 "YYYY-MM-DD" 格式的日期是否严格在某天之前
+function isBeforeDate(dateStr, refDate){
+  if(!dateStr) return false;
+  const d = new Date(dateStr);
+  d.setHours(0, 0, 0, 0);
+  return d < refDate;
+}
+
 function _relativeTime(ts){
   if(!ts) return '';
   const diff = Math.floor((Date.now()-ts)/1000);

@@ -148,8 +148,10 @@ function updateUserBadge(){
   el.title=ROLE_LABELS[role]||'未知';
   const mgmtBtn=document.getElementById('users-btn');
   const mgmtTab=document.getElementById('tab-users');
+  const kpiTab =document.getElementById('tab-kpi');
   if(mgmtBtn) mgmtBtn.style.display=isDirector()?'inline-block':'none';
   if(mgmtTab) mgmtTab.style.display=isDirector()?'inline-flex':'none';
+  if(kpiTab)  kpiTab.style.display =isDirector()?'inline-flex':'none';
   setTimeout(()=>window.updateTabIndicator&&updateTabIndicator(),100);
 }
 

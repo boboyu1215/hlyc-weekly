@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>用 AI 做一个真正能用的系统 · 开发流程指南</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0d1117;
+  --surface:#161b22;
+  --card:#1c2128;
+  --border:#30363d;
+  --gold:#f0b429;--gold-bg:rgba(240,180,41,.08);--gold-bd:rgba(240,180,41,.2);
+  --blue:#58a6ff;--blue-bg:rgba(88,166,255,.08);--blue-bd:rgba(88,166,255,.2);
+  --green:#3fb950;--green-bg:rgba(63,185,80,.08);--green-bd:rgba(63,185,80,.2);
+  --purple:#bc8cff;--purple-bg:rgba(188,140,255,.08);--purple-bd:rgba(188,140,255,.2);
+  --cyan:#39d2f2;--cyan-bg:rgba(57,210,242,.08);--cyan-bd:rgba(57,210,242,.2);
+  --orange:#f97316;--orange-bg:rgba(249,115,22,.08);--orange-bd:rgba(249,115,22,.2);
+  --red:#ff7b72;--red-bg:rgba(255,123,114,.08);--red-bd:rgba(255,123,114,.2);
+  --t1:#e6edf3;--t2:#8b949e;--t3:#484f58;
+}
+html,body{background:var(--bg);color:var(--t1);font-family:'PingFang SC','Microsoft YaHei',sans-serif;line-height:1.6}
+
+/* ── HERO ── */
+.hero{
+  padding:72px 32px 52px;text-align:center;
+  background:radial-gradient(ellipse 80% 300px at 50% 0,rgba(88,166,255,.07) 0,transparent 100%);
+  border-bottom:1px solid var(--border);
+}
+.hero-eyebrow{font-size:11px;letter-spacing:3px;color:var(--blue);text-transform:uppercase;margin-bottom:16px;font-weight:600}
+.hero h1{font-size:clamp(24px,4vw,44px);font-weight:800;line-height:1.15;letter-spacing:-.5px}
+.hero h1 em{font-style:normal;color:var(--gold)}
+.hero-sub{margin-top:16px;font-size:15px;color:var(--t2);max-width:580px;margin-inline:auto}
+.hero-tags{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:24px}
+.hero-tag{font-size:11px;padding:4px 12px;border-radius:20px;border:1px solid var(--border);color:var(--t2)}
+
+/* ── NAV PHASES ── */
+.nav-bar{
+  position:sticky;top:0;z-index:100;
+  background:rgba(13,17,23,.92);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+  display:flex;overflow-x:auto;gap:0;scrollbar-width:none;
+}
+.nav-bar::-webkit-scrollbar{display:none}
+.nav-item{
+  flex-shrink:0;padding:14px 20px;font-size:12px;font-weight:600;
+  color:var(--t2);cursor:pointer;border-bottom:2px solid transparent;
+  transition:.2s;white-space:nowrap;text-decoration:none;
+  display:flex;align-items:center;gap:6px;
+}
+.nav-item:hover{color:var(--t1)}
+.nav-item.active{color:var(--t1);border-bottom-color:var(--gold)}
+
+/* ── MAIN LAYOUT ── */
+.main{max-width:1100px;margin:0 auto;padding:0 24px 100px}
+
+/* ── SECTION HEADER ── */
+.section{margin-top:64px}
+.section-hd{
+  display:flex;align-items:flex-start;gap:20px;
+  padding:28px 32px;border-radius:16px 16px 0 0;
+  border:1px solid var(--border);border-bottom:none;
+}
+.phase-num{
+  width:44px;height:44px;border-radius:12px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;font-weight:900;
+}
+.section-hd-text h2{font-size:20px;font-weight:800;margin-bottom:4px}
+.section-hd-text p{font-size:13px;color:var(--t2);line-height:1.7}
+.phase-badge{
+  margin-left:auto;flex-shrink:0;
+  font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;
+  padding:4px 12px;border-radius:20px;
+}
+
+/* ── SECTION BODY ── */
+.section-body{
+  border:1px solid var(--border);border-radius:0 0 16px 16px;
+  overflow:hidden;
+}
+
+/* ── CARD GRID ── */
+.card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1px;background:var(--border)}
+.card-grid-1{grid-template-columns:1fr}
+.card-grid-2{grid-template-columns:repeat(2,1fr)}
+.card-grid-3{grid-template-columns:repeat(3,1fr)}
+
+.card{background:var(--card);padding:24px 28px}
+.card-icon{font-size:22px;margin-bottom:12px}
+.card h3{font-size:14px;font-weight:700;margin-bottom:8px;color:var(--t1)}
+.card p{font-size:13px;color:var(--t2);line-height:1.8}
+
+/* ── KEY POINTS LIST ── */
+.kp-list{list-style:none;display:flex;flex-direction:column;gap:10px;margin-top:12px}
+.kp-list li{
+  display:flex;gap:10px;align-items:flex-start;
+  font-size:13px;color:var(--t2);line-height:1.7;
+}
+.kp-list li .dot{
+  flex-shrink:0;width:6px;height:6px;border-radius:50%;
+  margin-top:7px;
+}
+
+/* ── PROMPT BLOCK ── */
+.prompt-block{
+  background:var(--surface);border-top:1px solid var(--border);
+  padding:20px 28px;
+}
+.prompt-label{font-size:10px;letter-spacing:2px;color:var(--t3);text-transform:uppercase;font-weight:700;margin-bottom:10px}
+.prompt-box{
+  background:rgba(255,255,255,.03);border:1px solid var(--border);
+  border-radius:10px;padding:14px 16px;font-size:12.5px;
+  color:#a8c8f0;line-height:1.9;font-family:'Courier New',monospace;
+}
+.prompt-box .pq{color:var(--gold)}
+.prompt-box .pa{color:#79c0ff}
+
+/* ── WARNING / TIP BLOCKS ── */
+.warn-block{
+  background:var(--red-bg);border:1px solid var(--red-bd);
+  border-radius:10px;padding:14px 18px;margin-top:12px;
+  font-size:12.5px;color:var(--red);line-height:1.8;
+}
+.warn-block::before{content:'⚠️  ';font-size:13px}
+.tip-block{
+  background:var(--green-bg);border:1px solid var(--green-bd);
+  border-radius:10px;padding:14px 18px;margin-top:12px;
+  font-size:12.5px;color:var(--green);line-height:1.8;
+}
+.tip-block::before{content:'✅  ';font-size:13px}
+
+/* ── CHECKLIST ── */
+.checklist{list-style:none;display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.checklist li{
+  display:flex;align-items:flex-start;gap:10px;
+  font-size:13px;color:var(--t2);line-height:1.7;
+}
+.checklist li .cb{
+  flex-shrink:0;width:16px;height:16px;border:1.5px solid var(--border);
+  border-radius:4px;margin-top:3px;display:flex;align-items:center;justify-content:center;
+}
+
+/* ── DIVIDER ── */
+.inner-divider{height:1px;background:var(--border)}
+
+/* ── PHASE COLORS ── */
+.p1 .phase-num{background:var(--gold-bg);color:var(--gold);border:1.5px solid var(--gold-bd)}
+.p1 .section-hd{background:linear-gradient(135deg,rgba(240,180,41,.04),transparent)}
+.p1 .section-hd-text h2{color:var(--gold)}
+.p1 .phase-badge{background:var(--gold-bg);border:1px solid var(--gold-bd);color:var(--gold)}
+.p1 .dot{background:var(--gold)}
+
+.p2 .phase-num{background:var(--blue-bg);color:var(--blue);border:1.5px solid var(--blue-bd)}
+.p2 .section-hd{background:linear-gradient(135deg,rgba(88,166,255,.04),transparent)}
+.p2 .section-hd-text h2{color:var(--blue)}
+.p2 .phase-badge{background:var(--blue-bg);border:1px solid var(--blue-bd);color:var(--blue)}
+.p2 .dot{background:var(--blue)}
+
+.p3 .phase-num{background:var(--purple-bg);color:var(--purple);border:1.5px solid var(--purple-bd)}
+.p3 .section-hd{background:linear-gradient(135deg,rgba(188,140,255,.04),transparent)}
+.p3 .section-hd-text h2{color:var(--purple)}
+.p3 .phase-badge{background:var(--purple-bg);border:1px solid var(--purple-bd);color:var(--purple)}
+.p3 .dot{background:var(--purple)}
+
+.p4 .phase-num{background:var(--green-bg);color:var(--green);border:1.5px solid var(--green-bd)}
+.p4 .section-hd{background:linear-gradient(135deg,rgba(63,185,80,.04),transparent)}
+.p4 .section-hd-text h2{color:var(--green)}
+.p4 .phase-badge{background:var(--green-bg);border:1px solid var(--green-bd);color:var(--green)}
+.p4 .dot{background:var(--green)}
+
+.p5 .phase-num{background:var(--cyan-bg);color:var(--cyan);border:1.5px solid var(--cyan-bd)}
+.p5 .section-hd{background:linear-gradient(135deg,rgba(57,210,242,.04),transparent)}
+.p5 .section-hd-text h2{color:var(--cyan)}
+.p5 .phase-badge{background:var(--cyan-bg);border:1px solid var(--cyan-bd);color:var(--cyan)}
+.p5 .dot{background:var(--cyan)}
+
+.p6 .phase-num{background:var(--orange-bg);color:var(--orange);border:1.5px solid var(--orange-bd)}
+.p6 .section-hd{background:linear-gradient(135deg,rgba(249,115,22,.04),transparent)}
+.p6 .section-hd-text h2{color:var(--orange)}
+.p6 .phase-badge{background:var(--orange-bg);border:1px solid var(--orange-bd);color:var(--orange)}
+.p6 .dot{background:var(--orange)}
+
+/* ── FLOW ARROW ── */
+.flow-arrow{text-align:center;padding:16px 0;color:var(--t3);font-size:20px}
+
+/* ── SUMMARY TABLE ── */
+.summary-wrap{margin-top:64px}
+.summary-wrap h2{font-size:18px;font-weight:800;text-align:center;margin-bottom:24px}
+.summary-table{width:100%;border-collapse:collapse;font-size:13px}
+.summary-table th{
+  background:var(--surface);padding:12px 16px;text-align:left;
+  border:1px solid var(--border);color:var(--t2);font-weight:600;font-size:11px;
+  text-transform:uppercase;letter-spacing:1px;
+}
+.summary-table td{
+  padding:12px 16px;border:1px solid var(--border);
+  color:var(--t2);vertical-align:top;line-height:1.7;
+}
+.summary-table tr:hover td{background:rgba(255,255,255,.02)}
+.phase-tag{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;
+  white-space:nowrap;
+}
+
+/* ── BOTTOM QUOTE ── */
+.bottom{
+  text-align:center;padding:60px 24px 80px;
+  border-top:1px solid var(--border);margin-top:80px;
+}
+.bottom-quote{
+  font-size:16px;line-height:2;color:var(--t2);
+  max-width:520px;margin:0 auto 20px;
+}
+.bottom-quote strong{color:var(--t1)}
+.bottom-sig{font-size:12px;color:var(--t3)}
+
+/* 响应式 */
+@media(max-width:700px){
+  .card-grid-2,.card-grid-3{grid-template-columns:1fr}
+  .section-hd{flex-wrap:wrap}
+  .phase-badge{margin-left:0;margin-top:8px}
+  .summary-table{font-size:12px}
+}
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-eyebrow">AI 辅助开发 · 方法论</div>
+  <h1>用 AI 做一个<em>真正能用</em>的系统</h1>
+  <p class="hero-sub">从一句「我想做个工具」到稳定运行的产品，完整的 6 阶段流程、每阶段的重点事项与和 AI 协作的方式。</p>
+  <div class="hero-tags">
+    <span class="hero-tag">📋 需求澄清</span>
+    <span class="hero-tag">🏗️ 架构设计</span>
+    <span class="hero-tag">🔨 最小版本</span>
+    <span class="hero-tag">🔁 迭代扩展</span>
+    <span class="hero-tag">🧪 质量保障</span>
+    <span class="hero-tag">📦 交付维护</span>
+  </div>
+</div>
+
+<!-- NAV -->
+<nav class="nav-bar">
+  <a class="nav-item active" href="#p1">① 需求澄清</a>
+  <a class="nav-item" href="#p2">② 架构设计</a>
+  <a class="nav-item" href="#p3">③ 最小版本</a>
+  <a class="nav-item" href="#p4">④ 迭代扩展</a>
+  <a class="nav-item" href="#p5">⑤ 质量保障</a>
+  <a class="nav-item" href="#p6">⑥ 交付维护</a>
+</nav>
+
+<div class="main">
+
+<!-- ════════════════════════════════════
+     PHASE 1 · 需求澄清
+════════════════════════════════════ -->
+<div class="section p1" id="p1">
+  <div class="section-hd">
+    <div class="phase-num">1</div>
+    <div class="section-hd-text">
+      <h2>需求澄清 · 动手之前把问题想清楚</h2>
+      <p>这一阶段最贵的不是时间，而是脑力。花在这里的每一分钟，都能省去后面十倍的返工。</p>
+    </div>
+    <div class="phase-badge">📋 启动前</div>
+  </div>
+  <div class="section-body">
+    <div class="card-grid card-grid-3">
+      <div class="card">
+        <div class="card-icon">🎯</div>
+        <h3>明确「为什么做」</h3>
+        <p>用一句话说清楚：没有这个系统之前，是怎么做的？哪里最痛？有了之后什么会变？</p>
+        <ul class="kp-list">
+          <li><span class="dot"></span>场景：谁在用、什么时候用、在哪用</li>
+          <li><span class="dot"></span>痛点：现在靠什么解决，哪里断掉了</li>
+          <li><span class="dot"></span>目标：用了系统之后，什么指标改变</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔍</div>
+        <h3>让 AI 反过来问你</h3>
+        <p>不是把需求告诉 AI，而是让 AI 追问，把你没想到的边界条件逼出来。</p>
+        <ul class="kp-list">
+          <li><span class="dot"></span>多人同时用吗？会不会冲突？</li>
+          <li><span class="dot"></span>数据需要保存多久？谁能看？</li>
+          <li><span class="dot"></span>有没有例外情况、特殊角色？</li>
+          <li><span class="dot"></span>填完/提交之后，还要做什么？</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-icon">✂️</div>
+        <h3>砍掉「想要但不必要」的功能</h3>
+        <p>列出所有想要的功能，然后问自己：去掉哪些，这个系统还能用？留下的就是第一版。</p>
+        <div class="tip-block">必须有 / 应该有 / 可以有——三档分类，只做「必须有」</div>
+      </div>
+    </div>
+    <div class="inner-divider"></div>
+    <div class="prompt-block">
+      <div class="prompt-label">🤖 和 AI 协作的方式</div>
+      <div class="prompt-box">
+<span class="pq">你问：</span>「我想做一个部门周报系统，帮我想想我可能没考虑到的问题」<br>
+<span class="pa">AI 问：</span>「多少人同时填写？有没有权限区分，谁能改谁只能看？<br>
+　　　　填完之后需要汇总给谁？数据需要保留多久？有没有考虑离线场景？」<br>
+<span class="pq">你回答</span>→ 这些回答里，<strong style="color:var(--gold)">真正的需求就浮出来了</strong>
+      </div>
+      <div class="warn-block">不要一上来就说「帮我写代码」——需求没想清楚就写的代码，一定要重写。</div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow">↓</div>
+
+<!-- ════════════════════════════════════
+     PHASE 2 · 架构设计
+════════════════════════════════════ -->
+<div class="section p2" id="p2">
+  <div class="section-hd">
+    <div class="phase-num">2</div>
+    <div class="section-hd-text">
+      <h2>架构设计 · 地基打好，上面才不歪</h2>
+      <p>在写第一行代码之前，先把数据长什么样、用什么技术、系统有哪些模块定下来。</p>
+    </div>
+    <div class="phase-badge">🏗️ 设计期</div>
+  </div>
+  <div class="section-body">
+    <div class="card-grid card-grid-3">
+      <div class="card">
+        <div class="card-icon">🗄️</div>
+        <h3>先定数据结构</h3>
+        <p>把核心数据用最简单的 JSON 写出来，不需要完整，关键字段定下来就够。</p>
+        <div style="background:#0d1117;border-radius:8px;padding:12px 14px;margin-top:10px;font-family:monospace;font-size:11.5px;color:#7ee787;line-height:1.9">
+          { "user": "冷耀秋",<br>
+          &nbsp;&nbsp;"role": "director",<br>
+          &nbsp;&nbsp;"week": "2026-W12",<br>
+          &nbsp;&nbsp;"tasks": ["事项1","事项2"]<br>
+          }
+        </div>
+        <div class="warn-block">字段格式一旦定下来不要随意改，新旧数据格式混用是最常见的 bug 来源。</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">⚙️</div>
+        <h3>技术选型，只选一次</h3>
+        <p>改技术选型的成本 = 重写所有代码。选之前先确认两件事：</p>
+        <ul class="kp-list" style="margin-top:10px">
+          <li><span class="dot"></span>国内用户能正常访问吗？（不能开 VPN）</li>
+          <li><span class="dot"></span>依赖的服务三年后还在吗？</li>
+          <li><span class="dot"></span>团队能维护吗？学习成本多高？</li>
+        </ul>
+        <div class="tip-block">先验证技术可行性，再写业务逻辑。</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">📐</div>
+        <h3>模块划分，单一职责</h3>
+        <p>把系统拆成独立模块，每个模块只做一件事。</p>
+        <ul class="kp-list" style="margin-top:10px">
+          <li><span class="dot"></span>数据层：读写、格式化、云同步</li>
+          <li><span class="dot"></span>权限层：谁能做什么操作</li>
+          <li><span class="dot"></span>展示层：页面渲染、交互</li>
+          <li><span class="dot"></span>通知层：提醒、导出、分享</li>
+        </ul>
+        <div class="warn-block">不要把业务逻辑写在 UI 代码里，后面一定后悔。</div>
+      </div>
+    </div>
+    <div class="inner-divider"></div>
+    <div class="prompt-block">
+      <div class="prompt-label">🤖 和 AI 协作的方式</div>
+      <div class="prompt-box">
+<span class="pq">你问：</span>「我要做一个多人协作的周报系统，<br>
+　　　　数据存腾讯云 CloudBase，帮我设计数据结构和模块划分」<br>
+<span class="pa">AI 给：</span>数据字段定义 + 模块列表 + 潜在冲突点（如多端同时写入）<br>
+<span class="pq">你确认：</span>逐条过一遍，有不合理的当场改——<strong style="color:var(--blue)">改设计比改代码便宜 10 倍</strong>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow">↓</div>
+
+<!-- ════════════════════════════════════
+     PHASE 3 · 最小可用版本
+════════════════════════════════════ -->
+<div class="section p3" id="p3">
+  <div class="section-hd">
+    <div class="phase-num">3</div>
+    <div class="section-hd-text">
+      <h2>最小可用版本 · 先跑起来，再说好不好</h2>
+      <p>第一版的唯一目标是「能用」，不是「好看」「功能多」。跑起来才能发现真正的需求。</p>
+    </div>
+    <div class="phase-badge">🔨 开发期</div>
+  </div>
+  <div class="section-body">
+    <div class="card-grid card-grid-2">
+      <div class="card">
+        <div class="card-icon">🎯</div>
+        <h3>只做核心路径上的功能</h3>
+        <p>用户完成一次完整操作需要哪几步？只做这几步，其他全砍掉。</p>
+        <ul class="kp-list" style="margin-top:10px">
+          <li><span class="dot"></span>登录 → 填写 → 保存 → 查看：这是核心路径</li>
+          <li><span class="dot"></span>可视化看板、KPI评分、统计图表：第二版</li>
+          <li><span class="dot"></span>导出 PDF、年度汇总、权限细分：第三版</li>
+        </ul>
+        <div class="tip-block">每加一个功能就加一层复杂度，第一版复杂度要尽量低。</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">📝</div>
+        <h3>建立改动规范，第一天就建</h3>
+        <p>在项目里放一个 <strong>RULES.md</strong>，写三件事，从第一行代码开始执行：</p>
+        <ul class="kp-list" style="margin-top:10px">
+          <li><span class="dot"></span>命名规范：函数、变量、文件怎么命名</li>
+          <li><span class="dot"></span>数据格式约定：日期用 ISO 8601，数组/字符串不混用</li>
+          <li><span class="dot"></span>修改规则：改逻辑必须全局搜索同类逻辑一起改</li>
+        </ul>
+        <div class="warn-block">没有规范的代码库，三个月后连自己都看不懂。</div>
+      </div>
+    </div>
+    <div class="inner-divider"></div>
+    <div class="card-grid card-grid-1">
+      <div class="card">
+        <div class="card-icon">🤖</div>
+        <h3>每次让 AI 写代码之前，先说清楚影响范围</h3>
+        <p style="margin-bottom:12px">AI 只看到你给它的那段代码，它不知道「其他地方还有同样的逻辑」——除非你告诉它。</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div>
+            <div style="font-size:11px;color:var(--red);font-weight:700;margin-bottom:8px">❌ 容易出问题的方式</div>
+            <div class="warn-block" style="margin-top:0">「把日期格式改成 MMDD」<br>→ 只改了主函数，内联副本没改，两处格式不一致</div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--green);font-weight:700;margin-bottom:8px">✅ 正确的方式</div>
+            <div class="tip-block" style="margin-top:0">「我要改日期格式，帮我先找出所有处理日期的地方，然后一起改」<br>→ 一次改完，不留隐患</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="inner-divider"></div>
+    <div class="prompt-block">
+      <div class="prompt-label">🤖 和 AI 协作的方式</div>
+      <div class="prompt-box">
+<span class="pq">每次改动前问：</span>「这个修改会影响哪些地方？改之前帮我列一遍。」<br>
+<span class="pq">遇到模糊需求：</span>「我说的 X，你理解是 A 还是 B？有没有其他可能？」<br>
+<span class="pq">遇到视觉需求：</span>「背景色 #1a3a5c，字号 13px，圆角 8px」——<strong style="color:var(--purple)">给具体值，不给描述词</strong>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow">↓</div>
+
+<!-- ════════════════════════════════════
+     PHASE 4 · 迭代扩展
+════════════════════════════════════ -->
+<div class="section p4" id="p4">
+  <div class="section-hd">
+    <div class="phase-num">4</div>
+    <div class="section-hd-text">
+      <h2>迭代扩展 · 一次只加一件事</h2>
+      <p>第一版跑起来之后，用真实使用反馈驱动迭代。每次迭代只做一件明确的事。</p>
+    </div>
+    <div class="phase-badge">🔁 迭代期</div>
+  </div>
+  <div class="section-body">
+    <div class="card-grid card-grid-3">
+      <div class="card">
+        <div class="card-icon">📦</div>
+        <h3>需求管理：先收集，再排序，再做</h3>
+        <p>不要用户说一个就改一个。每次收集一批，排好优先级，一次性处理。</p>
+        <ul class="kp-list" style="margin-top:10px">
+          <li><span class="dot"></span>同一个功能的多个细节，攒在一起说</li>
+          <li><span class="dot"></span>区分「Bug 修复」和「新功能」</li>
+          <li><span class="dot"></span>新功能上线前，先确认不破坏现有功能</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔗</div>
+        <h3>加新功能前，审查数据兼容性</h3>
+        <p>新功能可能需要修改数据结构，而旧数据还在。必须确认：</p>
+        <ul class="kp-list" style="margin-top:10px">
+          <li><span class="dot"></span>旧数据能被新逻辑正常读取吗？</li>
+          <li><span class="dot"></span>需要写数据迁移脚本吗？</li>
+          <li><span class="dot"></span>新旧字段格式是否一致？</li>
+        </ul>
+        <div class="warn-block">「新代码读不了老数据」是最难排查的 bug 类型。</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🏷️</div>
+        <h3>每次迭代打 Git Tag</h3>
+        <p>每次稳定版本打一个 tag，出问题随时能回到上一个能用的版本。</p>
+        <div style="background:#0d1117;border-radius:8px;padding:10px 14px;margin-top:10px;font-family:monospace;font-size:11.5px;color:#79c0ff;line-height:2">
+          git tag v1.0-stable<br>
+          git tag v2.0-kpi-feature<br>
+          git push --tags
+        </div>
+        <div class="tip-block">「上一个能用的版本」比「当前最新版本」更重要。</div>
+      </div>
+    </div>
+    <div class="inner-divider"></div>
+    <div class="prompt-block">
+      <div class="prompt-label">🤖 迭代时和 AI 协作的方式</div>
+      <div class="prompt-box">
+<span class="pq">加新功能时：</span>「我要加 X 功能，帮我先分析：<br>
+　　　　　　　① 需要改哪些现有代码<br>
+　　　　　　　② 会影响哪些已有功能<br>
+　　　　　　　③ 数据格式需要改吗<br>
+　　　　　　　分析完再动手。」
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow">↓</div>
+
+<!-- ════════════════════════════════════
+     PHASE 5 · 质量保障
+════════════════════════════════════ -->
+<div class="section p5" id="p5">
+  <div class="section-hd">
+    <div class="phase-num">5</div>
+    <div class="section-hd-text">
+      <h2>质量保障 · 每次部署前的防线</h2>
+      <p>不需要测试框架，只需要一张清单和一个习惯：部署之前过一遍，不过不发。</p>
+    </div>
+    <div class="phase-badge">🧪 质检期</div>
+  </div>
+  <div class="section-body">
+    <div class="card-grid card-grid-2">
+      <div class="card">
+        <div class="card-icon">✅</div>
+        <h3>部署前 5 条必查清单</h3>
+        <ul class="checklist">
+          <li><span class="cb">□</span>这次改动影响到的所有地方，都改了吗？</li>
+          <li><span class="cb">□</span>数据格式有新旧不兼容的地方吗？</li>
+          <li><span class="cb">□</span>有没有在代码里写死了人名 / URL / ID？</li>
+          <li><span class="cb">□</span>旧数据能被正常读取吗（用真实数据测）？</li>
+          <li><span class="cb">□</span>手机上看效果对吗？不只是桌面端？</li>
+        </ul>
+        <div class="tip-block">花 2 分钟过清单，省去 20 分钟线上返工。</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🐛</div>
+        <h3>发现 Bug 时的正确流程</h3>
+        <ul class="kp-list" style="margin-top:8px">
+          <li><span class="dot"></span><strong>先复现</strong>：能稳定复现的 bug 才能被修掉</li>
+          <li><span class="dot"></span><strong>定位范围</strong>：是数据问题、逻辑问题还是显示问题？</li>
+          <li><span class="dot"></span><strong>找根本原因</strong>：不是修症状，是修原因</li>
+          <li><span class="dot"></span><strong>确认影响面</strong>：修了这里，其他地方有没有同样的问题？</li>
+          <li><span class="dot"></span><strong>回归测试</strong>：修完后验证修之前能用的功能还能用</li>
+        </ul>
+        <div class="warn-block">修 bug 最忌讳：「我觉得应该是这里，改了试试」——不定位就动手，会引入新 bug。</div>
+      </div>
+    </div>
+    <div class="inner-divider"></div>
+    <div class="prompt-block">
+      <div class="prompt-label">🤖 遇到 Bug 时和 AI 协作的方式</div>
+      <div class="prompt-box">
+<span class="pq">不要说：</span>「报错了，帮我修」（AI 只能猜）<br>
+<span class="pq">要说：</span>「出现了 X 问题，触发条件是 Y，<br>
+　　　　报错信息是 Z，我认为可能是 A 或 B 造成的，帮我分析。」<br><br>
+<span class="pa">AI 需要：</span>完整报错信息 + 触发步骤 + 相关代码片段<br>
+<strong style="color:var(--cyan)">→ 信息越完整，定位越准，修改次数越少</strong>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow">↓</div>
+
+<!-- ════════════════════════════════════
+     PHASE 6 · 交付维护
+════════════════════════════════════ -->
+<div class="section p6" id="p6">
+  <div class="section-hd">
+    <div class="phase-num">6</div>
+    <div class="section-hd-text">
+      <h2>交付维护 · 上线不是终点</h2>
+      <p>系统上线之后，真正的挑战才开始。维护成本往往比开发成本高，提前设计好。</p>
+    </div>
+    <div class="phase-badge">📦 维护期</div>
+  </div>
+  <div class="section-body">
+    <div class="card-grid card-grid-3">
+      <div class="card">
+        <div class="card-icon">📚</div>
+        <h3>保持文档和代码同步</h3>
+        <p>每次改了重要逻辑，同步更新：</p>
+        <ul class="kp-list" style="margin-top:10px">
+          <li><span class="dot"></span>代码里的注释（解释「为什么」不是「是什么」）</li>
+          <li><span class="dot"></span>RULES.md 里的数据格式约定</li>
+          <li><span class="dot"></span>关键决策的记录（为什么选这个方案）</li>
+        </ul>
+        <div class="tip-block">三个月后的自己会感谢写注释的自己。</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔄</div>
+        <h3>定期清理技术债务</h3>
+        <p>每隔一段时间，专门花时间做一次：</p>
+        <ul class="kp-list" style="margin-top:10px">
+          <li><span class="dot"></span>删除没有用到的代码和变量</li>
+          <li><span class="dot"></span>统一不一致的命名和格式</li>
+          <li><span class="dot"></span>把重复出现的逻辑提取成函数</li>
+          <li><span class="dot"></span>更新依赖版本，修复安全漏洞</li>
+        </ul>
+        <div class="warn-block">技术债务会复利增长，越晚处理越贵。</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🗺️</div>
+        <h3>新功能上线前的标准流程</h3>
+        <ul class="kp-list" style="margin-top:8px">
+          <li><span class="dot"></span>需求澄清（回到第 1 阶段）</li>
+          <li><span class="dot"></span>评估对现有功能的影响</li>
+          <li><span class="dot"></span>确认数据兼容性</li>
+          <li><span class="dot"></span>先在本地测试，再部署</li>
+          <li><span class="dot"></span>打 Git Tag 留档</li>
+          <li><span class="dot"></span>告知使用者变化了什么</li>
+        </ul>
+      </div>
+    </div>
+    <div class="inner-divider"></div>
+    <div class="prompt-block">
+      <div class="prompt-label">🤖 维护阶段和 AI 协作的方式</div>
+      <div class="prompt-box">
+<span class="pq">做代码审查时：</span>「帮我审查这段代码，重点看：<br>
+　　　　　　　　① 有没有潜在的边界条件没处理<br>
+　　　　　　　　② 有没有重复逻辑可以抽取<br>
+　　　　　　　　③ 命名是否清晰」<br><br>
+<span class="pq">做技术债清理：</span>「这个文件上次改了很多，帮我找出<br>
+　　　　　　　　所有已经没用的代码和变量」
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════
+     SUMMARY TABLE
+════════════════════════════════════ -->
+<div class="summary-wrap">
+  <h2>6 个阶段一览表</h2>
+  <table class="summary-table">
+    <thead>
+      <tr>
+        <th style="width:120px">阶段</th>
+        <th style="width:180px">核心目标</th>
+        <th>重点事项</th>
+        <th style="width:200px">最容易犯的错</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="phase-tag" style="background:var(--gold-bg);border:1px solid var(--gold-bd);color:var(--gold)">① 需求澄清</span></td>
+        <td>把问题想清楚</td>
+        <td>明确场景和痛点 · 让 AI 追问边界条件 · 砍掉非必要功能</td>
+        <td>需求没想清楚就开始写代码</td>
+      </tr>
+      <tr>
+        <td><span class="phase-tag" style="background:var(--blue-bg);border:1px solid var(--blue-bd);color:var(--blue)">② 架构设计</span></td>
+        <td>打好地基</td>
+        <td>先定数据结构 · 技术选型只做一次 · 模块单一职责</td>
+        <td>边做边设计，改技术选型</td>
+      </tr>
+      <tr>
+        <td><span class="phase-tag" style="background:var(--purple-bg);border:1px solid var(--purple-bd);color:var(--purple)">③ 最小版本</span></td>
+        <td>先跑起来</td>
+        <td>只做核心路径 · 第一天建规范 · 改一处先搜全局</td>
+        <td>追求完美导致迟迟无法上线</td>
+      </tr>
+      <tr>
+        <td><span class="phase-tag" style="background:var(--green-bg);border:1px solid var(--green-bd);color:var(--green)">④ 迭代扩展</span></td>
+        <td>一次加一件事</td>
+        <td>需求先收集再排序 · 审查数据兼容性 · 每次打 Tag</td>
+        <td>用户说什么就改什么，没有节奏</td>
+      </tr>
+      <tr>
+        <td><span class="phase-tag" style="background:var(--cyan-bg);border:1px solid var(--cyan-bd);color:var(--cyan)">⑤ 质量保障</span></td>
+        <td>部署前过关</td>
+        <td>5 条清单必查 · Bug 先定位再修 · 确认影响面</td>
+        <td>「应该没问题」直接上线</td>
+      </tr>
+      <tr>
+        <td><span class="phase-tag" style="background:var(--orange-bg);border:1px solid var(--orange-bd);color:var(--orange)">⑥ 交付维护</span></td>
+        <td>持续可用</td>
+        <td>文档和代码同步 · 定期清理债务 · 新功能走标准流程</td>
+        <td>只加功能不清理，系统越来越脆</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+</div><!-- /main -->
+
+<!-- BOTTOM QUOTE -->
+<div class="bottom">
+  <div class="bottom-quote">
+    「每一层都需要踩到才能知道，<br>
+    这条路不走一遍是不知道坑在哪里的。」<br><br>
+    <strong>走完一遍之后，这张图就是地图。<br>下次可以少踩几个。</strong>
+  </div>
+  <div class="bottom-sig">华力集团研策部 · 系统开发经验沉淀 · 2026</div>
+</div>
+
+<script>
+// 导航栏激活状态跟随滚动
+const sections = document.querySelectorAll('.section');
+const navItems = document.querySelectorAll('.nav-item');
+window.addEventListener('scroll', () => {
+  let cur = '';
+  sections.forEach(s => {
+    if (window.scrollY >= s.offsetTop - 80) cur = s.id;
+  });
+  navItems.forEach(n => {
+    n.classList.toggle('active', n.getAttribute('href') === '#' + cur);
+  });
+}, { passive: true });
+</script>
+</body>
+</html>

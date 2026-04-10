@@ -3,7 +3,7 @@
 // ════════════════════════════════════════════════════
 
 // 云函数代理地址
-const PROXY_URL = 'https://ycb-zb-0g7962fmca5676a3-1255322631.ap-shanghai.app.tcloudbase.com/weeklyProxy';
+const PROXY_URL = '/api';
 
 // CloudBase 环境 ID（用于实时监听 WebSocket）
 const ENV_ID = 'ycb-zb-0g7962fmca5676a3';

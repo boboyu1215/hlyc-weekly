@@ -10,9 +10,8 @@ function renderCharts(){
   const maxSD=Math.max(...sd,1);
   const sorted=[...snaps].sort((a,b)=>({'r':0,'y':1,'g':2}[a.status]||0)-({'r':0,'y':1,'g':2}[b.status]||0));
   const redProjects=snaps.filter(p=>{
-    if(p.status!=='r') return false;
-    const riskText = _itemListText(p.risk);
-    return riskText && riskText.trim() && riskText.trim()!=='无';
+    // getSnap 已经过 _resolveStatus，status='r' 时必然有 risk 或 decision 实质内容
+    return p.status==='r';
   });
   const yelProjects=snaps.filter(p=>p.status==='y');
   const grnProjects=snaps.filter(p=>p.status==='g');
@@ -50,7 +49,7 @@ function renderCharts(){
         const riskText = _itemListText(p.risk);
         return `<div class="hc ${sc(p.status)}">
         <div class="hc-nm">${esc(p.name)}</div>
-        <div class="hc-stage">${STAGES[p.stage]||'—'} 阶段</div>
+        <div class="hc-stage">${STAGES[p.stage]||'无'} 阶段</div>
         <div class="hc-risks">
           ${riskText&&riskText!=='正常推进'?`<div class="hc-risk">${esc(riskText)}</div>`:'<div class="hc-risk">正常推进</div>'}
         </div>
@@ -110,7 +109,7 @@ function renderCharts(){
             <div class="tlb" style="left:${barL}%;width:${barR-barL}%;background:${cl}"></div>
             <div style="position:absolute;top:-4px;left:${tPct}%;width:1px;height:calc(100% + 8px);border-left:2px dashed var(--rt);opacity:.7;z-index:2"></div>
           </div>
-          <div class="tlds" style="color:${dc}">${p.dTE!==null?p.dTE+'天':'待定'}</div>
+          <div class="tlds" style="color:${dc}">${p.dTE!==null?p.dTE+'天':'无'}</div>
         </div>`;
       }).join('')}
     </div>
@@ -123,7 +122,7 @@ function renderCharts(){
       ${snaps.map((p,idx)=>`<div class="ai">
         <div style="flex-shrink:0;width:20px;height:20px;border-radius:50%;background:var(--gl);color:var(--gold);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center">${idx+1}</div>
         <div><div class="badge ${sc(p.status)}" style="font-size:10px;margin-bottom:3px">${esc(p.name.length>8?p.name.slice(0,8)+'…':p.name)}</div></div>
-        <div class="at">${esc(_itemListText(p.coreAction)||p.next||'—')}</div>
+        <div class="at">${esc(_itemListText(p.coreAction)||p.next||'无')}</div>
       </div>`).join('')}
       ${!snaps.length?`<div class="empty">暂无数据</div>`:''}
     </div>

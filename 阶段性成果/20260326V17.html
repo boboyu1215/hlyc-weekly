@@ -1808,13 +1808,7 @@ function blankWkForm(pid){return getSnap(S.yr,S.wk,pid,LP())}
 
 function renderWeekly(){
   const projects=LP();
-  // 当前用户负责的项目排在最前，其余按 sortOrder
-  const active=projects.filter(p=>!p.archived).sort((a,b)=>{
-    const aOwn = (a.designOwner===_currentUser||a.prepOwner===_currentUser) ? 0 : 1;
-    const bOwn = (b.designOwner===_currentUser||b.prepOwner===_currentUser) ? 0 : 1;
-    if(aOwn!==bOwn) return aOwn-bOwn;
-    return (a.sortOrder||0)-(b.sortOrder||0);
-  });
+  const active=projects.filter(p=>!p.archived).sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
   const snaps=active.map(p=>({...p,...getSnap(S.yr,S.wk,p.id,projects)}));
   const r=snaps.filter(p=>p.status==='r').length, y=snaps.filter(p=>p.status==='y').length, g=snaps.filter(p=>p.status==='g').length;
   const blk=snaps.filter(p=>p.decision&&p.decision!=='无'&&p.status==='r');
@@ -1944,13 +1938,7 @@ function renderOverview(){
 
 function renderCharts(){
   const projects=LP(); const active=projects.filter(p=>!p.archived);
-  // 未来周：只取本周有实际快照数据的项目；当前周及历史周：全部取
-  const isFutureWk = S.yr > CYR || (S.yr === CYR && S.wk > CWK);
-  const weeks = LW(); const k = wkKey(S.yr,S.wk);
-  const activeWithData = isFutureWk
-    ? active.filter(p => weeks[k] && weeks[k][p.id] !== undefined)
-    : active;
-  const snaps=activeWithData.map(p=>({...p,...getSnap(S.yr,S.wk,p.id,projects)}));
+  const snaps=active.map(p=>({...p,...getSnap(S.yr,S.wk,p.id,projects)}));
   const sc2={r:0,y:0,g:0}; snaps.forEach(p=>sc2[p.status]=(sc2[p.status]||0)+1);
   const sd=Array(STAGES.length).fill(0); snaps.forEach(p=>sd[Math.min(p.stage,STAGES.length-1)]++);
   const maxSD=Math.max(...sd,1);
@@ -2473,17 +2461,13 @@ function renderWkForm(){
   const caWithBlank = caItems[caItems.length-1]&&caItems[caItems.length-1].text.trim()
     ? [...caItems,{text:'',dueDate:''}] : caItems;
 
-  const riskItems = _toActionArr(f.risk);
+  const riskItems = _toTextArr(f.risk);
   const riskWithBlank = riskItems[riskItems.length-1]&&riskItems[riskItems.length-1].text.trim()
-    ? [...riskItems,{text:'',dueDate:''}] : riskItems;
+    ? [...riskItems,{text:''}] : riskItems;
 
-  const decItems = _toActionArr(f.decision==='无'?'':f.decision);
+  const decItems = _toTextArr(f.decision==='无'?'':f.decision);
   const decWithBlank = decItems[decItems.length-1]&&decItems[decItems.length-1].text.trim()
-    ? [...decItems,{text:'',dueDate:''}] : decItems;
-
-  const cdItems = _toActionArr(f.crossDept);
-  const cdWithBlank = cdItems[cdItems.length-1]&&cdItems[cdItems.length-1].text.trim()
-    ? [...cdItems,{text:'',dueDate:''}] : cdItems;
+    ? [...decItems,{text:''}] : decItems;
 
   return`
   <div class="io-bar no-print">
@@ -2534,20 +2518,19 @@ function renderWkForm(){
     </div>
     <div class="fg full">
       <div class="ff">
-        <label>最大风险 / 已卡住的问题 <span style="font-weight:400;color:var(--t3)">（回车增加一行，📅 设置预期解决时间）</span></label>
-        <div id="_risk_list">${_renderActionRows(riskWithBlank,'risk')}</div>
+        <label>最大风险 / 已卡住的问题 <span style="font-weight:400;color:var(--t3)">（回车增加一行）</span></label>
+        <div id="_risk_list">${_renderTextRows(riskWithBlank,'risk')}</div>
       </div>
       <div class="ff">
-        <label>需管理层决策的事 <span style="font-weight:400;color:var(--t3)">（回车增加一行，📅 设置截止时间，无则留空）</span></label>
-        <div id="_dec_list">${_renderActionRows(decWithBlank,'decision')}</div>
+        <label>需管理层决策的事 <span style="font-weight:400;color:var(--t3)">（回车增加一行，无则留空）</span></label>
+        <div id="_dec_list">${_renderTextRows(decWithBlank,'decision')}</div>
       </div>
     </div>
 
     <div class="fc-sub d3">维度四：跨部门支援</div>
     <div class="fg full">
-      <div class="ff">
-        <label>本周需要哪些部门协助 <span style="font-weight:400;color:var(--t3)">（回车增加一行，📅 设置需要时间，无则留空）</span></label>
-        <div id="_cd_list">${_renderActionRows(cdWithBlank,'crossDept')}</div>
+      <div class="ff"><label>本周需要哪些部门协助（无则留空）</label>
+        <textarea class="auto-h" placeholder='例："需采购部协助核价2项"' oninput="UW('crossDept',this.value);autoH(this)">${esc(f.crossDept)}</textarea>
       </div>
     </div>
 
@@ -2566,8 +2549,6 @@ window._wkActionInput = function(field, idx, val){
   // 若最后一行有内容，自动追加空行
   if(idx === arr.length-1 && val.trim()) arr.push({text:'',dueDate:''});
   S.wform[field] = arr;
-  // risk/decision 输入时自动更新状态
-  if(field==='risk'||field==='decision') autoStatus();
 };
 window._wkActionKeydown = function(e, field, idx){
   if(e.key==='Enter'){
@@ -2595,9 +2576,7 @@ window._wkActionRemove = function(field, idx){
 };
 window._wkPickDate = function(field, idx){
   const el = document.getElementById(`_wkdate_${field}_${idx}`);
-  if(!el) return;
-  // showPicker() 是现代 API，兼容 Chrome/Safari；降级到 click()
-  try{ el.showPicker(); }catch(e){ el.removeAttribute('style'); el.style.cssText='position:absolute;opacity:0;width:0;height:0'; el.click(); }
+  if(el) el.click();
 };
 window._wkDateChange = function(field, idx, val){
   const arr = _toActionArr(S.wform[field]);
@@ -2642,7 +2621,7 @@ window._wkTextRemove = function(field, idx){
 };
 
 window.autoStatus=function(){
-  // risk/decision/crossDept 兼容字符串或 [{text,dueDate}] 数组格式
+  // risk/decision 兼容字符串或数组格式
   const getRawText = v => {
     if(!v) return '';
     if(Array.isArray(v)) return v.map(i=>typeof i==='object'?(i.text||''):String(i)).join('\n');

@@ -125,7 +125,7 @@ function _mergeSnap(localSnap, remoteSnap){
   return merged;
 }
 
-function _stampSnap(snap){
+function _stampSnap(snap, submitter, submitTime){
   const now=Date.now();
   const fieldTs=snap._fieldTs?{...snap._fieldTs}:{};
   for(const field of SNAP_CONTENT_FIELDS){
@@ -133,7 +133,10 @@ function _stampSnap(snap){
     const hasValue=v!==undefined&&v!==null&&v!=='';
     if(hasValue) fieldTs[field]=now;
   }
-  return {...snap,_ts:now,_fieldTs:fieldTs};
+  const stamped={...snap,_ts:now,_fieldTs:fieldTs};
+  // 将提交人写入快照本身，供卡片右上角显示
+  if(submitter){ stamped._updatedBy=submitter; stamped._updatedAt=submitTime||''; }
+  return stamped;
 }
 
 // ── 提交项目（带乐观锁） ──
@@ -145,7 +148,7 @@ async function submitProject(projId){
     const remoteId='snap_'+projId, newV=String(Date.now());
     const localSnap=LW_proj(projId);
     const stampedSnap={};
-    for(const [wk,s] of Object.entries(localSnap)) stampedSnap[wk]=_stampSnap(s);
+    for(const [wk,s] of Object.entries(localSnap)) stampedSnap[wk]=_stampSnap(s,_currentUser,t);
     const payload={data:stampedSnap,_v:newV,_updatedBy:_currentUser,_updatedAt:t};
     _queueAdd({id:remoteId,obj:payload,ts:Date.now()});
     localStorage.setItem('hlzc_pv_'+projId,newV);
@@ -163,8 +166,8 @@ async function submitProject(projId){
     const allWks=new Set([...Object.keys(localSnap),...Object.keys(remoteData)]);
     for(const wk of allWks){
       const local=localSnap[wk]||null, remote=remoteData[wk]||null;
-      if(local&&remote){ mergedSnap[wk]=_stampSnap(_mergeSnap(local,remote)); }
-      else if(local){ mergedSnap[wk]=_stampSnap(local); }
+      if(local&&remote){ mergedSnap[wk]=_stampSnap(_mergeSnap(local,remote),_currentUser,t); }
+      else if(local){ mergedSnap[wk]=_stampSnap(local,_currentUser,t); }
       else { mergedSnap[wk]=remote; }
     }
     const allWeeks=LW();
@@ -246,10 +249,22 @@ async function _startRealtime(){
     await _cbApp.auth.signInAnonymously();
     console.log('[Realtime] CloudBase 匿名登录成功');
     const db=_cbApp.database();
-    const w1=db.collection('weeklydata').where({_id:db.command.eq('projects')}).watch({onChange:(s)=>{if(s&&s.docChanges&&s.docChanges.length>0){console.log('[Realtime] projects 变化');_onRealtimeChange('projects');}},onError:(e)=>{console.warn('[Realtime] projects watcher error:',e);_handleRealtimeError();}});
-    const w2=db.collection('weeklydata').where({_id:db.command.eq('activity_log')}).watch({onChange:(s)=>{if(s&&s.docChanges&&s.docChanges.length>0){console.log('[Realtime] activity_log 变化');_onRealtimeChange('activity_log');}},onError:(e)=>{console.warn('[Realtime] activity_log watcher error:',e);_handleRealtimeError();}});
-    const w3=db.collection('weeklydata').where({_id:/^snap_/}).watch({onChange:(s)=>{if(s&&s.docChanges&&s.docChanges.length>0){console.log('[Realtime] snap 变化');_onRealtimeChange('snap');}},onError:(e)=>{console.warn('[Realtime] snap watcher error:',e);_handleRealtimeError();}});
+    // 等待 SDK 内部 WebSocket 握手完成，避免 "nextevent ignored" 警告
+    await new Promise(r=>setTimeout(r,800));
+    // 建立 watcher 前先标记已就绪，避免初始推送被丢弃
+    let _watchersReady=false;
+    const _guardChange=(type,s)=>{
+      if(!_watchersReady||!s||!s.docChanges||!s.docChanges.length) return;
+      console.log('[Realtime]',type,'变化');
+      _onRealtimeChange(type);
+    };
+    const w1=db.collection('weeklydata').where({_id:db.command.eq('projects')}).watch({onChange:(s)=>_guardChange('projects',s),onError:(e)=>{console.warn('[Realtime] projects watcher error:',e);_handleRealtimeError();}});
+    const w2=db.collection('weeklydata').where({_id:db.command.eq('activity_log')}).watch({onChange:(s)=>_guardChange('activity_log',s),onError:(e)=>{console.warn('[Realtime] activity_log watcher error:',e);_handleRealtimeError();}});
+    const w3=db.collection('weeklydata').where({_id:/^snap_/}).watch({onChange:(s)=>_guardChange('snap',s),onError:(e)=>{console.warn('[Realtime] snap watcher error:',e);_handleRealtimeError();}});
     _cbWatchers=[w1,w2,w3];
+    // 等一帧再开放事件接收，跳过 SDK 初始握手推送
+    await new Promise(r=>setTimeout(r,200));
+    _watchersReady=true;
     console.log('[Realtime] ✅ 实时监听已建立（3个集合），停止轮询');
     return true;
   }catch(e){ console.warn('[Realtime] 初始化失败:',e.message,'→ 降级到轮询'); return false; }
@@ -361,11 +376,41 @@ function initStorage(onReady){
       if(actRec&&actRec.data){ localStorage.setItem(_ACT_KEY,JSON.stringify(actRec.data)); renderActivityBar(); }
       _syncOk=true;
       await _loadUserRegistry();
+
+      // ── 从云端加载所有项目的周快照数据（新域名首次访问时本地为空）
+      try{
+        const localWasEmpty = !localStorage.getItem('hlzc_w') || localStorage.getItem('hlzc_w') === '{}';
+        if(localWasEmpty && projRec && projRec.projects){
+          const allWeeks = {};
+          for(const proj of projRec.projects){
+            const snapRec = await _dbGet('snap_'+proj.id);
+            if(snapRec && snapRec.data){
+              Object.keys(snapRec.data).forEach(wk=>{
+                if(!allWeeks[wk]) allWeeks[wk]={};
+                allWeeks[wk][proj.id] = snapRec.data[wk];
+              });
+            }
+          }
+          if(Object.keys(allWeeks).length > 0){
+            localStorage.setItem('hlzc_w', JSON.stringify(allWeeks));
+          }
+        }
+      }catch(e){ console.warn('[initStorage] 快照数据加载失败:', e.message); }
+
+      // 从云端加载KPI数据到本地
+      try{
+        const kpiRec = await _dbGet('kpi_data');
+        if(kpiRec && kpiRec.data) localStorage.setItem('hlzc_kpi', JSON.stringify(kpiRec.data));
+      }catch(e){}
       showSyncStatus('sync');
       if(_appReady){
         if(projRec&&projRec.projects){
-          const h=JSON.stringify(projRec.projects);
-          if(h!==localStorage.getItem('hlzc_p')){ localStorage.setItem('hlzc_p',h); if(S.tab==='weekly'||S.tab==='overview'||S.tab==='charts') render(); }
+          const localWas = localStorage.getItem('hlzc_p');
+          const h = JSON.stringify(projRec.projects);
+          localStorage.setItem('hlzc_p', h);
+          // 首次访问新域名（本地为空）或数据有变化，都重新渲染
+          const needRender = !localWas || localWas === '[]' || h !== localWas;
+          if(needRender && (S.tab==='weekly'||S.tab==='overview'||S.tab==='charts')) render();
         }
         if(_currentUser&&!DIRECTORS.includes(_currentUser)&&!isApproved()) _showNotInSystemModal();
       }

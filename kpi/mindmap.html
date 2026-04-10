@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>从零搭建系统 · 避坑指南</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0f1117;
+  --card:#1a1d27;
+  --border:#2a2d3a;
+  --gold:#f0b429;
+  --gold-dim:#7a5c12;
+  --blue:#4a90e2;
+  --blue-dim:#1e3a5f;
+  --green:#52c41a;
+  --green-dim:#1a3d08;
+  --red:#ff4d4f;
+  --red-dim:#4d1012;
+  --purple:#a855f7;
+  --purple-dim:#3b1a5c;
+  --cyan:#06b6d4;
+  --cyan-dim:#083344;
+  --orange:#f97316;
+  --orange-dim:#4a1e06;
+  --t1:#f0f0f0;
+  --t2:#9ca3af;
+  --t3:#4b5563;
+}
+html,body{width:100%;min-height:100vh;background:var(--bg);color:var(--t1);font-family:'PingFang SC','Microsoft YaHei',sans-serif;overflow-x:hidden}
+
+/* ── 顶部标题 ── */
+.hero{
+  text-align:center;padding:60px 24px 40px;
+  background:radial-gradient(ellipse at 50% 0%,#1e2a4a 0%,transparent 70%);
+}
+.hero-tag{font-size:11px;letter-spacing:3px;color:var(--gold);text-transform:uppercase;margin-bottom:14px}
+.hero h1{font-size:clamp(22px,4vw,38px);font-weight:800;letter-spacing:-0.5px;line-height:1.2}
+.hero h1 span{color:var(--gold)}
+.hero p{margin-top:14px;font-size:14px;color:var(--t2);max-width:560px;margin-inline:auto;line-height:1.8}
+
+/* ── 流程时间线 ── */
+.timeline{max-width:960px;margin:0 auto;padding:0 24px 80px;position:relative}
+.timeline::before{
+  content:'';position:absolute;left:50%;top:0;bottom:0;
+  width:1px;background:linear-gradient(to bottom,transparent,var(--border) 5%,var(--border) 95%,transparent);
+  transform:translateX(-50%);
+}
+
+.step{display:flex;gap:32px;margin-bottom:56px;align-items:flex-start;position:relative}
+.step:nth-child(even){flex-direction:row-reverse}
+
+/* 序号气泡 */
+.step-num{
+  flex-shrink:0;width:48px;height:48px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;font-weight:900;
+  position:relative;z-index:2;
+  box-shadow:0 0 0 4px var(--bg);
+}
+/* 连接线到中轴 */
+.step:nth-child(odd) .step-num::after{
+  content:'';position:absolute;right:-36px;top:50%;
+  width:32px;height:1px;background:var(--border);
+  transform:translateY(-50%);
+}
+.step:nth-child(even) .step-num::after{
+  content:'';position:absolute;left:-36px;top:50%;
+  width:32px;height:1px;background:var(--border);
+  transform:translateY(-50%);
+}
+
+/* 卡片 */
+.step-card{
+  flex:1;background:var(--card);border:1px solid var(--border);
+  border-radius:16px;padding:24px 28px;
+  transition:transform .2s,box-shadow .2s;
+  max-width:400px;
+}
+.step-card:hover{transform:translateY(-3px);box-shadow:0 8px 32px rgba(0,0,0,.4)}
+
+.step-card .label{
+  font-size:10px;letter-spacing:2px;text-transform:uppercase;
+  margin-bottom:8px;font-weight:700;opacity:.7;
+}
+.step-card h2{font-size:17px;font-weight:800;margin-bottom:10px;line-height:1.3}
+.step-card p{font-size:13px;color:var(--t2);line-height:1.8;margin-bottom:12px}
+
+/* 坑点标签 */
+.pit{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:11px;padding:4px 10px;border-radius:20px;margin-top:4px;
+  background:rgba(255,77,79,.08);border:1px solid rgba(255,77,79,.2);color:#ff7875;
+}
+.pit::before{content:'⚠️ 坑：'}
+
+/* 解法标签 */
+.fix{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:11px;padding:4px 10px;border-radius:20px;margin-top:6px;
+  background:rgba(82,196,26,.08);border:1px solid rgba(82,196,26,.2);color:#95de64;
+}
+.fix::before{content:'✅ 解法：'}
+
+/* 颜色主题 */
+.c-gold .step-num{background:var(--gold-dim);color:var(--gold);border:2px solid var(--gold)}
+.c-gold .step-card{border-color:rgba(240,180,41,.2)}
+.c-gold .step-card .label{color:var(--gold)}
+.c-gold .step-card h2{color:var(--gold)}
+
+.c-blue .step-num{background:var(--blue-dim);color:var(--blue);border:2px solid var(--blue)}
+.c-blue .step-card{border-color:rgba(74,144,226,.2)}
+.c-blue .step-card .label{color:var(--blue)}
+.c-blue .step-card h2{color:var(--blue)}
+
+.c-green .step-num{background:var(--green-dim);color:var(--green);border:2px solid var(--green)}
+.c-green .step-card{border-color:rgba(82,196,26,.2)}
+.c-green .step-card .label{color:var(--green)}
+.c-green .step-card h2{color:var(--green)}
+
+.c-purple .step-num{background:var(--purple-dim);color:var(--purple);border:2px solid var(--purple)}
+.c-purple .step-card{border-color:rgba(168,85,247,.2)}
+.c-purple .step-card .label{color:var(--purple)}
+.c-purple .step-card h2{color:var(--purple)}
+
+.c-cyan .step-num{background:var(--cyan-dim);color:var(--cyan);border:2px solid var(--cyan)}
+.c-cyan .step-card{border-color:rgba(6,182,212,.2)}
+.c-cyan .step-card .label{color:var(--cyan)}
+.c-cyan .step-card h2{color:var(--cyan)}
+
+.c-orange .step-num{background:var(--orange-dim);color:var(--orange);border:2px solid var(--orange)}
+.c-orange .step-card{border-color:rgba(249,115,22,.2)}
+.c-orange .step-card .label{color:var(--orange)}
+.c-orange .step-card h2{color:var(--orange)}
+
+.c-red .step-num{background:var(--red-dim);color:var(--red);border:2px solid var(--red)}
+.c-red .step-card{border-color:rgba(255,77,79,.2)}
+.c-red .step-card .label{color:var(--red)}
+.c-red .step-card h2{color:var(--red)}
+
+/* ── 三个根因卡片 ── */
+.causes{max-width:960px;margin:0 auto 64px;padding:0 24px}
+.causes-title{text-align:center;margin-bottom:32px}
+.causes-title h2{font-size:20px;font-weight:800;color:var(--t1)}
+.causes-title p{font-size:13px;color:var(--t2);margin-top:6px}
+.causes-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.cause-card{
+  background:var(--card);border:1px solid var(--border);border-radius:14px;
+  padding:22px 24px;position:relative;overflow:hidden;
+}
+.cause-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:3px;
+}
+.cause-card.c1::before{background:var(--red)}
+.cause-card.c2::before{background:var(--orange)}
+.cause-card.c3::before{background:var(--purple)}
+.cause-num{font-size:32px;font-weight:900;opacity:.12;position:absolute;top:12px;right:16px;line-height:1}
+.cause-card h3{font-size:15px;font-weight:800;margin-bottom:8px}
+.cause-card.c1 h3{color:var(--red)}
+.cause-card.c2 h3{color:var(--orange)}
+.cause-card.c3 h3{color:var(--purple)}
+.cause-card p{font-size:12px;color:var(--t2);line-height:1.8}
+.cause-card .example{
+  margin-top:12px;font-size:11px;background:rgba(255,255,255,.04);
+  border-left:2px solid var(--border);padding:8px 12px;border-radius:0 6px 6px 0;
+  color:var(--t2);line-height:1.7;
+}
+
+/* ── 底部总结 ── */
+.summary{max-width:960px;margin:0 auto 80px;padding:0 24px}
+.summary-box{
+  background:linear-gradient(135deg,#1a2235,#1d1a2e);
+  border:1px solid rgba(240,180,41,.2);border-radius:20px;
+  padding:40px 48px;text-align:center;
+  position:relative;overflow:hidden;
+}
+.summary-box::before{
+  content:'';position:absolute;top:-60px;left:50%;
+  transform:translateX(-50%);
+  width:300px;height:120px;
+  background:radial-gradient(ellipse,rgba(240,180,41,.12),transparent 70%);
+}
+.summary-box h2{font-size:20px;font-weight:800;color:var(--gold);margin-bottom:16px}
+.summary-box p{font-size:14px;color:var(--t2);line-height:2;max-width:600px;margin:0 auto}
+.summary-box .quote{
+  font-size:16px;color:var(--t1);font-style:italic;
+  margin:20px auto 0;max-width:500px;
+  padding:16px 24px;border-radius:12px;
+  background:rgba(240,180,41,.06);border:1px solid rgba(240,180,41,.15);
+  line-height:1.8;
+}
+
+/* 箭头连接（中轴底部） */
+.arrow-down{
+  display:flex;justify-content:center;margin:-28px 0 0;
+  font-size:22px;color:var(--t3);
+}
+
+/* 响应式 */
+@media(max-width:640px){
+  .timeline::before{left:24px}
+  .step,.step:nth-child(even){flex-direction:column;padding-left:60px}
+  .step-num{position:absolute;left:0}
+  .step:nth-child(odd) .step-num::after,
+  .step:nth-child(even) .step-num::after{display:none}
+  .step-card{max-width:100%}
+  .summary-box{padding:28px 20px}
+}
+</style>
+</head>
+<body>
+
+<!-- 顶部标题 -->
+<div class="hero">
+  <div class="hero-tag">经验沉淀 · 华力集团研策部系统</div>
+  <h1>如果重新从头搭建<span>，这样走</span></h1>
+  <p>基于 v1→v23 的真实踩坑经历，总结出的 8 步防返工路径。<br>每一步都对应一个实际发生过的问题。</p>
+</div>
+
+<!-- 三大根因 -->
+<div class="causes">
+  <div class="causes-title">
+    <h2>为什么会反复修改？根本原因只有 3 个</h2>
+    <p>在进入流程之前，先把这三件事刻进脑子里</p>
+  </div>
+  <div class="causes-grid">
+    <div class="cause-card c1">
+      <div class="cause-num">01</div>
+      <h3>需求没说完就动手了</h3>
+      <p>用户边用边发现问题，AI 做一个改一个，功能完成后才发现边界条件。</p>
+      <div class="example">「总监不作为被评分对象」→ AI 理解为「不出现在统计里」→ 实际是「不被别人打分，但自己负责的项目要统计」→ getOwners 改了 3 次</div>
+    </div>
+    <div class="cause-card c2">
+      <div class="cause-num">02</div>
+      <h3>遇到模糊没追问，直接猜</h3>
+      <p>「深蓝色」「一模一样」「按参考样式」—— AI 没停下来确认，靠理解直接做。</p>
+      <div class="example">全局刷新按钮：垂直→横向→黄色→浅蓝→深蓝，改了 5 次才确定</div>
+    </div>
+    <div class="cause-card c3">
+      <div class="cause-num">03</div>
+      <h3>改了一处，忘了同步其他地方</h3>
+      <p>同一套逻辑在多处存在，改了主函数，忘了内联副本，导致显示不一致。</p>
+      <div class="example">fmtMonDay 改了日期格式，内联的格式化代码没同步 → 同一页面两种日期格式并存</div>
+    </div>
+  </div>
+</div>
+
+<!-- 时间线 -->
+<div class="timeline">
+
+  <!-- Step 1 -->
+  <div class="step c-gold">
+    <div class="step-num">1</div>
+    <div class="step-card">
+      <div class="label">启动前</div>
+      <h2>明确「给谁用、解决什么问题」</h2>
+      <p>用自然语言回答三个问题：<br>① 使用场景是什么（谁、何时、在哪）<br>② 没有这个系统之前怎么做、哪里最痛<br>③ 有了之后什么东西变了</p>
+      <div class="pit">一开始就写周报表单，后来才发现要多人协作/看板/KPI，每个新需求都在打补丁</div>
+      <br>
+      <div class="fix">先把场景过一遍，「当时觉得要的功能」很多不重要，真正重要的一开始没想到</div>
+    </div>
+  </div>
+
+  <!-- Step 2 -->
+  <div class="step c-blue">
+    <div class="step-num">2</div>
+    <div class="step-card">
+      <div class="label">需求阶段</div>
+      <h2>让 AI 反过来「审问」你</h2>
+      <p>不是把需求告诉 AI，而是让 AI 问你：<br>· 多人同时用吗？<br>· 有权限区分吗？<br>· 填完之后要做什么？<br>· 有没有例外情况？</p>
+      <div class="pit">DIRECTORS 概念没定义清楚，三种理解都合理，代码只能实现一种</div>
+      <br>
+      <div class="fix">AI 问问题的价值是「把没想到的边界条件逼出来」，而不只是收集信息</div>
+    </div>
+  </div>
+
+  <!-- Step 3 -->
+  <div class="step c-green">
+    <div class="step-num">3</div>
+    <div class="step-card">
+      <div class="label">动手之前</div>
+      <h2>先画数据结构，再写代码</h2>
+      <p>把核心数据用最简单的 JSON 写出来，不需要完整，把关键字段列出来就够：</p>
+      <p style="font-size:11px;background:#0d1117;padding:10px 14px;border-radius:8px;font-family:monospace;line-height:1.8;color:#7ee787;margin-top:4px">
+        coreAction: ["事项1","事项2"]<br>
+        <span style="color:#f97316">// 永远是数组，不是字符串</span><br>
+        designOwner: "冷耀秋"<br>
+        <span style="color:#f97316">// 可以是总监，不能过滤</span>
+      </p>
+      <div class="pit">coreAction 老数据是字符串、新数据是数组，混用写了兼容函数白费时间</div>
+      <br>
+      <div class="fix">数据结构是地基，地基定了上面怎么建都可以改；地基歪了每一层都歪</div>
+    </div>
+  </div>
+
+  <!-- Step 4 -->
+  <div class="step c-purple">
+    <div class="step-num">4</div>
+    <div class="step-card">
+      <div class="label">技术选型</div>
+      <h2>只选一次，选之前先问两个问题</h2>
+      <p>① 国内用户能正常访问吗？（不能开 VPN）<br>② 这个技术三年后还在吗？</p>
+      <div class="pit">最开始用 Firebase，国内需要 VPN，整体迁移到 CloudBase，完整返工一次</div>
+      <br>
+      <div class="fix">技术选型改一次 = 所有代码重写一次，这是成本最高的返工</div>
+    </div>
+  </div>
+
+  <!-- Step 5 -->
+  <div class="step c-cyan">
+    <div class="step-num">5</div>
+    <div class="step-card">
+      <div class="label">第一版</div>
+      <h2>最小可用版本，只做核心功能</h2>
+      <p>列出所有想要的功能，问自己：<br>去掉哪些，这个系统还能用？<br>留下来的才是第一版要做的。</p>
+      <p style="font-size:12px;margin-top:8px;line-height:2">
+        <span style="color:var(--green)">✅ 第一版</span>：填写周报 · 云端保存 · 多人可看<br>
+        <span style="color:var(--t3)">🕐 第二版</span>：可视化看板<br>
+        <span style="color:var(--t3)">🕐 第三版</span>：KPI 评分<br>
+        <span style="color:var(--t3)">🕐 第四版</span>：年度统计
+      </p>
+      <div class="pit">KPI 加进来时需要读周报数据 + 写评分 + 权限，每次都动核心数据层</div>
+      <br>
+      <div class="fix">第一版的价值是验证方向，不是验证功能多不多</div>
+    </div>
+  </div>
+
+  <!-- Step 6 -->
+  <div class="step c-orange">
+    <div class="step-num">6</div>
+    <div class="step-card">
+      <div class="label">写代码前</div>
+      <h2>建立「改动规范」放在项目里</h2>
+      <p>在 RULES.md 里写三件事：<br>① 命名规范（函数/变量怎么命名）<br>② 数据格式约定（日期用 ISO 8601，不混用）<br>③ 修改规则（改逻辑必须全局搜索同类逻辑）</p>
+      <div class="pit">日期在不同地方有三种写法：YYYY-MM-DD / X月X日 / MMDD，统一改了两次</div>
+      <br>
+      <div class="fix">规范是给「下一次修改」用的，防止每次改动引入新的不一致</div>
+    </div>
+  </div>
+
+  <!-- Step 7 -->
+  <div class="step c-blue">
+    <div class="step-num">7</div>
+    <div class="step-card">
+      <div class="label">每次改动前</div>
+      <h2>先说清楚影响范围，再动手</h2>
+      <p>每次提需求前先说：<br>「我要改 X，这会影响 Y 和 Z，帮我确认还有没有其他地方要同步。」</p>
+      <p style="margin-top:8px;font-size:12px;color:var(--t2)">如果不知道影响范围，先问：<br>「这个功能涉及哪些地方？改之前帮我列一遍。」</p>
+      <div class="pit">改了主函数的日期格式，内联副本没同步 → 同一页面两种格式并存</div>
+      <br>
+      <div class="fix">AI 只看到你给它的那段代码，它不知道「其他地方还有同样逻辑」除非你告诉它</div>
+    </div>
+  </div>
+
+  <!-- Step 8 -->
+  <div class="step c-red">
+    <div class="step-num">8</div>
+    <div class="step-card">
+      <div class="label">每次部署前</div>
+      <h2>过一遍 5 条部署清单</h2>
+      <p style="font-size:12px;line-height:2.2">
+        □ 影响到的所有地方都改了吗？<br>
+        □ 数据格式有新旧不兼容的地方吗？<br>
+        □ 有没有写死人名 / URL / ID？<br>
+        □ 手机上看效果对吗？<br>
+        □ 旧数据能正常读取吗？
+      </p>
+      <div class="pit">云函数 URL 曾写死成别人的地址，部署后才发现</div>
+      <br>
+      <div class="fix">花 2 分钟过清单，省去 20 分钟线上返工</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 底部总结 -->
+<div class="summary">
+  <div class="summary-box">
+    <h2>总结</h2>
+    <p>这八步不是流程，是<strong style="color:var(--t1)">防返工的护栏</strong>。<br>
+    每一步的存在都对应这个项目里实际发生过的一个坑。<br>
+    走完一遍之后，这张图就是地图，下次可以少踩几个。</p>
+    <div class="quote">
+      「每一层都需要踩到才能知道，<br>这条路不走一遍是不知道坑在哪里的。」
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

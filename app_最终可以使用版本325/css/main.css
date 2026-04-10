@@ -95,6 +95,7 @@ body{font-family:var(--fn);font-size:14px;color:var(--tx);background:var(--bg);m
 .pgrid{display:grid;gap:9px}
 .pc{background:var(--card);border:0.5px solid var(--bdr);border-radius:var(--r);padding:14px 16px;border-left:3px solid transparent}
 .pc.r{border-left-color:var(--rt)}.pc.y{border-left-color:var(--yt)}.pc.g{border-left-color:var(--gt)}.pc.arch{border-left-color:var(--t3);opacity:.65}
+.pc.my-proj{border-left-width:4px;box-shadow:0 0 0 1px var(--gm),0 2px 8px rgba(0,0,0,.06)}
 .pc-top{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px}
 .pc-nm{font-size:14px;font-weight:700;flex:1;line-height:1.3}
 .pc-keys{display:flex;gap:16px;font-size:11px;color:var(--t2);margin-bottom:10px;flex-wrap:wrap}

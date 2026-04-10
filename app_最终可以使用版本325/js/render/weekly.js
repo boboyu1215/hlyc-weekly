@@ -3,13 +3,17 @@
 // ════════════════════════════════════════════════════
 
 // 将列表字段渲染为可读 HTML（支持数组和旧字符串格式）
+// _carryover:true → 截止日在本周内，显示橙色「顺延」标签
+// _carryover:false 且 _overdue:false → 未来周普通事项，无标识
 function _renderItemListDisplay(v, emptyText){
   if(!v||(typeof v==='string'&&!v.trim())||(Array.isArray(v)&&!v.length)){
     return `<span style="color:var(--t3)">${emptyText||'—'}</span>`;
   }
   if(typeof v==='string'){
-    // 旧格式：原样展示
-    return `<span style="white-space:pre-wrap">${esc(v)}</span>`;
+    // 旧格式：按换行分割，去除开头的序号后渲染为列表
+    const lines = v.split(/\n/).map(l=>l.replace(/^[\d１２３４５６７８９０]+[、.．。]\s*/,'').trim()).filter(Boolean);
+    if(lines.length<=1) return `<span style="white-space:pre-wrap">${esc(v)}</span>`;
+    return `<ol class="dim-item-list">${lines.map(l=>`<li>${esc(l)}</li>`).join('')}</ol>`;
   }
   if(Array.isArray(v)){
     const items = v.filter(item=>item.text&&item.text.trim());
@@ -18,7 +22,15 @@ function _renderItemListDisplay(v, emptyText){
       const dateStr = item.dueDate
         ? `<span class="dim-item-date">${item.dueDate.replace(/-/g,'/')}</span>`
         : '';
-      return `<li>${esc(item.text)}${dateStr}</li>`;
+      // 顺延：普通跨周事项（完成时间在本周或更远）→ 橙色「顺延」
+      const carryoverTag = item._carryover
+        ? `<span style="display:inline-block;font-size:9px;font-weight:700;color:#fff;background:#c07000;border-radius:3px;padding:1px 5px;margin-left:5px;vertical-align:middle;line-height:1.6;letter-spacing:.5px">顺延</span>`
+        : '';
+      // 延误：来自KPI页面标注的未完成事项 → 红色「延误」
+      const overdueTag = item._overdue
+        ? `<span style="display:inline-block;font-size:9px;font-weight:700;color:#fff;background:#b00020;border-radius:3px;padding:1px 5px;margin-left:5px;vertical-align:middle;line-height:1.6;letter-spacing:.5px">延误</span>`
+        : '';
+      return `<li>${esc(item.text)}${carryoverTag}${overdueTag}${dateStr}</li>`;
     }).join('')}</ol>`;
   }
   return `<span style="color:var(--t3)">—</span>`;
@@ -34,8 +46,37 @@ function _itemListText(v){
 
 function renderWeekly(){
   const projects=LP();
-  const active=projects.filter(p=>!p.archived).sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
-  const snaps=active.map(p=>({...p,...getSnap(S.yr,S.wk,p.id,projects)}));
+  // 当前登录用户负责的项目（designOwner匹配）置顶，其余按原有sortOrder排序
+  const active=projects.filter(p=>!p.archived).sort((a,b)=>{
+    const aIsMe = a.designOwner===_currentUser ? 0 : 1;
+    const bIsMe = b.designOwner===_currentUser ? 0 : 1;
+    if(aIsMe!==bIsMe) return aIsMe-bIsMe;
+    return (a.sortOrder||0)-(b.sortOrder||0);
+  });
+  const snaps=active.map(p=>{
+    const snap=getSnap(S.yr,S.wk,p.id,projects);
+    return {
+      ...p,
+      ...snap,
+      // ★ 强制用项目对象的字段覆盖，防止旧版快照里保存了项目信息字段（如designOwner）污染显示
+      id:           p.id,
+      name:         p.name,
+      area:         p.area,
+      prepOwner:    p.prepOwner,
+      designOwner:  p.designOwner,
+      openDate:     p.openDate,
+      startDate:    p.startDate,
+      schemeDate:   p.schemeDate,
+      designDate:   p.designDate,
+      siteDate:     p.siteDate,
+      completionDate: p.completionDate,
+      archived:     p.archived,
+      sortOrder:    p.sortOrder,
+      // 用独立字段保存"本周快照的提交人"，避免与项目级_updatedBy混淆
+      _snapUpdatedBy:  snap._updatedBy  || snap._savedBy  || '',
+      _snapUpdatedAt:  snap._updatedAt  || snap._savedAt  || '',
+    };
+  });
   const r=snaps.filter(p=>p.status==='r').length, y=snaps.filter(p=>p.status==='y').length, g=snaps.filter(p=>p.status==='g').length;
   const blk=snaps.filter(p=>{
     const dec = _itemListText(p.decision);
@@ -98,12 +139,15 @@ function renderWeekCard(p,now,isArch){
   const segs=STAGES.map((_,i)=>`<div class="ss ${i<p.stage?'dn':i===p.stage?'ac':''}"></div>`).join('');
   const canEdit = canEditProject(p);
   const drag=now&&!isArch&&canEdit?'draggable="true" data-id="'+p.id+'" onmousedown="startLongPress(event,'+p.id+')" onmouseup="cancelLongPress()" ontouchstart="startLongPress(event,'+p.id+')" ontouchend="cancelLongPress()" ondragstart="onDragStart(event)" ondragover="onDragOver(event)" ondrop="onDrop(event)" ondragend="onDragEnd(event)"':'';
-  const lastEditor = p._updatedBy ? `${esc(p._updatedBy)} · ${esc(p._updatedAt||'')}` : '';
+  // 只显示本周快照的提交人（p._snapUpdatedBy），不显示项目基本信息的编辑人
+  const lastEditor = p._snapUpdatedBy ? `${esc(p._snapUpdatedBy)} · ${esc(p._snapUpdatedAt||'')}` : '';
   // 检查是否有本地已改未提交的数据
   const hasPending = now && getPendingSubmit().has(p.id);
-  return`<div class="pc ${sc(p.status)}" ${drag} id="pc-${p.id}">
+  const isMyProj = _currentUser && p.designOwner === _currentUser;
+  return`<div class="pc ${sc(p.status)}${isMyProj?' my-proj':''}" ${drag} id="pc-${p.id}">
     <div class="pc-top">
       <div class="pc-nm">${now&&!isArch&&canEdit?'<span style="color:var(--t3);font-size:12px;margin-right:4px;cursor:grab">⠿</span>':''} ${esc(p.name)}
+        ${isMyProj?`<span style="font-size:10px;background:var(--gold);color:#fff;padding:1px 6px;border-radius:6px;font-weight:600;margin-left:6px;vertical-align:middle">我的</span>`:''}
         ${!canEdit&&now?`<span style="font-size:10px;color:var(--t3);margin-left:6px;font-weight:400">🔒 只读</span>`:''}
       </div>
       <div style="display:flex;align-items:center;gap:6px">
@@ -112,16 +156,16 @@ function renderWeekCard(p,now,isArch){
       </div>
     </div>
     <div class="pc-keys">
-      <div class="pk"><div class="pk-lb">开业时间</div><div class="pk-vl">${esc(p.openDate||'待定')}</div></div>
-      <div class="pk"><div class="pk-lb">筹备负责人</div><div class="pk-vl">${esc(p.prepOwner||'—')}</div></div>
-      <div class="pk"><div class="pk-lb">研策负责人</div><div class="pk-vl">${esc(p.designOwner||'—')}</div></div>
+      <div class="pk"><div class="pk-lb">开业时间</div><div class="pk-vl">${esc(p.openDate||'无')}</div></div>
+      <div class="pk"><div class="pk-lb">筹备负责人</div><div class="pk-vl">${esc(p.prepOwner||'无')}</div></div>
+      <div class="pk"><div class="pk-lb">研策负责人</div><div class="pk-vl">${esc(p.designOwner||'无')}</div></div>
     </div>
     <div class="stages" style="margin-bottom:9px">${segs}</div>
     <div class="dims">
-      <div class="dim d1"><div class="dim-hd" style="color:#2563a8">上周工作完成情况</div><div class="dim-body" style="color:var(--t2);white-space:pre-wrap">${esc(p.coreOutput)||'—'}</div></div>
-      <div class="dim d2"><div class="dim-hd">本周计划</div><div class="dim-body">${_renderItemListDisplay(p.coreAction,'—')}</div></div>
+      <div class="dim d1"><div class="dim-hd" style="color:#2563a8">上周工作完成情况</div><div class="dim-body" style="color:var(--t2);white-space:pre-wrap">${esc(p.coreOutput)||'<span style="color:var(--t3)">无</span>'}</div></div>
+      <div class="dim d2"><div class="dim-hd">本周计划</div><div class="dim-body">${_renderItemListDisplay(p.coreAction,'无')}</div></div>
       <div class="dim d3"><div class="dim-hd" style="color:#b00020">风险 / 卡点</div><div class="dim-body" style="color:#b00020">${_renderItemListDisplay(p.risk,'无')}</div></div>
-      <div class="dim d4"><div class="dim-hd" style="color:#2563a8">跨部门支援</div><div class="dim-body">${_renderItemListDisplay(p.crossDept,'本周无需跨部门支援')}</div></div>
+      <div class="dim d4"><div class="dim-hd" style="color:#2563a8">跨部门支援</div><div class="dim-body">${_renderItemListDisplay(p.crossDept,'无')}</div></div>
     </div>
     ${canEdit?`<div class="ca">
       ${hasPending?`<div class="pending-badge"><span class="pending-icon">●</span>数据未提交</div>`:'<div></div>'}
@@ -150,9 +194,9 @@ function renderOverview(){
     ];
     return`<div class="ov-card">
       <div class="ov-top"><div class="ov-nm">${esc(p.name)}</div>${p.archived?`<div class="badge arch">已归档</div>`:`<div class="badge ${sc(snap.status)}"><div class="dot ${sc(snap.status)}"></div>${SL[snap.status]||''}</div>`}</div>
-      <div class="ov-grid">${fields.map(([lb,vl])=>`<div class="og"><div class="og-lb">${lb}</div><div class="og-vl">${esc(vl||'—')}</div></div>`).join('')}</div>
+      <div class="ov-grid">${fields.map(([lb,vl])=>`<div class="og"><div class="og-lb">${lb}</div><div class="og-vl">${esc(vl||'无')}</div></div>`).join('')}</div>
       <div class="ov-stages">${segs}</div>
-      <div class="ov-stage-lbl">当前阶段：<span>${STAGES[snap.stage]||'—'}</span></div>
+      <div class="ov-stage-lbl">当前阶段：<span>${STAGES[snap.stage]||'无'}</span></div>
       ${isNow()?`<div class="io-bar no-print" style="justify-content:flex-end;margin-top:8px;padding-top:8px;border-top:0.5px solid var(--bdr)">
         <button class="io-btn" onclick="submitProjectInfo(${p.id})">☁ 项目提交</button>
         <button class="bs" style="font-size:11px;padding:4px 9px" onclick="editProj(${p.id})">编辑项目信息</button>
@@ -191,7 +235,15 @@ function renderHistory(){
   <div class="hw"><div class="hw-hd">所有周次（点击跳转查阅）</div>
     ${keys.map(k=>{
       const info=parseWkKey(k); if(!info)return'';
-      const snaps=Object.values(weeks[k]||{}).filter(s=>s&&typeof s==='object'&&s.status);
+      const snaps=Object.values(weeks[k]||{}).filter(s=>s&&typeof s==='object'&&s.status)
+        .map(s=>{
+          // 状态修正：risk/decision 都为空/无 时，'r' 降回 'g'
+          if(s.status!=='r') return s;
+          const rHas=_itemListText(s.risk); const dHas=_itemListText(s.decision);
+          const rOk=rHas&&rHas.trim()&&rHas.trim()!=='无';
+          const dOk=dHas&&dHas.trim()&&dHas.trim()!=='无';
+          return(!rOk&&!dOk)?{...s,status:'g'}:s;
+        });
       const r=snaps.filter(s=>s.status==='r').length;
       const y=snaps.filter(s=>s.status==='y').length;
       const g=snaps.filter(s=>s.status==='g').length;
