@@ -1,5 +1,6 @@
 // ════════════════════════════════════════════════════
-// sync.js — 云同步、实时监听、离线队列
+// sync.js — 云同步、轮询、离线队列
+// 已完全脱离 CloudBase，使用自建 API + 轮询模式
 // ════════════════════════════════════════════════════
 
 let _syncOk = false;
@@ -7,8 +8,6 @@ let _pendingSync = false;
 let _pollTimer = null;
 let _appReady = false;
 let _wasOffline = false;
-let _cbApp = null;
-let _cbWatchers = [];
 const _QUEUE_KEY = 'hlzc_offline_queue';
 
 // ── 离线队列 ──
@@ -216,71 +215,9 @@ async function pullProject(projId){
 
 async function _saveMainBin(payload){ return _dbSet('projects',payload); }
 
-// ── 实时监听变化处理 ──
-async function _onRealtimeChange(type){
-  try{
-    if(type==='activity_log'){
-      const actRec=await _dbGet('activity_log');
-      if(actRec&&actRec.data){ localStorage.setItem(_ACT_KEY,JSON.stringify(actRec.data)); renderActivityBar(); }
-      return;
-    }
-    showSyncStatus('saving');
-    const [projRec,actRec]=await Promise.all([_dbGet('projects'),_dbGet('activity_log')]);
-    if(projRec&&projRec.projects) localStorage.setItem('hlzc_p',JSON.stringify(projRec.projects));
-    if(actRec&&actRec.data) localStorage.setItem(_ACT_KEY,JSON.stringify(actRec.data));
-    const projects=LP(), allWeeks={};
-    for(const proj of projects){
-      const snapRec=await _dbGet('snap_'+proj.id);
-      if(snapRec&&snapRec.data) Object.keys(snapRec.data).forEach(wk=>{ if(!allWeeks[wk])allWeeks[wk]={}; allWeeks[wk][proj.id]=snapRec.data[wk]; });
-    }
-    const meetingRec=await _dbGet('meeting_'+S.yr+'_'+S.wk);
-    if(meetingRec&&meetingRec.data){ const wk=wkKey(S.yr,S.wk); if(!allWeeks[wk])allWeeks[wk]={}; allWeeks[wk].__meetings=meetingRec.data; }
-    localStorage.setItem('hlzc_w',JSON.stringify(allWeeks));
-    render(); renderActivityBar(); showSyncStatus('sync');
-    console.log('[Realtime] 数据已自动更新（类型:',type,'）');
-  }catch(e){ console.warn('[Realtime] 自动更新失败:',e.message); showSyncStatus('err'); }
-}
-
-// ── CloudBase 实时监听 ──
-async function _startRealtime(){
-  try{
-    if(typeof cloudbase==='undefined'){ console.warn('[Realtime] CloudBase SDK 未加载，降级到轮询'); return false; }
-    _cbApp=cloudbase.init({env:ENV_ID,region:'ap-shanghai'});
-    await _cbApp.auth.signInAnonymously();
-    console.log('[Realtime] CloudBase 匿名登录成功');
-    const db=_cbApp.database();
-    // 等待 SDK 内部 WebSocket 握手完成，避免 "nextevent ignored" 警告
-    await new Promise(r=>setTimeout(r,800));
-    // 建立 watcher 前先标记已就绪，避免初始推送被丢弃
-    let _watchersReady=false;
-    const _guardChange=(type,s)=>{
-      if(!_watchersReady||!s||!s.docChanges||!s.docChanges.length) return;
-      console.log('[Realtime]',type,'变化');
-      _onRealtimeChange(type);
-    };
-    const w1=db.collection('weeklydata').where({_id:db.command.eq('projects')}).watch({onChange:(s)=>_guardChange('projects',s),onError:(e)=>{console.warn('[Realtime] projects watcher error:',e);_handleRealtimeError();}});
-    const w2=db.collection('weeklydata').where({_id:db.command.eq('activity_log')}).watch({onChange:(s)=>_guardChange('activity_log',s),onError:(e)=>{console.warn('[Realtime] activity_log watcher error:',e);_handleRealtimeError();}});
-    const w3=db.collection('weeklydata').where({_id:/^snap_/}).watch({onChange:(s)=>_guardChange('snap',s),onError:(e)=>{console.warn('[Realtime] snap watcher error:',e);_handleRealtimeError();}});
-    _cbWatchers=[w1,w2,w3];
-    // 等一帧再开放事件接收，跳过 SDK 初始握手推送
-    await new Promise(r=>setTimeout(r,200));
-    _watchersReady=true;
-    console.log('[Realtime] ✅ 实时监听已建立（3个集合），停止轮询');
-    return true;
-  }catch(e){ console.warn('[Realtime] 初始化失败:',e.message,'→ 降级到轮询'); return false; }
-}
-
-let _realtimeRetryCount=0, _realtimeRetryTimer=null;
-function _handleRealtimeError(){
-  _cbWatchers.forEach(w=>{try{w.close();}catch(e){}});
-  _cbWatchers=[];
-  if(_realtimeRetryCount<3){
-    _realtimeRetryCount++;
-    const delay=_realtimeRetryCount*5000;
-    clearTimeout(_realtimeRetryTimer);
-    _realtimeRetryTimer=setTimeout(async()=>{const ok=await _startRealtime();if(!ok&&!_pollTimer){_startPollOnly();}},delay);
-  }else{ if(!_pollTimer) _startPollOnly(); }
-}
+// ════════════════════════════════════════════════════
+// 轮询模式（已脱离 CloudBase，不再使用 WebSocket 实时监听）
+// ════════════════════════════════════════════════════
 
 // ── 刷新提示 ──
 let _hasNewData=false, _newDataCount=0;
@@ -315,10 +252,10 @@ async function doRefresh(){
   }catch(e){ console.error('同步失败:',e); alert('同步失败，请检查网络后重试'); }
 }
 
-// ── 降级轮询 ──
+// ── 轮询 ──
 function _startPollOnly(){
   if(_pollTimer) return;
-  console.log('[Poll] 启动降级轮询（每5秒）');
+  console.log('[Poll] 启动轮询（每5秒）');
   _pollTimer=setInterval(async()=>{
     try{
       const [projRec,actRec]=await Promise.all([_dbGet('projects'),_dbGet('activity_log')]);
@@ -348,18 +285,18 @@ function _registerNetworkListeners(){
   window.addEventListener('online',async()=>{
     if(_wasOffline){
       _wasOffline=false; showSyncStatus('saving'); _showOfflineToast('网络已恢复，正在同步离线数据…','online');
-      try{ await _proxy('ping'); _syncOk=true; await _flushOfflineQueue(); showSyncStatus('sync'); if(_cbWatchers.length===0&&!_pollTimer){const ok=await _startRealtime();if(!ok)_startPollOnly();} }
+      try{ await _proxy('ping'); _syncOk=true; await _flushOfflineQueue(); showSyncStatus('sync'); if(!_pollTimer) _startPollOnly(); }
       catch(e){ showSyncStatus('err'); }
     }
   });
   window.addEventListener('offline',()=>{_syncOk=false;_wasOffline=true;showSyncStatus('pending');_showOfflineToast('网络已断开，数据将保存在本地');});
 }
 
-// ── 主同步入口 ──
+// ── 主同步入口（纯轮询模式） ──
 async function _startSync(){
   _registerNetworkListeners();
-  const ok=await _startRealtime();
-  if(!ok){ console.log('[Sync] 实时监听不可用，启动降级轮询'); _startPollOnly(); }
+  console.log('[Sync] 使用轮询模式（已脱离 CloudBase）');
+  _startPollOnly();
 }
 
 // ── 初始化存储 ──

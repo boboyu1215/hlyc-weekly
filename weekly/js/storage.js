@@ -171,9 +171,10 @@ function _mergeCarryItems(ownSnap, k, pid, weeks){
 
 // ── 获取快照（带继承逻辑）
 // 规则：
-//   1. 该周有 _savedWk 原生快照 → 直接返回，做状态修正
-//   2. 该周有旧版快照（无_savedWk但有内容）→ 视为该周原生，保留全部内容（向下兼容）
-//   3. 没有该周快照 → 向前找最近的可靠基础，提取顺延/延误项，其余清空
+//   1. 该周有 _savedWk === k 的原生快照 → 直接返回，做状态修正 + 跨周继承保护
+//   2. 该周有数据但 _savedWk 不匹配 k（被 _inherited 污染或 _savedWk 指向其他周）
+//      → 检查是否有实质内容：有则视为该周原生（向下兼容），无则走继承
+//   3. 没有该周快照或仅有继承视图 → 向前找最近的可靠基础，提取顺延/延误项
 function getSnap(yr,wk,pid,projects){
   const weeks=LW(), k=wkKey(yr,wk);
   const own = weeks[k] && weeks[k][pid];
@@ -187,15 +188,31 @@ function getSnap(yr,wk,pid,projects){
     return _resolveStatus(_mergeCarryItems(own, k, pid, weeks));
   }
 
-  // 情况2：本周有旧版快照（无_savedWk）且有实质内容 → 向下兼容，视为该周原生数据
-  if(own !== undefined && own._savedWk === undefined && !own._inherited){
-    const hasContent = (typeof own.coreOutput==='string' && own.coreOutput.trim()) ||
+  // 情况2：本周有数据，但可能被 _inherited 标记污染或 _savedWk 指向其他周
+  // 检查是否有实质内容来判断是否为原生数据
+  if(own !== undefined){
+    // 如果有 _savedWk 但指向其他周（被错误覆盖），或者没有 _savedWk
+    // 只要核心内容不为空，就视为该周的原生数据
+    const hasRealContent =
+      (typeof own.coreOutput==='string' && own.coreOutput.trim()) ||
       (Array.isArray(own.coreAction) && own.coreAction.some(i=>i&&i.text&&i.text.trim())) ||
-      (typeof own.coreAction==='string' && own.coreAction.trim());
-    if(hasContent) return _resolveStatus(_mergeCarryItems(own, k, pid, weeks));
+      (typeof own.coreAction==='string' && own.coreAction.trim()) ||
+      (Array.isArray(own.risk) && own.risk.some(i=>i&&i.text&&i.text.trim())) ||
+      (Array.isArray(own.crossDept) && own.crossDept.some(i=>i&&i.text&&i.text.trim()));
+    if(hasRealContent){
+      // 修复 _savedWk 标记（如果被错误覆盖，重新修正为当前周）
+      if(own._savedWk !== k){
+        const weeksRef = LW();
+        if(weeksRef[k] && weeksRef[k][pid]){
+          weeksRef[k][pid] = {...own, _savedWk: k};
+          SW(weeksRef);
+        }
+      }
+      return _resolveStatus(_mergeCarryItems(own, k, pid, weeks));
+    }
   }
 
-  // 情况3：无该周快照 → 向前找最近可靠基础，提取顺延/延误项
+  // 情况3：无该周原生快照 → 向前找最近可靠基础，提取顺延/延误项
   // 注：未来周也走此逻辑——没有原生数据就继承顺延/延误项，有原生数据就直接返回
   const sorted = Object.keys(weeks).filter(x => x < k).sort();
   let baseSnap = null;
@@ -243,7 +260,10 @@ function setSnap(yr,wk,pid,snap){
   const weeks=LW(), k=wkKey(yr,wk);
   if(!weeks[k]) weeks[k]={};
   // 写入 _savedWk 标识，让 getSnap 知道这是本周自己录入保存的原生快照
-  weeks[k][pid] = {...snap, _savedWk: k};
+  // 清除运行时标记，防止继承视图被持久化
+  const clean = {...snap, _savedWk: k};
+  delete clean._inherited; delete clean._carryover; delete clean._overdue;
+  weeks[k][pid] = clean;
   SW(weeks);
 }
 

@@ -2,11 +2,8 @@
 // config.js — 所有常量配置（改这里就够了）
 // ════════════════════════════════════════════════════
 
-// 云函数代理地址
+// 云函数代理地址（自建 Express+SQLite API）
 const PROXY_URL = '/api';
-
-// CloudBase 环境 ID（用于实时监听 WebSocket）
-const ENV_ID = 'ycb-zb-0g7962fmca5676a3';
 
 // 总监列表（最高管理权，直接登录无需录入）
 const DIRECTORS = ['张建波','冷耀秋','Kenbe'];

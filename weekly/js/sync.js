@@ -101,23 +101,35 @@ async function _flushOfflineQueue(){
 }
 
 // ── 字段级合并 ──
+// 判断字段值是否为"空"（覆盖 undefined/null/空字符串/空数组）
+function _fieldEmpty(v){
+  if(v===undefined||v===null) return true;
+  if(typeof v==='string') return !v.trim();
+  if(Array.isArray(v)) return !v.some(i=>i&&i.text&&i.text.trim());
+  return false;
+}
+
 function _mergeSnap(localSnap, remoteSnap){
   if(!remoteSnap) return {...localSnap};
   const merged={...remoteSnap};
   for(const field of SNAP_CONTENT_FIELDS){
     const lv=localSnap[field], rv=remoteSnap[field];
-    const localEmpty=lv===undefined||lv===null||lv==='';
-    const remoteEmpty=rv===undefined||rv===null||rv==='';
-    if(localEmpty && !remoteEmpty){
-      if((field==='risk'&&lv==='')||(field==='decision'&&lv==='无')){ merged[field]=lv; }
-      else { merged[field]=rv; }
-    }else if(!localEmpty && remoteEmpty){
+    const lEmpty=_fieldEmpty(lv), rEmpty=_fieldEmpty(rv);
+    if(lEmpty && !rEmpty){
+      // 本地为空、远程有值 → 用远程
+      merged[field]=rv;
+    }else if(!lEmpty && rEmpty){
+      // 本地有值、远程为空 → 用本地
       merged[field]=lv;
-    }else if(!localEmpty && !remoteEmpty){
+    }else if(!lEmpty && !rEmpty){
+      // 都有值 → 比时间戳，用更新的那个
       const lts=(localSnap._fieldTs&&localSnap._fieldTs[field])||localSnap._ts||0;
       const rts=(remoteSnap._fieldTs&&remoteSnap._fieldTs[field])||remoteSnap._ts||0;
       merged[field]=lts>=rts?lv:rv;
-    }else{ merged[field]=''; }
+    }else{
+      // 都空 → 清空
+      merged[field]=(field==='coreOutput'||field==='next'||field==='incident'||field==='knowledge')?'':[];
+    }
   }
   if(localSnap.status) merged.status=localSnap.status;
   if(localSnap.stage!==undefined&&localSnap.stage!==null) merged.stage=localSnap.stage;
@@ -129,12 +141,17 @@ function _stampSnap(snap, submitter, submitTime){
   const fieldTs=snap._fieldTs?{...snap._fieldTs}:{};
   for(const field of SNAP_CONTENT_FIELDS){
     const v=snap[field];
-    const hasValue=v!==undefined&&v!==null&&v!=='';
+    // 只有真正有内容时才记录时间戳（空数组视为无内容）
+    const hasValue=v!==undefined&&v!==null&&!_fieldEmpty(v);
     if(hasValue) fieldTs[field]=now;
   }
   const stamped={...snap,_ts:now,_fieldTs:fieldTs};
   // 将提交人写入快照本身，供卡片右上角显示
   if(submitter){ stamped._updatedBy=submitter; stamped._updatedAt=submitTime||''; }
+  // 清除运行时标记，防止 _inherited 视图被持久化到云端/本地
+  delete stamped._inherited;
+  delete stamped._carryover;
+  delete stamped._overdue;
   return stamped;
 }
 
@@ -238,10 +255,19 @@ async function doRefresh(){
     const actRec=await _dbGet('activity_log');
     if(actRec&&actRec.data) localStorage.setItem(_ACT_KEY,JSON.stringify(actRec.data));
     await _loadUserRegistry();
-    const projects=LP(), allWeeks={};
+    // 字段级合并：拉取云端快照时，与本地数据逐字段合并（避免覆盖用户正在编辑但未提交的内容）
+    const projects=LP(), allWeeks=LW();
     for(const proj of projects){
       const snapRec=await _dbGet('snap_'+proj.id);
-      if(snapRec&&snapRec.data) Object.keys(snapRec.data).forEach(wk=>{if(!allWeeks[wk])allWeeks[wk]={};allWeeks[wk][proj.id]=snapRec.data[wk];});
+      if(!snapRec||!snapRec.data) continue;
+      for(const [wk,remoteSnap] of Object.entries(snapRec.data)){
+        if(!allWeeks[wk]) allWeeks[wk]={};
+        const localSnap=allWeeks[wk][proj.id]||null;
+        const merged=localSnap?_mergeSnap(localSnap,remoteSnap):remoteSnap;
+        // 清除运行时标记，防止 _inherited 视图被持久化
+        delete merged._inherited; delete merged._carryover; delete merged._overdue;
+        allWeeks[wk][proj.id]=merged;
+      }
     }
     const wk=wkKey(S.yr,S.wk);
     const meetingRec=await _dbGet('meeting_'+S.yr+'_'+S.wk);
@@ -255,7 +281,7 @@ async function doRefresh(){
 // ── 轮询 ──
 function _startPollOnly(){
   if(_pollTimer) return;
-  console.log('[Poll] 启动轮询（每5秒）');
+  console.log('[Poll] 启动轮询（每15秒）');
 
   // 用 id+_v 版本号做快照，避免 JSON 顺序敏感导致误判
   function _projSnapshot(projects){
@@ -301,7 +327,7 @@ function _startPollOnly(){
       if(!_syncOk) _syncOk=true;
       showSyncStatus('sync');
     }catch(e){ if(!_syncOk)return; _syncOk=false; _wasOffline=true; showSyncStatus('pending'); }
-  },5000);
+  },15000);
 }
 
 // ── 网络监听 ──
@@ -351,7 +377,10 @@ function initStorage(onReady){
             if(snapRec && snapRec.data){
               Object.keys(snapRec.data).forEach(wk=>{
                 if(!allWeeks[wk]) allWeeks[wk]={};
-                allWeeks[wk][proj.id] = snapRec.data[wk];
+                // 清除云端数据中的 _inherited 运行时标记
+                const snap = snapRec.data[wk];
+                if(snap){ delete snap._inherited; delete snap._carryover; delete snap._overdue; }
+                allWeeks[wk][proj.id] = snap;
               });
             }
           }

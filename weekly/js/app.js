@@ -11,7 +11,11 @@
 
 // ════ 全局状态 ════
 const NOW=new Date(); const {yr:CYR,wk:CWK}=isoWk(NOW);
-let S={tab:'weekly',yr:CYR,wk:CWK,editId:null,wkEditId:null,
+// 周五自动跳转到下周：当前是周五（getDay()===5）时，默认显示下一周
+const _isFriday = NOW.getDay() === 5;
+const _defaultYr = _isFriday ? (CWK >= 52 ? CYR + 1 : CYR) : CYR;
+const _defaultWk = _isFriday ? (CWK >= 52 ? 1 : CWK + 1) : CWK;
+let S={tab:'weekly',yr:_defaultYr,wk:_defaultWk,editId:null,wkEditId:null,
   pendingDelId:null,pendingArchId:null,pendingUnarchId:null,
   showArch:false,form:{},wform:{},meetingEditId:null,meetingForm:null};
 function isNow(){return S.yr===CYR&&S.wk===CWK}

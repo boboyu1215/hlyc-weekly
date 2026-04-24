@@ -67,7 +67,7 @@
   <div class="modal">
     <h3>删除确认</h3>
     <p>删除后数据不可恢复，请输入管理密码。</p>
-    <input type="password" id="del-pwd" placeholder="管理密码" onkeydown="if(event.key==='Enter')cfDel()">
+    <form onsubmit="return false;"><input type="password" id="del-pwd" placeholder="管理密码" onkeydown="if(event.key==='Enter')cfDel()"></form>
     <div class="modal-err" id="del-err" style="display:none">密码错误</div>
     <div class="modal-btns">
       <button class="bs" onclick="clDel()">取消</button>
@@ -92,7 +92,7 @@
   <div class="modal">
     <h3>归档确认</h3>
     <p>归档后项目将移入「归档项目」栏，可随时释放恢复。请输入管理密码。</p>
-    <input type="password" id="arch-pwd" placeholder="管理密码" onkeydown="if(event.key==='Enter')cfArch()">
+    <form onsubmit="return false;"><input type="password" id="arch-pwd" placeholder="管理密码" onkeydown="if(event.key==='Enter')cfArch()"></form>
     <div class="modal-err" id="arch-err" style="display:none">密码错误</div>
     <div class="modal-btns">
       <button class="bs" onclick="clArch()">取消</button>
@@ -106,7 +106,7 @@
   <div class="modal">
     <h3>释放确认</h3>
     <p>将该项目从归档中释放，恢复到在建项目。请输入管理密码。</p>
-    <input type="password" id="unarch-pwd" placeholder="管理密码" onkeydown="if(event.key==='Enter')cfUnarch()">
+    <form onsubmit="return false;"><input type="password" id="unarch-pwd" placeholder="管理密码" onkeydown="if(event.key==='Enter')cfUnarch()"></form>
     <div class="modal-err" id="unarch-err" style="display:none">密码错误</div>
     <div class="modal-btns">
       <button class="bs" onclick="clUnarch()">取消</button>

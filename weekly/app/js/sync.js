@@ -101,24 +101,32 @@ async function _flushOfflineQueue(){
   }
 }
 
+// 判断字段值是否为"空"（覆盖 undefined/null/空字符串/空数组）
+function _fieldEmpty(v){
+  if(v===undefined||v===null) return true;
+  if(typeof v==='string') return !v.trim();
+  if(Array.isArray(v)) return !v.some(i=>i&&i.text&&i.text.trim());
+  return false;
+}
+
 // ── 字段级合并 ──
 function _mergeSnap(localSnap, remoteSnap){
   if(!remoteSnap) return {...localSnap};
   const merged={...remoteSnap};
   for(const field of SNAP_CONTENT_FIELDS){
     const lv=localSnap[field], rv=remoteSnap[field];
-    const localEmpty=lv===undefined||lv===null||lv==='';
-    const remoteEmpty=rv===undefined||rv===null||rv==='';
-    if(localEmpty && !remoteEmpty){
-      if((field==='risk'&&lv==='')||(field==='decision'&&lv==='无')){ merged[field]=lv; }
-      else { merged[field]=rv; }
-    }else if(!localEmpty && remoteEmpty){
+    const lEmpty=_fieldEmpty(lv), rEmpty=_fieldEmpty(rv);
+    if(lEmpty && !rEmpty){
+      merged[field]=rv;
+    }else if(!lEmpty && rEmpty){
       merged[field]=lv;
-    }else if(!localEmpty && !remoteEmpty){
+    }else if(!lEmpty && !rEmpty){
       const lts=(localSnap._fieldTs&&localSnap._fieldTs[field])||localSnap._ts||0;
       const rts=(remoteSnap._fieldTs&&remoteSnap._fieldTs[field])||remoteSnap._ts||0;
       merged[field]=lts>=rts?lv:rv;
-    }else{ merged[field]=''; }
+    }else{
+      merged[field]=(field==='coreOutput'||field==='next'||field==='incident'||field==='knowledge')?'':[];
+    }
   }
   if(localSnap.status) merged.status=localSnap.status;
   if(localSnap.stage!==undefined&&localSnap.stage!==null) merged.stage=localSnap.stage;
@@ -130,7 +138,7 @@ function _stampSnap(snap){
   const fieldTs=snap._fieldTs?{...snap._fieldTs}:{};
   for(const field of SNAP_CONTENT_FIELDS){
     const v=snap[field];
-    const hasValue=v!==undefined&&v!==null&&v!=='';
+    const hasValue=v!==undefined&&v!==null&&!_fieldEmpty(v);
     if(hasValue) fieldTs[field]=now;
   }
   return {...snap,_ts:now,_fieldTs:fieldTs};

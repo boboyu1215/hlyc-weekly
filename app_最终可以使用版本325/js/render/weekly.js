@@ -173,8 +173,8 @@ function renderWeekCard(p,now,isArch){
         <button class="bs" style="font-size:11px;padding:4px 9px" onclick="openWkEdit(${p.id})">✏ ${S.yr>CYR||(S.yr===CYR&&S.wk>=CWK)?'更新本周状态':'补录历史数据'}</button>
         ${isDirector()?`<button class="bs" style="font-size:11px;padding:4px 9px" onclick="editProj(${p.id})">编辑项目</button>`:''}
         <button class="bp" style="font-size:11px;padding:4px 12px;background:var(--gold)" onclick="askSubmitProject(${p.id})">📤 提交</button>
-        ${isDirector()&&isNow()?`<button class="ba" onclick="askArch(${p.id})">归档</button>`:''}
-        ${isDirector()&&isNow()?`<button class="bd" onclick="askDel(${p.id})">删除</button>`:''}
+        ${isDirector()?`<button class="ba" onclick="askArch(${p.id})">归档</button>`:''}
+        ${isDirector()?`<button class="bd" onclick="askDel(${p.id})">删除</button>`:''}
       </div>
     </div>`:!canEdit?`<div class="ca" style="justify-content:flex-end">
       <span style="font-size:11px;color:var(--t3)">此项目由 ${esc(p.prepOwner||p.designOwner||'其他人')} 负责</span>
