@@ -4,10 +4,16 @@
 # WorkBuddy 工作目录（包含私密记忆、本地配置）
 .workbuddy/
 
-# 开发临时文件
-favicon.png
-http-routes.json
-
 # 编辑器
 .vscode/
 .idea/
+
+# 打包文件
+*.zip
+
+# 旧版本代码（已整理到 weekly/）
+app_最终可以使用版本325/
+
+# 导出脚本（工具性文件不入仓库）
+kpi/export_pdf.py
+kpi/export_ai_guide_pdf.py
