@@ -97,10 +97,8 @@ function _renderItemList(fieldKey, placeholder, onChangeExtra){
   S.wform[fieldKey] = items;
   return `<div class="item-list" data-field="${fieldKey}">
     ${items.map((item,i)=>`
-    <div class="item-row" data-idx="${i}" style="${item._carryover?'border-left:2.5px solid #c07000;padding-left:6px;margin-left:-6px;':item._overdue?'border-left:2.5px solid #b00020;padding-left:6px;margin-left:-6px;':''}">
+    <div class="item-row" data-idx="${i}">
       <span class="item-no">${i+1}.</span>
-      ${item._carryover?`<span style="font-size:9px;font-weight:700;color:#fff;background:#c07000;border-radius:3px;padding:1px 4px;margin-right:4px;white-space:nowrap;line-height:1.6">顺延</span>`:''}
-      ${item._overdue?`<span style="font-size:9px;font-weight:700;color:#fff;background:#b00020;border-radius:3px;padding:1px 4px;margin-right:4px;white-space:nowrap;line-height:1.6">延误</span>`:''}
       <input class="item-text" type="text" value="${esc(item.text)}"
         placeholder="${i===0?placeholder:'继续添加…'}"
         onkeydown="itemKeydown(event,'${fieldKey}',${i})"
@@ -244,27 +242,17 @@ window.itemDel=function(fieldKey, idx){
 };
 
 // ── 状态自动联动 ──
-// 规则：
-//   有风险/决策内容 → 强制变为 'r'（需决策/卡住）
-//   都为空/无 → 若当前是 'r'（系统自动设置的）则降回 'g'；若是 'y'（用户手动选的）则不动
 window.autoStatus=function(){
   const hasRisk = _itemListHasContent(S.wform.risk);
   const hasDec  = _itemListHasContent(S.wform.decision);
-  let target;
-  if(hasRisk || hasDec){
-    target = 'r'; // 有内容 → 必须标红
-  } else {
-    // 没有内容：只有当前是 'r' 才自动降回 'g'；'y' 是用户手动选的，保留不动
-    if(S.wform.status === 'r') target = 'g';
-    else return; // 'g' 或 'y'，不改变
-  }
-  if(S.wform.status === target) return;
-  S.wform.status = target;
+  const target=hasRisk||hasDec?'r':'g';
+  if(S.wform.status===target)return;
+  S.wform.status=target;
   document.querySelectorAll('.sopt').forEach(el=>{
     el.classList.remove('sr','sy','sg');
-    if(el.textContent.includes('需决策') && target==='r') el.classList.add('sr');
-    if(el.textContent.includes('需关注')  && target==='y') el.classList.add('sy');
-    if(el.textContent.includes('正常推进')&& target==='g') el.classList.add('sg');
+    if(el.textContent.includes('需决策')&&target==='r')el.classList.add('sr');
+    if(el.textContent.includes('需关注')&&target==='y')el.classList.add('sy');
+    if(el.textContent.includes('正常推进')&&target==='g')el.classList.add('sg');
   });
 };
 
@@ -328,14 +316,7 @@ window.saveWk=function(){
   for(const {key, label} of NEED_DATE_FIELDS){
     const items = f[key];
     if(!Array.isArray(items)) continue;
-    // 只有实质内容（非空、非"无"、非"—"）才要求必须填日期
-    const EMPTY_WORDS = ['无','—','-','none','null'];
-    const missing = items.filter(item => {
-      const t = (item.text||'').trim();
-      if(!t) return false;
-      if(EMPTY_WORDS.includes(t)) return false;
-      return !item.dueDate;
-    });
+    const missing = items.filter(item => item.text && item.text.trim() && !item.dueDate);
     if(missing.length){
       // 高亮对应缺失日期的行
       requestAnimationFrame(()=>{
@@ -352,22 +333,13 @@ window.saveWk=function(){
       return;
     }
   }
-  // 清除列表字段的空白行，再保存；同时清除 _overdue 运行时标记（保存后视为已确认）
+  // 清除列表字段的空白行，再保存
   ['coreAction','risk','decision','crossDept'].forEach(key=>{
     if(Array.isArray(f[key])){
-      const cleaned = f[key]
-        .filter(item=>item.text&&item.text.trim())
-        .map(item=>{ const {_overdue, _carryover, ...rest} = item; return rest; }); // 保存时去掉运行时标记，_fromKPI保留
+      const cleaned = f[key].filter(item=>item.text&&item.text.trim());
       f[key] = cleaned.length ? cleaned : [];
     }
   });
-  // ── 保存前做状态修正：若 risk 和 decision 都为空/无 且 status='r'，自动降回 'g'
-  // 这保证存入云端的数据本身就是正确的，不依赖读取时的修正
-  if(f.status === 'r'){
-    const rHas = _itemListHasContent(f.risk);
-    const dHas = _itemListHasContent(f.decision);
-    if(!rHas && !dHas) f.status = 'g';
-  }
   setSnap(S.yr,S.wk,S.wkEditId,_stampSnap(f));
   // 标记为待提交（已改未提交）
   addPendingSubmit(S.wkEditId);

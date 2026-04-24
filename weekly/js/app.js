@@ -10,12 +10,24 @@
 // isoWk, wkKey, parseWkKey, wkLabel, wkRange → utils.js
 
 // ════ 全局状态 ════
-const NOW=new Date(); const {yr:CYR,wk:CWK}=isoWk(NOW);
-// 周五自动跳转到下周：当前是周五（getDay()===5）时，默认显示下一周
-const _isFriday = NOW.getDay() === 5;
-const _defaultYr = _isFriday ? (CWK >= 52 ? CYR + 1 : CYR) : CYR;
-const _defaultWk = _isFriday ? (CWK >= 52 ? 1 : CWK + 1) : CWK;
-let S={tab:'weekly',yr:_defaultYr,wk:_defaultWk,editId:null,wkEditId:null,
+const NOW=new Date();
+const {yr:CYR,wk:CWK}=isoWk(NOW);
+
+// 周五自动跳转到下周逻辑
+const dayOfWeek = NOW.getDay(); // 0=周日, 5=周五
+let initialYr = CYR;
+let initialWk = CWK;
+
+if(dayOfWeek === 5) {
+  // 如果是周五，默认显示下一周
+  initialWk = CWK + 1;
+  if(initialWk > 52) {
+    initialYr = CYR + 1;
+    initialWk = 1;
+  }
+}
+
+let S={tab:'weekly',yr:initialYr,wk:initialWk,editId:null,wkEditId:null,
   pendingDelId:null,pendingArchId:null,pendingUnarchId:null,
   showArch:false,form:{},wform:{},meetingEditId:null,meetingForm:null};
 function isNow(){return S.yr===CYR&&S.wk===CWK}
@@ -34,7 +46,7 @@ function seed(){
   const weeks=LW();weeks[wkKey(CYR,CWK)]=snap;SW(weeks);
 }
 
-// ════ 主渲染分发器 ════
+// ════ 主渲染分发器（优化版）════
 function render(){
   let html='';
   if(S.tab==='weekly')html=renderWeekly();
@@ -45,14 +57,21 @@ function render(){
   else if(S.tab==='archive')html=renderArchive();
   else if(S.tab==='history')html=renderHistory();
   else if(S.tab==='wkinput')html=renderWkForm();
-  else if(S.tab==='kpi')html=renderKpiPage();
   else if(S.tab==='users')html=renderUsersPage();
-  document.getElementById('content').innerHTML=html;
-  const TABS=['weekly','charts','input','overview','meeting','archive','history'];
+  else if(S.tab==='kpi')html=renderKpiPage();
+
+  // 使用智能渲染（如果可用），否则回退到传统方式
+  if(window.smartRender){
+    smartRender('content', html);
+  } else {
+    document.getElementById('content').innerHTML=html;
+  }
+
+  const TABS=['weekly','charts','input','overview','meeting','archive','history','kpi'];
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',TABS[i]===S.tab||(S.tab==='wkinput'&&TABS[i]==='weekly')));
   if(S.tab==='weekly')initDrag();
   if(S.tab==='users')renderUserPanel();
-  if(S.tab==='kpi') setTimeout(_loadKpiPanel, 50);
+  if(S.tab==='kpi'&&window._initKpiPageAfterRender)_initKpiPageAfterRender();
   document.querySelectorAll('textarea.auto-h').forEach(t=>{autoH(t);});
   setTimeout(()=>{ window._initTabsDrag&&_initTabsDrag(); window.updateTabIndicator&&updateTabIndicator(); }, 50);
   if(_syncOk) showSyncStatus('sync');
@@ -66,20 +85,7 @@ window.ST=function(t){ S.tab=t; if(t==='input'){S.editId=null;S.form=blankProj()
 // ════ 周导航 ════
 window.prevWk=function(){S.wk--;if(S.wk<1){S.yr--;S.wk=52}updL();render();};
 window.nextWk=function(){S.wk++;if(S.wk>52){S.yr++;S.wk=1}updL();render();};
-function updL(){
-  const el = document.getElementById('wl');
-  if(!el) return;
-  const isCurrent = (S.yr === CYR && S.wk === CWK);
-  el.textContent = `${S.yr} W${S.wk}`;
-  // 当前周：红色粗体 + 稍大字号，醒目提示
-  el.style.color      = isCurrent ? '#c0392b' : '';
-  el.style.fontWeight = isCurrent ? '900'     : '400';
-  el.style.fontSize   = isCurrent ? '13px'    : '';
-  el.style.background = isCurrent ? 'rgba(176,0,32,0.08)' : '';
-  el.style.borderRadius = isCurrent ? '6px'  : '';
-  el.style.padding    = isCurrent ? '2px 8px' : '';
-  el.title = isCurrent ? '本周' : '';
-}
+function updL(){document.getElementById('wl').textContent=`${S.yr} W${S.wk}`;}
 // 注：autoH 已在 utils.js 中定义
 
 // ════ 拖拽排序 ════

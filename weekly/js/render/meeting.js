@@ -50,9 +50,9 @@ function renderMeeting(){
       ${m.time?`<div style="font-size:11px;color:var(--t3)">${esc(m.time)}</div>`:''}
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;margin-bottom:8px">
-      <div style="background:var(--bg);border-radius:var(--rr);padding:7px 10px"><div style="font-size:10px;color:var(--t3);font-weight:700;margin-bottom:3px">发起人</div><div>${esc(m.initiator||'无')}</div></div>
-      <div style="background:var(--bg);border-radius:var(--rr);padding:7px 10px"><div style="font-size:10px;color:var(--t3);font-weight:700;margin-bottom:3px">参与人</div><div>${esc(m.attendees||'无')}</div></div>
-      <div style="background:var(--bg);border-radius:var(--rr);padding:7px 10px;grid-column:1/-1"><div style="font-size:10px;color:var(--t3);font-weight:700;margin-bottom:3px">主要内容</div><div style="line-height:1.5">${esc(m.content||'无')}</div></div>
+      <div style="background:var(--bg);border-radius:var(--rr);padding:7px 10px"><div style="font-size:10px;color:var(--t3);font-weight:700;margin-bottom:3px">发起人</div><div>${esc(m.initiator||'—')}</div></div>
+      <div style="background:var(--bg);border-radius:var(--rr);padding:7px 10px"><div style="font-size:10px;color:var(--t3);font-weight:700;margin-bottom:3px">参与人</div><div>${esc(m.attendees||'—')}</div></div>
+      <div style="background:var(--bg);border-radius:var(--rr);padding:7px 10px;grid-column:1/-1"><div style="font-size:10px;color:var(--t3);font-weight:700;margin-bottom:3px">主要内容</div><div style="line-height:1.5">${esc(m.content||'—')}</div></div>
       ${m.issues?`<div style="background:var(--rb);border:0.5px solid var(--rbd);border-radius:var(--rr);padding:7px 10px;grid-column:1/-1"><div style="font-size:10px;color:var(--rt);font-weight:700;margin-bottom:3px">需要解决的问题</div><div style="color:var(--rt);line-height:1.5">${esc(m.issues)}</div></div>`:''}
     </div>
     <div class="io-bar no-print" style="justify-content:flex-end;margin-top:8px;padding-top:8px;border-top:0.5px solid var(--bdr)">

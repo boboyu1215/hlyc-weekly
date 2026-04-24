@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>华力集团 · 研策部周报系统</title>
 
-<!-- 已迁移至自建 API 服务器，不再依赖 CloudBase -->
-
 <!-- 全局样式 -->
 <link rel="stylesheet" href="css/main.css">
 </head>
@@ -31,7 +29,7 @@
         <button class="tab"     onclick="ST('meeting')">本周会议</button>
         <button class="tab"     onclick="ST('archive')">归档项目</button>
         <button class="tab"     onclick="ST('history')">历史记录</button>
-        <button class="tab" id="tab-kpi" style="display:none" onclick="ST('kpi')">📊 KPI跟踪</button>
+        <button class="tab"     onclick="ST('kpi')">📊 KPI</button>
         <button class="tab" id="tab-users" style="display:none" onclick="ST('users')">👥 成员管理</button>
       </div>
       <div class="tab-indicator" id="tab-indicator">
@@ -67,7 +65,7 @@
   <div class="modal">
     <h3>删除确认</h3>
     <p>删除后数据不可恢复，请输入管理密码。</p>
-    <form onsubmit="return false;"><input type="password" id="del-pwd" placeholder="管理密码" onkeydown="if(event.key==='Enter')cfDel()"></form>
+    <input type="password" id="del-pwd" placeholder="管理密码" onkeydown="if(event.key==='Enter')cfDel()">
     <div class="modal-err" id="del-err" style="display:none">密码错误</div>
     <div class="modal-btns">
       <button class="bs" onclick="clDel()">取消</button>
@@ -92,7 +90,7 @@
   <div class="modal">
     <h3>归档确认</h3>
     <p>归档后项目将移入「归档项目」栏，可随时释放恢复。请输入管理密码。</p>
-    <form onsubmit="return false;"><input type="password" id="arch-pwd" placeholder="管理密码" onkeydown="if(event.key==='Enter')cfArch()"></form>
+    <input type="password" id="arch-pwd" placeholder="管理密码" onkeydown="if(event.key==='Enter')cfArch()">
     <div class="modal-err" id="arch-err" style="display:none">密码错误</div>
     <div class="modal-btns">
       <button class="bs" onclick="clArch()">取消</button>
@@ -106,7 +104,7 @@
   <div class="modal">
     <h3>释放确认</h3>
     <p>将该项目从归档中释放，恢复到在建项目。请输入管理密码。</p>
-    <form onsubmit="return false;"><input type="password" id="unarch-pwd" placeholder="管理密码" onkeydown="if(event.key==='Enter')cfUnarch()"></form>
+    <input type="password" id="unarch-pwd" placeholder="管理密码" onkeydown="if(event.key==='Enter')cfUnarch()">
     <div class="modal-err" id="unarch-err" style="display:none">密码错误</div>
     <div class="modal-btns">
       <button class="bs" onclick="clUnarch()">取消</button>
@@ -200,21 +198,23 @@
      3. storage   — 本地存储 + 快照操作
      4. sync      — 云端同步 + 实时监听
      5. auth      — 用户认证 + 权限
-     6. render/*  — 各页面渲染函数
-     7. app       — 主控制器（状态 + render 分发 + 初始化）
+     6. render-optimizer — 渲染优化（可选）
+     7. render/*  — 各页面渲染函数
+     8. app       — 主控制器（状态 + render 分发 + 初始化）
      ════════════════════════════════════════════════════ -->
 <script src="js/config.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/storage.js"></script>
 <script src="js/sync.js"></script>
 <script src="js/auth.js"></script>
+<script src="js/render-optimizer.js"></script>
 <script src="js/render/weekly.js"></script>
 <script src="js/render/charts.js"></script>
 <script src="js/render/meeting.js"></script>
 <script src="js/render/archive.js"></script>
 <script src="js/render/forms.js"></script>
-<script src="js/render/kpi.js"></script>
 <script src="js/render/users.js"></script>
+<script src="js/render/kpi.js"></script>
 <script src="js/app.js"></script>
 
 </body>

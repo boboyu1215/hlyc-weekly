@@ -1,6 +1,5 @@
 // ════════════════════════════════════════════════════
-// sync.js — 云同步、轮询、离线队列
-// 已完全脱离 CloudBase，使用自建 API + 轮询模式
+// sync.js — 云同步、智能轮询、离线队列
 // ════════════════════════════════════════════════════
 
 let _syncOk = false;
@@ -101,58 +100,38 @@ async function _flushOfflineQueue(){
 }
 
 // ── 字段级合并 ──
-// 判断字段值是否为"空"（覆盖 undefined/null/空字符串/空数组）
-function _fieldEmpty(v){
-  if(v===undefined||v===null) return true;
-  if(typeof v==='string') return !v.trim();
-  if(Array.isArray(v)) return !v.some(i=>i&&i.text&&i.text.trim());
-  return false;
-}
-
 function _mergeSnap(localSnap, remoteSnap){
   if(!remoteSnap) return {...localSnap};
   const merged={...remoteSnap};
   for(const field of SNAP_CONTENT_FIELDS){
     const lv=localSnap[field], rv=remoteSnap[field];
-    const lEmpty=_fieldEmpty(lv), rEmpty=_fieldEmpty(rv);
-    if(lEmpty && !rEmpty){
-      // 本地为空、远程有值 → 用远程
-      merged[field]=rv;
-    }else if(!lEmpty && rEmpty){
-      // 本地有值、远程为空 → 用本地
+    const localEmpty=lv===undefined||lv===null||lv==='';
+    const remoteEmpty=rv===undefined||rv===null||rv==='';
+    if(localEmpty && !remoteEmpty){
+      if((field==='risk'&&lv==='')||(field==='decision'&&lv==='无')){ merged[field]=lv; }
+      else { merged[field]=rv; }
+    }else if(!localEmpty && remoteEmpty){
       merged[field]=lv;
-    }else if(!lEmpty && !rEmpty){
-      // 都有值 → 比时间戳，用更新的那个
+    }else if(!localEmpty && !remoteEmpty){
       const lts=(localSnap._fieldTs&&localSnap._fieldTs[field])||localSnap._ts||0;
       const rts=(remoteSnap._fieldTs&&remoteSnap._fieldTs[field])||remoteSnap._ts||0;
       merged[field]=lts>=rts?lv:rv;
-    }else{
-      // 都空 → 清空
-      merged[field]=(field==='coreOutput'||field==='next'||field==='incident'||field==='knowledge')?'':[];
-    }
+    }else{ merged[field]=''; }
   }
   if(localSnap.status) merged.status=localSnap.status;
   if(localSnap.stage!==undefined&&localSnap.stage!==null) merged.stage=localSnap.stage;
   return merged;
 }
 
-function _stampSnap(snap, submitter, submitTime){
+function _stampSnap(snap){
   const now=Date.now();
   const fieldTs=snap._fieldTs?{...snap._fieldTs}:{};
   for(const field of SNAP_CONTENT_FIELDS){
     const v=snap[field];
-    // 只有真正有内容时才记录时间戳（空数组视为无内容）
-    const hasValue=v!==undefined&&v!==null&&!_fieldEmpty(v);
+    const hasValue=v!==undefined&&v!==null&&v!=='';
     if(hasValue) fieldTs[field]=now;
   }
-  const stamped={...snap,_ts:now,_fieldTs:fieldTs};
-  // 将提交人写入快照本身，供卡片右上角显示
-  if(submitter){ stamped._updatedBy=submitter; stamped._updatedAt=submitTime||''; }
-  // 清除运行时标记，防止 _inherited 视图被持久化到云端/本地
-  delete stamped._inherited;
-  delete stamped._carryover;
-  delete stamped._overdue;
-  return stamped;
+  return {...snap,_ts:now,_fieldTs:fieldTs};
 }
 
 // ── 提交项目（带乐观锁） ──
@@ -164,7 +143,7 @@ async function submitProject(projId){
     const remoteId='snap_'+projId, newV=String(Date.now());
     const localSnap=LW_proj(projId);
     const stampedSnap={};
-    for(const [wk,s] of Object.entries(localSnap)) stampedSnap[wk]=_stampSnap(s,_currentUser,t);
+    for(const [wk,s] of Object.entries(localSnap)) stampedSnap[wk]=_stampSnap(s);
     const payload={data:stampedSnap,_v:newV,_updatedBy:_currentUser,_updatedAt:t};
     _queueAdd({id:remoteId,obj:payload,ts:Date.now()});
     localStorage.setItem('hlzc_pv_'+projId,newV);
@@ -182,8 +161,8 @@ async function submitProject(projId){
     const allWks=new Set([...Object.keys(localSnap),...Object.keys(remoteData)]);
     for(const wk of allWks){
       const local=localSnap[wk]||null, remote=remoteData[wk]||null;
-      if(local&&remote){ mergedSnap[wk]=_stampSnap(_mergeSnap(local,remote),_currentUser,t); }
-      else if(local){ mergedSnap[wk]=_stampSnap(local,_currentUser,t); }
+      if(local&&remote){ mergedSnap[wk]=_stampSnap(_mergeSnap(local,remote)); }
+      else if(local){ mergedSnap[wk]=_stampSnap(local); }
       else { mergedSnap[wk]=remote; }
     }
     const allWeeks=LW();
@@ -232,9 +211,36 @@ async function pullProject(projId){
 
 async function _saveMainBin(payload){ return _dbSet('projects',payload); }
 
-// ════════════════════════════════════════════════════
-// 轮询模式（已脱离 CloudBase，不再使用 WebSocket 实时监听）
-// ════════════════════════════════════════════════════
+// ── 实时监听变化处理（由轮询触发） ──
+async function _onDataChange(type){
+  try{
+    if(type==='activity_log'){
+      const actRec=await _dbGet('activity_log');
+      if(actRec&&actRec.data){
+        localStorage.setItem(_ACT_KEY,JSON.stringify(actRec.data));
+        _clearCache();
+        renderActivityBar();
+      }
+      return;
+    }
+    showSyncStatus('saving');
+    const [projRec,actRec]=await Promise.all([_dbGet('projects'),_dbGet('activity_log')]);
+    if(projRec&&projRec.projects) localStorage.setItem('hlzc_p',JSON.stringify(projRec.projects));
+    if(actRec&&actRec.data) localStorage.setItem(_ACT_KEY,JSON.stringify(actRec.data));
+    _clearCache();
+    const projects=LP(), allWeeks={};
+    for(const proj of projects){
+      const snapRec=await _dbGet('snap_'+proj.id);
+      if(snapRec&&snapRec.data) Object.keys(snapRec.data).forEach(wk=>{ if(!allWeeks[wk])allWeeks[wk]={}; allWeeks[wk][proj.id]=snapRec.data[wk]; });
+    }
+    const meetingRec=await _dbGet('meeting_'+S.yr+'_'+S.wk);
+    if(meetingRec&&meetingRec.data){ const wk=wkKey(S.yr,S.wk); if(!allWeeks[wk])allWeeks[wk]={}; allWeeks[wk].__meetings=meetingRec.data; }
+    localStorage.setItem('hlzc_w',JSON.stringify(allWeeks));
+    _clearCache();
+    render(); renderActivityBar(); showSyncStatus('sync');
+    console.log('[Poll] 数据已自动更新（类型:',type,'）');
+  }catch(e){ console.warn('[Poll] 自动更新失败:',e.message); showSyncStatus('err'); }
+}
 
 // ── 刷新提示 ──
 let _hasNewData=false, _newDataCount=0;
@@ -254,80 +260,128 @@ async function doRefresh(){
     if(projRec&&projRec.projects) localStorage.setItem('hlzc_p',JSON.stringify(projRec.projects));
     const actRec=await _dbGet('activity_log');
     if(actRec&&actRec.data) localStorage.setItem(_ACT_KEY,JSON.stringify(actRec.data));
+    _clearCache(); // 清除缓存
     await _loadUserRegistry();
-    // 字段级合并：拉取云端快照时，与本地数据逐字段合并（避免覆盖用户正在编辑但未提交的内容）
-    const projects=LP(), allWeeks=LW();
+
+    // 字段级合并：保留本地未提交的修改
+    const projects=LP();
+    const localWeeks = LW(); // 获取本地周报数据
+    const allWeeks={...localWeeks}; // 先复制本地数据
+
     for(const proj of projects){
       const snapRec=await _dbGet('snap_'+proj.id);
-      if(!snapRec||!snapRec.data) continue;
-      for(const [wk,remoteSnap] of Object.entries(snapRec.data)){
-        if(!allWeeks[wk]) allWeeks[wk]={};
-        const localSnap=allWeeks[wk][proj.id]||null;
-        const merged=localSnap?_mergeSnap(localSnap,remoteSnap):remoteSnap;
-        // 清除运行时标记，防止 _inherited 视图被持久化
-        delete merged._inherited; delete merged._carryover; delete merged._overdue;
-        allWeeks[wk][proj.id]=merged;
+      if(snapRec&&snapRec.data){
+        Object.keys(snapRec.data).forEach(wk=>{
+          if(!allWeeks[wk]) allWeeks[wk]={};
+
+          // 字段级合并：如果本地有未提交的修改，保留本地数据
+          const localSnap = localWeeks[wk] && localWeeks[wk][proj.id];
+          const remoteSnap = snapRec.data[wk];
+
+          if(localSnap && localSnap._savedWk === wk && !localSnap._syncedToCloud){
+            // 本地有明确保存且未同步的数据，保留本地版本
+            allWeeks[wk][proj.id] = localSnap;
+          } else if(localSnap && remoteSnap){
+            // 合并：远程数据优先，但保留本地的运行时标记
+            allWeeks[wk][proj.id] = {
+              ...remoteSnap,
+              _inherited: localSnap._inherited,
+              _carryover: localSnap._carryover
+            };
+          } else {
+            // 没有本地数据或本地数据已同步，使用远程数据
+            allWeeks[wk][proj.id] = remoteSnap;
+          }
+        });
       }
     }
+
     const wk=wkKey(S.yr,S.wk);
     const meetingRec=await _dbGet('meeting_'+S.yr+'_'+S.wk);
     if(meetingRec&&meetingRec.data){if(!allWeeks[wk])allWeeks[wk]={};allWeeks[wk].__meetings=meetingRec.data;}
     localStorage.setItem('hlzc_w',JSON.stringify(allWeeks));
+    _clearCache(); // 再次清除
     render(); renderActivityBar();
     document.querySelectorAll('._refresh_btn').forEach(btn=>{btn.style.display='none';const badge=btn.querySelector('._new_data_badge');if(badge)badge.remove();});
   }catch(e){ console.error('同步失败:',e); alert('同步失败，请检查网络后重试'); }
 }
 
-// ── 轮询 ──
+// ── 降级轮询（智能退避策略）──
+let _pollInterval = 5000; // 初始 5 秒
+const _MIN_POLL_INTERVAL = 5000; // 最小 5 秒
+const _MAX_POLL_INTERVAL = 30000; // 最大 30 秒
+let _consecutiveNoChanges = 0; // 连续无变化次数
+
+function _stopPoll(){
+  if(_pollTimer){
+    clearTimeout(_pollTimer);
+    _pollTimer = null;
+    _pollInterval = _MIN_POLL_INTERVAL;
+    _consecutiveNoChanges = 0;
+    console.log('[Poll] 轮询已停止');
+  }
+}
+
 function _startPollOnly(){
   if(_pollTimer) return;
-  console.log('[Poll] 启动轮询（每15秒）');
+  console.log('[Poll] 启动智能轮询（初始间隔 5 秒，最大 30 秒）');
 
-  // 用 id+_v 版本号做快照，避免 JSON 顺序敏感导致误判
-  function _projSnapshot(projects){
-    return projects.map(p=>p.id+':'+(p._v||p.updatedAt||'')).sort().join('|');
-  }
-  let _lastProjSnap = _projSnapshot(LP());
-  let _lastActSnap  = localStorage.getItem(_ACT_KEY)||'';
-
-  _pollTimer=setInterval(async()=>{
+  async function poll(){
     try{
       const [projRec,actRec]=await Promise.all([_dbGet('projects'),_dbGet('activity_log')]);
+      let hasChanges = false;
 
-      // 项目列表变化检测（用 id+版本号，不用整体 JSON 对比）
       if(projRec&&projRec.projects){
-        const remoteSnap=_projSnapshot(projRec.projects);
-        if(remoteSnap!==_lastProjSnap){
-          _lastProjSnap=remoteSnap;
-          // 自动更新本地（不打扰用户，只在有实质差异时提示）
-          const localIds=new Set(LP().map(p=>p.id));
-          const remoteIds=new Set(projRec.projects.map(p=>p.id));
-          const hasStructureChange=[...remoteIds].some(id=>!localIds.has(id))||[...localIds].some(id=>!remoteIds.has(id));
-          if(hasStructureChange){
-            // 有新增或删除项目，才需要提示刷新
-            if(_appReady&&!_hasNewData){_hasNewData=true;_newDataCount++;_showRefreshPrompt();}
-          } else {
-            // 只是内容更新，静默同步项目列表
-            localStorage.setItem('hlzc_p',JSON.stringify(projRec.projects));
-          }
+        const localProjects=LP(), remoteIds=new Set(projRec.projects.map(p=>p.id));
+        const localExisting=localProjects.filter(p=>remoteIds.has(p.id));
+        if(JSON.stringify(projRec.projects)!==JSON.stringify(localExisting)){
+          hasChanges = true;
+          if(_appReady&&!_hasNewData){_hasNewData=true;_newDataCount++;_showRefreshPrompt();}
         }
       }
 
-      // 活动日志变化：静默更新，不提示
       if(actRec&&actRec.data){
         const newLog=JSON.stringify(actRec.data);
-        if(newLog!==_lastActSnap){
-          _lastActSnap=newLog;
+        if(newLog!==localStorage.getItem(_ACT_KEY)){
+          hasChanges = true;
           localStorage.setItem(_ACT_KEY,newLog);
+          _clearCache();
           renderActivityBar();
+        }
+      }
+
+      // 智能调整轮询间隔
+      if(hasChanges){
+        _consecutiveNoChanges = 0;
+        _pollInterval = _MIN_POLL_INTERVAL; // 有变化，恢复快速轮询
+        console.log('[Poll] 检测到变化，重置轮询间隔为 5 秒');
+      } else {
+        _consecutiveNoChanges++;
+        if(_consecutiveNoChanges >= 3){
+          // 连续 3 次无变化，逐渐增加间隔
+          _pollInterval = Math.min(_pollInterval * 1.5, _MAX_POLL_INTERVAL);
+          console.log(`[Poll] 连续 ${_consecutiveNoChanges} 次无变化，轮询间隔调整为 ${Math.round(_pollInterval/1000)} 秒`);
         }
       }
 
       if(_wasOffline){_wasOffline=false;_syncOk=true;await _flushOfflineQueue();_showOfflineToast('网络已恢复，离线数据已同步','online');}
       if(!_syncOk) _syncOk=true;
       showSyncStatus('sync');
-    }catch(e){ if(!_syncOk)return; _syncOk=false; _wasOffline=true; showSyncStatus('pending'); }
-  },15000);
+    }catch(e){
+      if(!_syncOk)return;
+      _syncOk=false;
+      _wasOffline=true;
+      showSyncStatus('pending');
+      // 网络错误时也增加间隔，避免频繁失败请求
+      _pollInterval = Math.min(_pollInterval * 1.2, _MAX_POLL_INTERVAL);
+    }
+
+    // 使用 setTimeout 而非 setInterval，实现动态间隔
+    _pollTimer = setTimeout(poll, _pollInterval);
+  }
+
+  // 启动第一次轮询
+  poll();
 }
 
 // ── 网络监听 ──
@@ -345,10 +399,10 @@ function _registerNetworkListeners(){
   window.addEventListener('offline',()=>{_syncOk=false;_wasOffline=true;showSyncStatus('pending');_showOfflineToast('网络已断开，数据将保存在本地');});
 }
 
-// ── 主同步入口（纯轮询模式） ──
+// ── 主同步入口 ──
 async function _startSync(){
   _registerNetworkListeners();
-  console.log('[Sync] 使用轮询模式（已脱离 CloudBase）');
+  console.log('[Sync] 启动智能轮询');
   _startPollOnly();
 }
 
@@ -366,44 +420,11 @@ function initStorage(onReady){
       if(actRec&&actRec.data){ localStorage.setItem(_ACT_KEY,JSON.stringify(actRec.data)); renderActivityBar(); }
       _syncOk=true;
       await _loadUserRegistry();
-
-      // ── 从云端加载所有项目的周快照数据（新域名首次访问时本地为空）
-      try{
-        const localWasEmpty = !localStorage.getItem('hlzc_w') || localStorage.getItem('hlzc_w') === '{}';
-        if(localWasEmpty && projRec && projRec.projects){
-          const allWeeks = {};
-          for(const proj of projRec.projects){
-            const snapRec = await _dbGet('snap_'+proj.id);
-            if(snapRec && snapRec.data){
-              Object.keys(snapRec.data).forEach(wk=>{
-                if(!allWeeks[wk]) allWeeks[wk]={};
-                // 清除云端数据中的 _inherited 运行时标记
-                const snap = snapRec.data[wk];
-                if(snap){ delete snap._inherited; delete snap._carryover; delete snap._overdue; }
-                allWeeks[wk][proj.id] = snap;
-              });
-            }
-          }
-          if(Object.keys(allWeeks).length > 0){
-            localStorage.setItem('hlzc_w', JSON.stringify(allWeeks));
-          }
-        }
-      }catch(e){ console.warn('[initStorage] 快照数据加载失败:', e.message); }
-
-      // 从云端加载KPI数据到本地
-      try{
-        const kpiRec = await _dbGet('kpi_data');
-        if(kpiRec && kpiRec.data) localStorage.setItem('hlzc_kpi', JSON.stringify(kpiRec.data));
-      }catch(e){}
       showSyncStatus('sync');
       if(_appReady){
         if(projRec&&projRec.projects){
-          const localWas = localStorage.getItem('hlzc_p');
-          const h = JSON.stringify(projRec.projects);
-          localStorage.setItem('hlzc_p', h);
-          // 首次访问新域名（本地为空）或数据有变化，都重新渲染
-          const needRender = !localWas || localWas === '[]' || h !== localWas;
-          if(needRender && (S.tab==='weekly'||S.tab==='overview'||S.tab==='charts')) render();
+          const h=JSON.stringify(projRec.projects);
+          if(h!==localStorage.getItem('hlzc_p')){ localStorage.setItem('hlzc_p',h); if(S.tab==='weekly'||S.tab==='overview'||S.tab==='charts') render(); }
         }
         if(_currentUser&&!DIRECTORS.includes(_currentUser)&&!isApproved()) _showNotInSystemModal();
       }
