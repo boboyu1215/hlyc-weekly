@@ -10,6 +10,7 @@
 
 # 打包文件
 *.zip
+*.tar.gz
 
 # 旧版本代码（已整理到 weekly/）
 app_最终可以使用版本325/
@@ -17,3 +18,9 @@ app_最终可以使用版本325/
 # 导出脚本（工具性文件不入仓库）
 kpi/export_pdf.py
 kpi/export_ai_guide_pdf.py
+
+# Node.js 依赖（weekly Vue 项目）
+weekly/hlyc-weekly0425/node_modules/
+
+# Vite 构建产物（weekly Vue 项目）
+weekly/hlyc-weekly0425/dist/
