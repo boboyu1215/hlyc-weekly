@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue';
+import { ref, computed, onMounted, nextTick, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAppStore } from '@/stores/app';
 import { useAuthStore } from '@/stores/auth';
@@ -124,6 +124,62 @@ const syncLabelClass = computed(() => ({
 
 function isTabActive(path: string) { return route.path === path; }
 
+// ── @提醒 ──
+const mentions = ref<Array<{id: string; noteId: string; text: string; from: string; createdAt: number}>>([]);
+const showMentions = ref(false);
+const mentionBadge = computed(() => mentions.value.length);
+
+function getReadKey() {
+  return `mentions_read_${authStore.currentUser || ''}`;
+}
+function getReadIds(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(getReadKey()) || '[]')); } catch { return new Set(); }
+}
+function markAllRead() {
+  const readIds = getReadIds();
+  mentions.value.forEach(m => readIds.add(m.id));
+  localStorage.setItem(getReadKey(), JSON.stringify([...readIds]));
+  mentions.value = [];
+  showMentions.value = false;
+}
+function goToBoard() {
+  markAllRead();
+  router.push('/board');
+}
+function goToWeekly() {
+  markAllRead();
+  router.push('/weekly');
+  showMentions.value = false;
+}
+
+async function fetchMentions() {
+  if (!authStore.currentUser) return;
+  try {
+    const res = await fetch('/api', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'get_mentions', data: { user: authStore.currentUser } })
+    });
+    const data = await res.json();
+    const readIds = getReadIds();
+    mentions.value = (data.mentions || []).filter((m: any) =>
+      !readIds.has(m.id)
+    );
+  } catch {}
+}
+
+// 登录后开始轮询
+let mentionTimer: ReturnType<typeof setInterval> | null = null;
+watch(() => authStore.currentUser, (u) => {
+  if (mentionTimer) clearInterval(mentionTimer);
+  if (u) {
+    fetchMentions();
+    mentionTimer = setInterval(fetchMentions, 30000);
+  } else {
+    mentions.value = [];
+  }
+}, { immediate: true });
+
 onMounted(() => {
   nextTick(updateIndicator);
   document.addEventListener('click', onDocClick);
@@ -173,6 +229,82 @@ onMounted(() => {
           {{ wkLabel(appStore.yr, appStore.wk) }}
         </div>
         <button class="wb" @click="nextWk">›</button>
+      </div>
+
+      <!-- @提醒铃铛 -->
+      <div v-if="authStore.isLoggedIn" style="position:relative;flex-shrink:0">
+        <button
+          class="icon-btn"
+          @click="showMentions = !showMentions"
+          title="@我的消息"
+        >🔔</button>
+        <span
+          v-if="mentionBadge > 0"
+          style="position:absolute;top:-4px;right:-4px;background:#e53935;color:#fff;
+                 border-radius:10px;font-size:10px;padding:0 4px;min-width:16px;
+                 text-align:center;line-height:16px;pointer-events:none"
+        >{{ mentionBadge }}</span>
+
+        <!-- 消息弹窗 -->
+        <div
+          v-if="showMentions"
+          style="position:absolute;top:36px;right:0;width:280px;
+                 background:var(--card);border:1px solid var(--bdr);
+                 border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.12);
+                 z-index:999;overflow:hidden"
+          @click.stop
+        >
+          <div style="padding:10px 12px;border-bottom:1px solid var(--bdr);
+                      display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:13px;font-weight:600">@我的消息</span>
+            <button
+              v-if="mentions.length > 0"
+              @click="markAllRead"
+              style="font-size:11px;color:var(--gold);background:none;border:none;cursor:pointer"
+            >全部已读</button>
+          </div>
+          <div v-if="mentions.length === 0"
+               style="padding:20px;text-align:center;color:var(--t3);font-size:13px">
+            暂无未读消息
+          </div>
+          <div v-else style="max-height:300px;overflow-y:auto">
+            <div
+              v-for="m in mentions"
+              :key="m.id"
+              @click="m.source === 'board' ? goToBoard() : goToWeekly()"
+              style="padding:10px 12px;border-bottom:1px solid var(--bdr);
+                     cursor:pointer;transition:background .1s"
+              onmouseover="this.style.background='var(--bg)'"
+              onmouseout="this.style.background=''"
+            >
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+                <span style="font-size:11px;padding:1px 6px;border-radius:4px;
+                             background:var(--bg);color:var(--t2)">
+                  {{ m.source === 'board' ? '📌 黑板报' : '📋 周报' }}
+                </span>
+                <span style="font-size:11px;color:var(--t3)">{{ m.from }} 提到了你</span>
+              </div>
+              <div style="font-size:13px;color:var(--t1);line-height:1.4;
+                          overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                {{ m.text }}
+              </div>
+              <div style="font-size:11px;color:var(--t3);margin-top:3px">
+                {{ m.createdAt ? new Date(m.createdAt).toLocaleString('zh-CN') : '' }}
+              </div>
+            </div>
+          </div>
+          <div style="padding:8px 12px;text-align:center;border-top:1px solid var(--bdr);
+                      display:flex;justify-content:center;gap:16px">
+            <button @click="goToBoard"
+                    style="font-size:12px;color:var(--gold);background:none;border:none;cursor:pointer">
+              📌 黑板报 →
+            </button>
+            <button @click="goToWeekly"
+                    style="font-size:12px;color:var(--gold);background:none;border:none;cursor:pointer">
+              📋 周报 →
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- 主题切换 -->

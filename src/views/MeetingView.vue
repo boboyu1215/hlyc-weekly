@@ -6,6 +6,7 @@ import { useSyncStore } from '@/stores/sync';
 import { StorageService } from '@/services/storage';
 import { wkLabel } from '@/utils/date';
 import type { Meeting } from '@/core/types';
+import MentionInput from '@/components/MentionInput.vue';
 
 const appStore = useAppStore();
 const authStore = useAuthStore();
@@ -149,7 +150,20 @@ function formatTime(time: string): string {
 
 const isEditing = computed(() => editingMeeting.value !== null || isNew.value);
 
-onMounted(loadMeetings);
+const userList = ref<string[]>([]);
+
+onMounted(async () => {
+  loadMeetings();
+  try {
+    const res = await fetch('/api', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'get', id: 'users' })
+    });
+    const data = await res.json();
+    userList.value = Object.keys(data.data || {});
+  } catch {}
+});
 </script>
 
 <template>
@@ -190,11 +204,11 @@ onMounted(loadMeetings);
       </div>
       <div class="ff" style="grid-column:1/-1">
         <label class="ff-label">主要内容</label>
-        <textarea v-model="form.content" class="auto-h form-input" rows="4" placeholder="会议讨论的主要内容" style="resize:vertical;min-height:80px;"></textarea>
+        <MentionInput v-model="form.content" :users="userList" :rows="4" placeholder="会议讨论的主要内容" class="form-input" style="resize:vertical;min-height:80px;" />
       </div>
       <div class="ff" style="grid-column:1/-1">
         <label class="ff-label">需要解决的问题 <span style="font-weight:400;color:var(--t3);">（选填）</span></label>
-        <textarea v-model="form.issues" class="auto-h form-input" rows="3" placeholder="需要解决的问题或待办事项" style="resize:vertical;min-height:60px;"></textarea>
+        <MentionInput v-model="form.issues" :users="userList" :rows="3" placeholder="需要解决的问题或待办事项" class="form-input" style="resize:vertical;min-height:60px;" />
       </div>
     </div>
 

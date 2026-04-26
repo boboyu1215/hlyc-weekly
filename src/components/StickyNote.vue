@@ -12,16 +12,19 @@
     </div>
 
     <div class="sticky-body">
-      <textarea
+      <MentionInput
         v-if="note.type === 'text'"
         v-model="localContent"
-        class="sticky-textarea"
+        :users="userList"
+        :rows="4"
         placeholder="写点什么…"
+        class="sticky-textarea"
         @blur="onContentBlur"
         @mousedown.stop
         @touchstart.stop
       />
       <div v-else class="sticky-image-wrap" @mousedown.stop @touchstart.stop>
+        <!-- 图片区 -->
         <img v-if="note.content" :src="note.content" class="sticky-img" />
         <label v-else class="sticky-upload">
           <input type="file" accept="image/*" @change="onImageUpload" style="display:none" />
@@ -31,10 +34,10 @@
           <input type="file" accept="image/*" @change="onImageUpload" style="display:none" />
           🔄
         </label>
-        <!-- 图片下方的文字说明输入框 -->
+        <!-- 文字说明在图片下方 -->
         <textarea
           v-model="localCaption"
-          class="sticky-textarea sticky-caption"
+          class="sticky-caption"
           placeholder="添加说明文字…"
           @blur="onCaptionBlur"
           @mousedown.stop
@@ -80,8 +83,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import type { StickyNote } from '@/stores/board';
+import MentionInput from '@/components/MentionInput.vue';
 
 const props = defineProps<{
   note: StickyNote;
@@ -106,6 +110,20 @@ const showComments = ref(false);
 const commentText = ref('');
 const localContent = ref(props.note.content);
 const localCaption = ref(props.note.caption || '');
+
+const userList = ref<string[]>([]);
+async function loadUsers() {
+  try {
+    const res = await fetch('/api', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'get', id: 'users' })
+    });
+    const data = await res.json();
+    userList.value = Object.keys(data.data || {});
+  } catch {}
+}
+onMounted(() => loadUsers());
 
 watch(() => props.note.content, v => { localContent.value = v; });
 watch(() => props.note.caption, v => { localCaption.value = v || ''; });
@@ -258,7 +276,7 @@ function onResizeTouchStart(e: TouchEvent) {
   box-sizing: border-box;
 }
 
-.sticky-image-wrap { position: relative; width: 100%; min-height: 100px; display: flex; align-items: center; justify-content: center; }
+.sticky-image-wrap { position: relative; width: 100%; min-height: 100px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .sticky-img { max-width: 100%; max-height: 200px; border-radius: 3px; display: block; }
 .sticky-upload {
   display: flex; align-items: center; justify-content: center;
@@ -272,10 +290,18 @@ function onResizeTouchStart(e: TouchEvent) {
   padding: 2px 4px; cursor: pointer; font-size: 14px;
 }
 .sticky-caption {
+  width: 100%;
   min-height: 40px;
+  border: none;
   border-top: 1px solid rgba(0,0,0,.08);
-  margin-top: 4px;
-  padding-top: 4px;
+  background: transparent;
+  resize: none;
+  font-size: 13px;
+  font-family: inherit;
+  color: #333;
+  padding: 6px 4px;
+  outline: none;
+  box-sizing: border-box;
 }
 
 .sticky-footer {

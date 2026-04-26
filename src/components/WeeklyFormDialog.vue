@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch, nextTick, onMounted } from 'vue';
 import { useAppStore } from '@/stores/app';
 import { useProjectStore } from '@/stores/project';
 import { useAuthStore } from '@/stores/auth';
@@ -8,6 +8,7 @@ import { wkLabel } from '@/utils/date';
 import type { Project, WeeklySnapshot, TaskItem } from '@/core/types';
 import { STAGES } from '@/config/constants';
 import DatePicker from './DatePicker.vue';
+import MentionInput from '@/components/MentionInput.vue';
 
 const props = defineProps<{
   show: boolean;
@@ -23,6 +24,20 @@ const appStore = useAppStore();
 const projectStore = useProjectStore();
 const authStore = useAuthStore();
 const storage = StorageService.getInstance();
+
+const userList = ref<string[]>([]);
+async function loadUsers() {
+  try {
+    const res = await fetch('/api', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'get', id: 'users' })
+    });
+    const data = await res.json();
+    userList.value = Object.keys(data.data || {});
+  } catch {}
+}
+onMounted(() => loadUsers());
 
 // 表单震动效果
 const formShaking = ref(false);
@@ -329,12 +344,13 @@ function handleCancel() {
               class="item-row"
             >
               <span class="item-no">{{ idx + 1 }}.</span>
-              <input
+              <MentionInput
                 v-model="item.text"
-                class="item-text"
-                type="text"
+                :users="userList"
+                :rows="1"
                 :placeholder="idx === 0 ? '例：完成深化方案并提交大区' : '继续添加…'"
-                @input="updateItemText('coreOutputItems' as any, idx, ($event.target as HTMLInputElement).value)"
+                class="item-text"
+                @input="updateItemText('coreOutputItems' as any, idx, item.text)"
                 @keydown="handleKeydown($event, 'coreOutputItems' as any, idx)"
               />
               <DatePicker
@@ -366,12 +382,13 @@ function handleCancel() {
               class="item-row"
             >
               <span class="item-no">{{ idx + 1 }}.</span>
-              <input
+              <MentionInput
                 v-model="item.text"
-                class="item-text"
-                type="text"
+                :users="userList"
+                :rows="1"
                 :placeholder="idx === 0 ? '例：完成深化方案并提交大区' : '继续添加…'"
-                @input="updateItemText('coreAction', idx, ($event.target as HTMLInputElement).value)"
+                class="item-text"
+                @input="updateItemText('coreAction', idx, item.text)"
                 @keydown="handleKeydown($event, 'coreAction', idx)"
               />
               <DatePicker
@@ -407,12 +424,13 @@ function handleCancel() {
               class="item-row"
             >
               <span class="item-no">{{ idx + 1 }}.</span>
-              <input
+              <MentionInput
                 v-model="item.text"
-                class="item-text"
-                type="text"
+                :users="userList"
+                :rows="1"
                 :placeholder="idx === 0 ? '本周最大的风险或已卡住的问题' : '继续添加…'"
-                @input="updateItemText('risk', idx, ($event.target as HTMLInputElement).value)"
+                class="item-text"
+                @input="updateItemText('risk', idx, item.text)"
                 @keydown="handleKeydown($event, 'risk', idx)"
               />
               <DatePicker
@@ -440,12 +458,13 @@ function handleCancel() {
               class="item-row"
             >
               <span class="item-no">{{ idx + 1 }}.</span>
-              <input
+              <MentionInput
                 v-model="item.text"
-                class="item-text"
-                type="text"
+                :users="userList"
+                :rows="1"
                 :placeholder="idx === 0 ? '需要管理层决策或协调的事项' : '继续添加…'"
-                @input="updateItemText('decision', idx, ($event.target as HTMLInputElement).value)"
+                class="item-text"
+                @input="updateItemText('decision', idx, item.text)"
                 @keydown="handleKeydown($event, 'decision', idx)"
               />
               <DatePicker
@@ -477,12 +496,13 @@ function handleCancel() {
               class="item-row"
             >
               <span class="item-no">{{ idx + 1 }}.</span>
-              <input
+              <MentionInput
                 v-model="item.text"
-                class="item-text"
-                type="text"
+                :users="userList"
+                :rows="1"
                 :placeholder="idx === 0 ? '例：需采购部协助核价2项' : '继续添加…'"
-                @input="updateItemText('crossDept', idx, ($event.target as HTMLInputElement).value)"
+                class="item-text"
+                @input="updateItemText('crossDept', idx, item.text)"
                 @keydown="handleKeydown($event, 'crossDept', idx)"
               />
               <DatePicker
