@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { StorageService } from '@/services/storage';
 import { useAppStore } from '@/stores/app';
-import { wkLabel, wkRange } from '@/utils/date';
-import { getCurrentYearWeek } from '@/utils/date';
+import { wkLabel, wkRange, parseWkKey, getCurrentYearWeek } from '@/utils/date';
 
 const storage = StorageService.getInstance();
+const router = useRouter();
 const appStore = useAppStore();
 
 // 当前年周（用于高亮本周）
@@ -30,9 +31,15 @@ onMounted(() => {
   const weeks = storage.loadWeeks();
   const keys = Object.keys(weeks).sort().reverse();
   weekRecords.value = keys.map(k => {
-    const parts = k.split('-');
-    const yr = parseInt(parts[0]);
-    const wk = parseInt(parts[1]);
+    // 用 parseWkKey 正确解析 "2026-W18" 格式，避免 parseInt("W18") = NaN
+    let yr: number, wk: number;
+    try {
+      const parsed = parseWkKey(k);
+      yr = parsed.yr;
+      wk = parsed.wk;
+    } catch {
+      return null; // 跳过格式异常的 key
+    }
     const snaps = Object.values(weeks[k] || {}).filter((s: any) => s && typeof s === 'object' && s.status);
     return {
       key: k,
@@ -46,11 +53,13 @@ onMounted(() => {
       g: snaps.filter((s: any) => s.status === 'g').length,
       isCurrent: yr === currentWeek.yr && wk === currentWeek.wk,
     };
-  });
+  }).filter(Boolean) as WeekRecord[];
 });
 
 function jumpToWeek(yr: number, wk: number) {
   appStore.gotoWeek({ yr, wk });
+  // 跳转到周报页并切换到对应周
+  router.push('/weekly');
 }
 
 // 导出备份（复用 storage.exportAll）
@@ -143,7 +152,7 @@ function doImport() {
   </div>
 
   <!-- 导入数据模态框 -->
-  <div v-if="showImportModal" class="modal-overlay" @click.self="showImportModal = false">
+  <div v-if="showImportModal" class="modal-overlay">
     <div class="modal" style="max-width:600px">
       <div class="modal-header">
         <div class="modal-title">📥 导入数据</div>
