@@ -250,7 +250,7 @@ function archiveProject(project: Project) {
         <span v-else style="color:var(--t3)"> · 历史查阅</span>
       </div>
     </div>
-    <button v-if="isNow" class="add-btn" @click="$router.push('/users')">＋ 新增项目</button>
+    <button class="add-btn" @click="$router.push('/users')">＋ 新增项目</button>
   </div>
 
   <div class="metrics" style="grid-template-columns:repeat(5,1fr)">
@@ -354,10 +354,10 @@ function archiveProject(project: Project) {
           </div>
           <div v-else></div>
           <div style="display:flex;gap:5px;align-items:center">
-            <button class="bs" style="font-size:11px;padding:4px 9px" @click="editWeekly(project)">✏ {{ isNow ? '更新本周状态' : '补录历史数据' }}</button>
+            <button class="bs" style="font-size:11px;padding:4px 9px" @click="editWeekly(project)">✏ 更新工作事项状态</button>
             <button class="bp" style="font-size:11px;padding:4px 12px;background:var(--gold)" @click="askSubmit(project)">📤 提交</button>
             <button
-              v-if="authStore.isDirector && isNow"
+              v-if="authStore.isDirector"
               class="ba"
               @click="archiveProject(project)"
             >归档</button>
