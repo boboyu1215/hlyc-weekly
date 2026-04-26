@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>测试数据生成器 - 华力周报系统</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f7fa;
+    }
+    .container {
+      background: white;
+      border-radius: 8px;
+      padding: 30px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    h1 {
+      color: #303133;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #909399;
+      margin-bottom: 30px;
+    }
+    .btn {
+      padding: 12px 24px;
+      margin: 10px 5px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: #409eff;
+      color: white;
+    }
+    .btn-primary:hover {
+      background: #66b1ff;
+    }
+    .btn-success {
+      background: #67c23a;
+      color: white;
+    }
+    .btn-success:hover {
+      background: #85ce61;
+    }
+    .message {
+      padding: 15px;
+      border-radius: 6px;
+      margin: 15px 0;
+    }
+    .message-success {
+      background: #f0f9ff;
+      color: #409eff;
+      border: 1px solid #b3d8ff;
+    }
+    pre {
+      background: #f5f7fa;
+      padding: 15px;
+      border-radius: 6px;
+      overflow-x: auto;
+      max-height: 400px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 测试数据生成器</h1>
+    <p class="subtitle">快速生成测试数据用于开发和演示</p>
+
+    <div class="section">
+      <button class="btn btn-primary" onclick="generateTestData()">
+        生成测试数据
+      </button>
+      <button class="btn btn-success" onclick="viewData()">
+        查看当前数据
+      </button>
+    </div>
+
+    <div id="result"></div>
+    <pre id="dataView"></pre>
+  </div>
+
+  <script>
+    const STORAGE_KEYS = {
+      PROJECTS: 'hlzc_p',
+      WEEKS: 'hlzc_w',
+      ACTIVITY: 'hlzc_activity',
+      USER: 'hlzc_user',
+      USERS: 'hlzc_users'
+    };
+
+    function generateTestData() {
+      // 生成测试项目
+      const projects = [
+        {
+          id: 1,
+          name: "华力城市广场",
+          area: "50000㎡",
+          startDate: "2024/01/15",
+          schemeDate: "2024/03/01",
+          designDate: "2024/06/01",
+          siteDate: "2024/09/01",
+          completionDate: "2025/06/01",
+          openDate: "2025/08/01",
+          prepOwner: "王经理",
+          designOwner: "张建波",
+          defStatus: "g",
+          defStage: 5,
+          archived: false,
+          sortOrder: 0
+        },
+        {
+          id: 2,
+          name: "滨江商业综合体",
+          area: "80000㎡",
+          startDate: "2024/02/01",
+          schemeDate: "2024/04/15",
+          designDate: "2024/07/01",
+          siteDate: "2024/10/01",
+          completionDate: "2025/09/01",
+          openDate: "2025/11/01",
+          prepOwner: "李经理",
+          designOwner: "冷耀秋",
+          defStatus: "y",
+          defStage: 3,
+          archived: false,
+          sortOrder: 1
+        },
+        {
+          id: 3,
+          name: "科技园区项目",
+          area: "120000㎡",
+          startDate: "2024/03/01",
+          schemeDate: "2024/05/01",
+          designDate: "2024/08/01",
+          siteDate: "2024/11/01",
+          completionDate: "2025/12/01",
+          openDate: "2026/02/01",
+          prepOwner: "赵经理",
+          designOwner: "Kenbe",
+          defStatus: "g",
+          defStage: 2,
+          archived: false,
+          sortOrder: 2
+        },
+        {
+          id: 4,
+          name: "文化艺术中心",
+          area: "35000㎡",
+          startDate: "2024/04/01",
+          schemeDate: "",
+          designDate: "",
+          siteDate: "",
+          completionDate: "",
+          openDate: "",
+          prepOwner: "孙经理",
+          designOwner: "张建波",
+          defStatus: "r",
+          defStage: 1,
+          archived: false,
+          sortOrder: 3
+        }
+      ];
+
+      // 生成周报数据
+      const weeks = {
+        "2026-W17": {
+          "1": {
+            status: "g",
+            stage: 5,
+            risk: [
+              { text: "施工进度可能受天气影响", dueDate: "2026/05/01" }
+            ],
+            coreOutput: "完成施工图深化设计，提交审图机构",
+            coreAction: [
+              { text: "协调各专业图纸", dueDate: "2026/04/28" },
+              { text: "准备施工招标文件", dueDate: "2026/05/05" }
+            ],
+            decision: [
+              { text: "确定主材供应商", dueDate: "2026/05/10" }
+            ],
+            crossDept: [
+              { text: "与工程部对接施工方案", dueDate: "2026/04/30" }
+            ],
+            next: "下周重点推进招标工作",
+            incident: "",
+            knowledge: "施工图审查要点总结",
+            _ts: Date.now(),
+            _savedWk: "2026-W17"
+          },
+          "2": {
+            status: "y",
+            stage: 3,
+            risk: [
+              { text: "方案需要调整，可能影响进度", dueDate: "2026/05/15" }
+            ],
+            coreOutput: "完成方案效果图制作",
+            coreAction: [
+              { text: "优化立面设计", dueDate: "2026/05/01" },
+              { text: "准备汇报材料", dueDate: "2026/05/03" }
+            ],
+            decision: [],
+            crossDept: [
+              { text: "与营销部讨论业态定位", dueDate: "2026/05/02" }
+            ],
+            next: "下周进行方案汇报",
+            incident: "",
+            knowledge: "",
+            _ts: Date.now(),
+            _savedWk: "2026-W17"
+          },
+          "3": {
+            status: "g",
+            stage: 2,
+            risk: [],
+            coreOutput: "完成概念方案设计",
+            coreAction: [
+              { text: "深化平面布局", dueDate: "2026/05/08" }
+            ],
+            decision: [],
+            crossDept: [],
+            next: "下周开始效果图制作",
+            incident: "",
+            knowledge: "",
+            _ts: Date.now(),
+            _savedWk: "2026-W17"
+          },
+          "4": {
+            status: "r",
+            stage: 1,
+            risk: [
+              { text: "用地指标存在问题", dueDate: "2026/05/20" },
+              { text: "预算超支需要调整", dueDate: "2026/05/25" }
+            ],
+            coreOutput: "完成前期调研",
+            coreAction: [
+              { text: "协调规划局沟通用地问题", dueDate: "2026/05/05" }
+            ],
+            decision: [
+              { text: "是否调整项目规模", dueDate: "2026/05/10" }
+            ],
+            crossDept: [
+              { text: "与投资部讨论预算方案", dueDate: "2026/05/08" }
+            ],
+            next: "下周重点解决用地问题",
+            incident: "发现用地指标不符合规划要求",
+            knowledge: "",
+            _ts: Date.now(),
+            _savedWk: "2026-W17"
+          }
+        }
+      };
+
+      // 生成活动日志
+      const activity = [
+        {
+          type: "create",
+          user: "张建波",
+          time: Date.now() - 86400000 * 7,
+          desc: "创建项目「华力城市广场」",
+          projectId: 1
+        },
+        {
+          type: "create",
+          user: "冷耀秋",
+          time: Date.now() - 86400000 * 6,
+          desc: "创建项目「滨江商业综合体」",
+          projectId: 2
+        },
+        {
+          type: "edit",
+          user: "张建波",
+          time: Date.now() - 86400000 * 3,
+          desc: "编辑项目「华力城市广场」周报",
+          projectId: 1,
+          weekKey: "2026-W17"
+        },
+        {
+          type: "edit",
+          user: "冷耀秋",
+          time: Date.now() - 86400000 * 2,
+          desc: "编辑项目「滨江商业综合体」周报",
+          projectId: 2,
+          weekKey: "2026-W17"
+        },
+        {
+          type: "create",
+          user: "Kenbe",
+          time: Date.now() - 86400000 * 1,
+          desc: "创建项目「科技园区项目」",
+          projectId: 3
+        }
+      ];
+
+      // 用户注册表
+      const userRegistry = {
+        "张建波": {
+          name: "张建波",
+          role: "director",
+          joinedAt: Date.now() - 86400000 * 30,
+          lastSeen: Date.now()
+        },
+        "冷耀秋": {
+          name: "冷耀秋",
+          role: "director",
+          joinedAt: Date.now() - 86400000 * 30,
+          lastSeen: Date.now() - 86400000 * 1
+        },
+        "Kenbe": {
+          name: "Kenbe",
+          role: "director",
+          joinedAt: Date.now() - 86400000 * 30,
+          lastSeen: Date.now() - 86400000 * 2
+        }
+      };
+
+      // 保存到localStorage
+      localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projects));
+      localStorage.setItem(STORAGE_KEYS.WEEKS, JSON.stringify(weeks));
+      localStorage.setItem(STORAGE_KEYS.ACTIVITY, JSON.stringify(activity));
+      localStorage.setItem(STORAGE_KEYS.USER, '张建波');
+      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(userRegistry));
+
+      document.getElementById('result').innerHTML =
+        '<div class="message message-success">✅ 测试数据生成成功！<br>包含4个项目、本周周报数据、5条活动记录<br>请访问 <a href="http://localhost:3004/" target="_blank">http://localhost:3004/</a> 查看效果</div>';
+    }
+
+    function viewData() {
+      const data = {
+        projects: JSON.parse(localStorage.getItem(STORAGE_KEYS.PROJECTS) || '[]'),
+        weeks: JSON.parse(localStorage.getItem(STORAGE_KEYS.WEEKS) || '{}'),
+        activity: JSON.parse(localStorage.getItem(STORAGE_KEYS.ACTIVITY) || '[]'),
+        user: localStorage.getItem(STORAGE_KEYS.USER),
+        userRegistry: JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '{}')
+      };
+
+      document.getElementById('dataView').textContent = JSON.stringify(data, null, 2);
+    }
+  </script>
+</body>
+</html>
