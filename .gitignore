@@ -1,26 +1,31 @@
-# macOS 系统文件
-.DS_Store
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# WorkBuddy 工作目录（包含私密记忆、本地配置）
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# WorkBuddy
 .workbuddy/
 
-# 编辑器
-.vscode/
-.idea/
-
-# 打包文件
-*.zip
+# Archive
 *.tar.gz
-
-# 旧版本代码（已整理到 weekly/）
-app_最终可以使用版本325/
-
-# 导出脚本（工具性文件不入仓库）
-kpi/export_pdf.py
-kpi/export_ai_guide_pdf.py
-
-# Node.js 依赖（weekly Vue 项目）
-weekly/hlyc-weekly0425/node_modules/
-
-# Vite 构建产物（weekly Vue 项目）
-weekly/hlyc-weekly0425/dist/
+*.zip
