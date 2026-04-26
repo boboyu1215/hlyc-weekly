@@ -6,6 +6,7 @@ import { useProjectStore } from '@/stores/project';
 import { StorageService } from '@/services/storage';
 import { SNAP_CONTENT_FIELDS, FIELD_LABELS } from '@/config/constants';
 import apiClient from '@/services/api';
+import { useAppStore } from '@/stores/app';
 import type { Project, WeeklySnapshot } from '@/core/types';
 
 const props = defineProps<{
@@ -21,6 +22,7 @@ const emit = defineEmits<{
 const syncStore = useSyncStore();
 const authStore = useAuthStore();
 const projectStore = useProjectStore();
+const appStore = useAppStore();
 const storage = StorageService.getInstance();
 
 // Diff 结果
@@ -79,10 +81,10 @@ async function loadDiff() {
 
     // 按周对比
     const diffFields = ['status', 'stage', 'risk', 'coreOutput', 'coreAction', 'decision', 'crossDept'];
+    // 只对比当前周，历史周已提交无需重复展示
+    const currentKey = `${appStore.yr}-W${String(appStore.wk).padStart(2, '0')}`;
     const wkeys = Object.keys(localSnap)
-      .filter(k => !['_v', '_updatedBy', '_updatedAt'].includes(k))
-      .sort()
-      .reverse();
+      .filter(k => k === currentKey);
 
     const result: WeekDiff[] = [];
     let changed = false;

@@ -7,6 +7,7 @@ import { StorageService } from '@/services/storage';
 import type { Project } from '@/core/types';
 import { STAGES } from '@/config/constants';
 import DatePicker from '@/components/DatePicker.vue';
+import apiClient from '@/services/api';
 
 const route = useRoute();
 const router = useRouter();
@@ -31,36 +32,48 @@ onMounted(() => {
   }
 });
 
-function saveProject() {
+const saving = ref(false);
+
+async function saveProject() {
   if (!form.value.name || !form.value.designOwner) {
     alert('请填写项目名称和负责人');
     return;
   }
-
-  if (isEdit.value) {
-    const id = parseInt(route.query.id as string);
-    projectStore.updateProject(id, form.value);
-  } else {
-    const newProject: Project = {
-      id: projectStore.generateProjectId(),
-      name: form.value.name!,
-      area: form.value.area || '',
-      startDate: form.value.startDate || '',
-      schemeDate: form.value.schemeDate || '',
-      designDate: form.value.designDate || '',
-      siteDate: form.value.siteDate || '',
-      completionDate: form.value.completionDate || '',
-      openDate: form.value.openDate || '',
-      prepOwner: form.value.prepOwner || '',
-      designOwner: form.value.designOwner!,
-      defStatus: form.value.defStatus || 'g',
-      defStage: form.value.defStage || 0,
-      archived: false
-    };
-    projectStore.addProject(newProject);
+  saving.value = true;
+  try {
+    if (isEdit.value) {
+      const id = parseInt(route.query.id as string);
+      projectStore.updateProject(id, form.value);
+      const result = await apiClient.updateProject(id, form.value);
+      if (!result.success) throw new Error(result.error);
+    } else {
+      const newProject: Project = {
+        id: projectStore.generateProjectId(),
+        name: form.value.name!,
+        area: form.value.area || '',
+        startDate: form.value.startDate || '',
+        schemeDate: form.value.schemeDate || '',
+        designDate: form.value.designDate || '',
+        siteDate: form.value.siteDate || '',
+        completionDate: form.value.completionDate || '',
+        openDate: form.value.openDate || '',
+        prepOwner: form.value.prepOwner || '',
+        designOwner: form.value.designOwner!,
+        defStatus: form.value.defStatus || 'g',
+        defStage: form.value.defStage || 0,
+        archived: false
+      };
+      projectStore.addProject(newProject);
+      const result = await apiClient.createProject(newProject);
+      if (!result.success) throw new Error(result.error);
+    }
+    alert('保存成功');
+    router.push('/weekly');
+  } catch (err) {
+    alert('保存失败：' + (err instanceof Error ? err.message : '网络错误'));
+  } finally {
+    saving.value = false;
   }
-  alert('保存成功');
-  router.push('/weekly');
 }
 </script>
 
@@ -151,7 +164,9 @@ function saveProject() {
 
     <div class="ar">
       <button class="bs" @click="router.back()">取消</button>
-      <button class="bp" @click="saveProject">保存项目</button>
+      <button class="bp" :disabled="saving" @click="saveProject">
+        {{ saving ? '保存中…' : '保存项目' }}
+      </button>
     </div>
   </div>
 </template>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import { useRouter } from 'vue-router';
 import { useAppStore } from '@/stores/app';
 import { useProjectStore } from '@/stores/project';
 import { useAuthStore } from '@/stores/auth';
@@ -7,8 +8,10 @@ import { useSyncStore } from '@/stores/sync';
 import { StorageService } from '@/services/storage';
 import { STAGES, STATUS_LABELS } from '@/config/constants';
 import { wkLabel, wkRange } from '@/utils/date';
+import apiClient from '@/services/api';
 import type { Project, WeeklySnapshot } from '@/core/types';
 
+const router = useRouter();
 const appStore = useAppStore();
 const projectStore = useProjectStore();
 const authStore = useAuthStore();
@@ -80,14 +83,13 @@ async function submitProjectInfo(projId: number) {
 
 // 编辑项目
 function editProject(project: Project) {
-  // 跳转到录入数据页面并传入项目ID（简化处理：用 UsersView 的编辑功能）
-  alert('请前往「录入数据」页面编辑项目信息');
+  router.push(`/users?id=${project.id}`);
 }
 
 // 删除项目
-function deleteProject(project: Project) {
+async function deleteProject(project: Project) {
   if (!authStore.isDirector) return;
-  if (!confirm('确定删除该项目？此操作不可恢复！')) return;
+  if (!confirm(`确定删除「${project.name}」？此操作不可恢复！`)) return;
 
   const pwd = prompt('请输入管理员密码：');
   if (pwd !== '1234') {
@@ -95,7 +97,13 @@ function deleteProject(project: Project) {
     return;
   }
 
-  projectStore.deleteProject(project.id);
+  try {
+    projectStore.deleteProject(project.id);
+    const result = await apiClient.deleteProject(project.id);
+    if (!result.success) throw new Error(result.error);
+  } catch (e) {
+    alert('删除失败：' + (e instanceof Error ? e.message : '网络错误'));
+  }
 }
 
 // 恢复归档项目
@@ -153,9 +161,9 @@ function restoreProject(project: Project) {
     </div>
     <div class="ov-stage-lbl">当前阶段：<span>{{ STAGES[getSnap(p).stage] || '无' }}</span></div>
 
-    <!-- 操作按钮（仅本周） -->
-    <div v-if="isNow" class="io-bar no-print" style="justify-content:flex-end;margin-top:8px;padding-top:8px;border-top:0.5px solid var(--bdr);">
-      <button class="io-btn" @click="submitProjectInfo(p.id)">☁ 项目提交</button>
+    <!-- 操作按钮 -->
+    <div class="io-bar no-print" style="justify-content:flex-end;margin-top:8px;padding-top:8px;border-top:0.5px solid var(--bdr);">
+      <button v-if="isNow" class="io-btn" @click="submitProjectInfo(p.id)">☁ 项目提交</button>
       <button class="bs" style="font-size:11px;padding:4px 9px;" @click="editProject(p)">编辑项目信息</button>
       <button v-if="authStore.isDirector" class="bd" style="font-size:11px;padding:4px 9px;" @click="deleteProject(p)">删除</button>
     </div>

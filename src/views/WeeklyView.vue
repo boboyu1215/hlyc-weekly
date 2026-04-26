@@ -31,20 +31,23 @@ const isNow = computed(() => appStore.isCurrentWeek);
 const activeProjects = computed({
   get() {
     const user = authStore.currentUser;
-    return [...projectStore.activeProjects].sort((a, b) => {
-      // 当前用户的项目优先
+    const projects = [...projectStore.activeProjects];
+    const hasCustomOrder = projects.some(p => p.sortOrder !== undefined && p.sortOrder !== null);
+    if (hasCustomOrder) {
+      // 已有自定义排序，直接按 sortOrder
+      return projects.sort((a, b) => (a.sortOrder ?? a.id) - (b.sortOrder ?? b.id));
+    }
+    // 无自定义排序时，当前用户项目置顶
+    return projects.sort((a, b) => {
       const aMine = user && a.designOwner === user ? 0 : 1;
       const bMine = user && b.designOwner === user ? 0 : 1;
       if (aMine !== bMine) return aMine - bMine;
-      // 相同组内按 sortOrder 排序
-      const orderA = a.sortOrder ?? a.id;
-      const orderB = b.sortOrder ?? b.id;
-      return orderA - orderB;
+      return (a.sortOrder ?? a.id) - (b.sortOrder ?? b.id);
     });
   },
   set(value: Project[]) {
-    const orderedIds = value.map(p => p.id);
-    projectStore.updateProjectOrder(orderedIds);
+    // 直接按拖动结果更新，不再重排
+    projectStore.updateProjectOrder(value.map(p => p.id));
   }
 });
 
@@ -316,16 +319,17 @@ onBeforeUnmount(() => {
     item-key="id"
     :animation="200"
     handle=".drag-handle"
+    :disabled="!authStore.isDirector"
   >
     <template #item="{ element: project }">
       <div
         class="pc"
         :class="[sc(getSnap(project).status)]"
-        :draggable="authStore.isDirector"
         :data-id="project.id"
       >
         <!-- 卡片头部 -->
         <div class="pc-top">
+          <div v-if="authStore.isDirector" class="drag-handle" title="拖动排序" style="cursor:grab;padding:0 6px 0 0;color:var(--t3);font-size:14px;flex-shrink:0;">⠿</div>
           <div class="pc-nm">
             {{ project.name }}
             <span v-if="authStore.isLoggedIn && project.designOwner === authStore.currentUser"

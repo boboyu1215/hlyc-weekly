@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useSyncStore } from '@/stores/sync';
 import { useAuthStore } from '@/stores/auth';
 import { useProjectStore } from '@/stores/project';
@@ -172,6 +172,52 @@ function clearAllData() {
   alert('数据已清空，页面即将刷新');
   location.reload();
 }
+
+// ── Google Drive 备份 ──
+const gdrive = ref({
+  authorized: false,
+  folderId: '',
+  lastSync: '',
+  lastResult: null as any,
+  syncing: false,
+  enabled: true
+});
+
+async function loadGdriveStatus() {
+  try {
+    const res = await fetch('/api', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'backup_status' })
+    });
+    const data = await res.json();
+    gdrive.value = { ...gdrive.value, ...data };
+  } catch {}
+}
+
+async function backupNow() {
+  gdrive.value.syncing = true;
+  try {
+    const res = await fetch('/api', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'backup_now' })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      alert('备份成功');
+      await loadGdriveStatus();
+    } else {
+      alert('备份失败: ' + (data.error || '未知错误'));
+    }
+  } catch {
+    alert('备份失败');
+  } finally {
+    gdrive.value.syncing = false;
+  }
+}
+
+onMounted(() => loadGdriveStatus());
 </script>
 
 <template>
@@ -282,6 +328,51 @@ function clearAllData() {
               :disabled="!apiConfigured"
             >
               上传数据
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 数据备份 -->
+      <section class="settings-section">
+        <h3 class="section-title">数据备份</h3>
+        <div class="section-content">
+          <div class="backup-desc">
+            系统每周一凌晨 2:00 自动将全量周报和黑板报数据备份到 Google Drive 云端，防止数据丢失。
+          </div>
+          <div class="sync-status" v-if="gdrive.loaded">
+            <div class="status-item">
+              <span class="label">云端连接:</span>
+              <span :class="['value', gdrive.authorized ? 'online' : 'offline']">
+                {{ gdrive.authorized ? '已连接' : '未连接' }}
+              </span>
+            </div>
+            <div class="status-item">
+              <span class="label">上次备份:</span>
+              <span class="value">
+                {{ gdrive.lastSync ? new Date(gdrive.lastSync).toLocaleString('zh-CN') : '暂无' }}
+              </span>
+            </div>
+            <div class="status-item" v-if="gdrive.lastResult">
+              <span class="label">备份概况:</span>
+              <span class="value">
+                共 {{ gdrive.lastResult.count }} 条记录
+              </span>
+            </div>
+          </div>
+          <div class="button-group" style="margin-top:10px">
+            <button
+              @click="backupNow"
+              class="bp btn-sm"
+              :disabled="gdrive.syncing"
+            >
+              {{ gdrive.syncing ? '备份中…' : '手动备份' }}
+            </button>
+            <button
+              @click="loadGdriveStatus"
+              class="bs btn-sm"
+            >
+              刷新
             </button>
           </div>
         </div>
@@ -498,6 +589,12 @@ function clearAllData() {
   background: var(--yb);
   color: var(--yt);
   border: 0.5px solid var(--ybd);
+}
+
+.backup-desc {
+  font-size: 12px;
+  color: var(--t2);
+  line-height: 1.6;
 }
 
 .sync-status {

@@ -57,6 +57,12 @@ const router = createRouter({
       meta: { title: '录入数据' }
     },
     {
+      path: '/board',
+      name: 'board',
+      component: () => import('@/views/BoardView.vue'),
+      meta: { title: '黑板报' }
+    },
+    {
       path: '/history',
       name: 'history',
       component: () => import('@/views/HistoryView.vue'),

@@ -5,6 +5,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { StorageService } from '@/services/storage';
+import apiClient from '@/services/api';
 import type { Project } from '@/core/types';
 
 const storage = StorageService.getInstance();
@@ -78,10 +79,19 @@ export const useProjectStore = defineStore('project', () => {
   }
 
   // 更新项目排序
-  function updateProjectOrder(orderedIds: number[]) {
+  async function updateProjectOrder(orderedIds: number[]) {
+    // 本地先更新
     orderedIds.forEach((id, index) => {
-      updateProject(id, { sortOrder: index });
+      const proj = projects.value.find(p => p.id === id);
+      if (proj) proj.sortOrder = index;
     });
+    saveProjects();
+    // 一次性同步整个项目列表到服务器
+    try {
+      await apiClient.setDoc('projects', { projects: projects.value });
+    } catch (e) {
+      console.error('排序同步失败:', e);
+    }
   }
 
   // 生成新项目ID

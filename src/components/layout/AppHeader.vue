@@ -26,6 +26,7 @@ const allTabs = [
   { path: '/overview', label: '项目总览' },
   { path: '/meeting',  label: '本周会议' },
   { path: '/users',    label: '录入数据', requireDirector: true },
+  { path: '/board',    label: '黑板报' },
   { path: '/archive',  label: '归档项目' },
   { path: '/history',  label: '历史记录' },
 ];
