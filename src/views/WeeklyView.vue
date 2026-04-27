@@ -65,7 +65,7 @@ function editWeekly(project: Project) {
   showWeeklyDialog.value = true;
 }
 
-function handleWeeklySaved() { projectStore.loadProjects(); }
+function handleWeeklySaved() { projectStore.loadProjects(); refreshPending(); }
 
 function askSubmit(project: Project) {
   if (!authStore.isLoggedIn) { authStore.showLoginDialog = true; return; }
@@ -76,16 +76,18 @@ function askSubmit(project: Project) {
 function handleSubmitDone(success: boolean) {
   if (success) {
     projectStore.loadProjects();
+    refreshPending();
   }
   showSubmitDialog.value = false;
 }
 
 // 渲染项目快照的四维信息
 function renderDimBody(v: any, emptyText: string): string {
-  if (!v || (typeof v === 'string' && !v.trim()) || (Array.isArray(v) && !v.length)) return emptyText || '—';
-  if (typeof v === 'string') return v;
-  if (Array.isArray(v)) return v.filter((i: any) => i.text?.trim()).map((i: any) => i.text).join('；') || emptyText;
-  return emptyText;
+  const empty = emptyText || '无';
+  if (!v || (typeof v === 'string' && !v.trim()) || (Array.isArray(v) && !v.length)) return empty;
+  if (typeof v === 'string') return v.trim() || empty;
+  if (Array.isArray(v)) return v.filter((i: any) => i.text?.trim()).map((i: any) => i.text).join('；') || empty;
+  return empty;
 }
 
 // 判断字段是否有实质内容（用于决策/风险提示横幅）
@@ -188,8 +190,9 @@ const meetingCount = computed(() => {
   return wkData?.__meetings?.length || 0;
 });
 
-// 待提交项目ID集合
-const pendingSubmits = computed(() => storage.loadPendingSubmit());
+// 待提交项目ID集合（用 ref + 手动刷新，因为 localStorage 不是 Vue 响应式的）
+const pendingSubmits = ref<Set<number>>(storage.loadPendingSubmit());
+function refreshPending() { pendingSubmits.value = storage.loadPendingSubmit(); }
 
 // 删除项目（仅总监，匹配旧系统 _deleteProjectConfirm）
 function deleteProject(project: Project) {
@@ -258,10 +261,35 @@ async function autoSubmitAll() {
   showPendingConfirm.value = false;
 }
 
-onMounted(() => {
+// 总监点评
+const comments = ref<Record<number, string>>({});
+const editingComment = ref<number | null>(null);
+const commentDraft = ref('');
+
+onMounted(async () => {
   window.addEventListener('beforeunload', handleBeforeUnload);
   document.addEventListener('visibilitychange', handleVisibilityChange);
+  try {
+    const res = await fetch('/api', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({action:'get', id:'director_comments'})
+    });
+    const data = await res.json();
+    comments.value = data.comments || {};
+  } catch {}
 });
+
+async function saveComment(projectId: number) {
+  const text = commentDraft.value.trim();
+  comments.value[projectId] = text;
+  editingComment.value = null;
+  await fetch('/api', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({action:'set', id:'director_comments', data:{ comments: comments.value }})
+  });
+}
 
 onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', handleBeforeUnload);
@@ -380,15 +408,15 @@ onBeforeUnmount(() => {
                   return items
                     .filter((i: any) => i.text?.trim())
                     .map((i: any, idx: number) => `${idx + 1}. ${i.text}`)
-                    .join('\n') || '—';
+                    .join('\n') || '无';
                 }
-                return snap.coreOutput || '—';
+                return snap.coreOutput || '无';
               })()
             }}</div>
           </div>
           <div class="dim d2">
             <div class="dim-hd">本周计划</div>
-            <div class="dim-body">{{ renderDimBody(getSnap(project).coreAction, '—') }}</div>
+            <div class="dim-body">{{ renderDimBody(getSnap(project).coreAction, '无') }}</div>
           </div>
           <div class="dim d3">
             <div class="dim-hd" style="color:#b00020">风险 / 卡点</div>
@@ -400,25 +428,48 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <!-- 操作栏 -->
-        <div class="ca">
-          <div v-if="pendingSubmits.has(project.id)" class="pending-badge">
-            <span class="pending-icon">●</span>数据未提交
+        <!-- 操作栏 + 工作点评 -->
+        <div class="ca" style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap">
+
+          <!-- 工作点评 -->
+          <div v-if="editingComment !== project.id"
+            style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;overflow:hidden">
+            <span style="font-size:12px;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">
+              {{ comments[project.id] || '' }}
+            </span>
+            <button
+              v-if="authStore.isDirector"
+              @click="editingComment = project.id; commentDraft = comments[project.id] || ''"
+              style="font-size:11px;color:var(--gold);background:none;border:none;cursor:pointer;flex-shrink:0;white-space:nowrap"
+            >✏ 工作点评</button>
           </div>
-          <div v-else></div>
-          <div style="display:flex;gap:5px;align-items:center">
-            <button class="bs" style="font-size:11px;padding:4px 9px" @click="editWeekly(project)">✏ 更新工作事项状态</button>
+          <div v-else style="flex:1;display:flex;gap:4px;align-items:center;min-width:0">
+            <input
+              v-model="commentDraft"
+              maxlength="100"
+              placeholder="工作点评…"
+              style="flex:1;font-size:12px;padding:3px 8px;border:0.5px solid var(--gold);border-radius:var(--rr);background:var(--bg);color:var(--tx);outline:none;font-family:inherit;min-width:0"
+              @keydown.enter="saveComment(project.id)"
+              @keydown.escape="editingComment = null"
+            />
+            <button @click="saveComment(project.id)"
+              style="font-size:11px;background:var(--gold);color:#fff;border:none;border-radius:var(--rr);padding:3px 8px;cursor:pointer;flex-shrink:0">保存</button>
+            <button @click="editingComment = null"
+              style="font-size:11px;background:none;border:0.5px solid var(--bdr);border-radius:var(--rr);padding:3px 6px;cursor:pointer;color:var(--t3);flex-shrink:0">取消</button>
+          </div>
+
+          <!-- 💡未提交 -->
+          <div v-if="pendingSubmits.has(project.id)"
+            style="display:flex;align-items:center;gap:3px;font-size:11px;color:var(--rt);font-weight:600;flex-shrink:0;white-space:nowrap">
+            🔴 未提交
+          </div>
+
+          <!-- 操作按钮组 -->
+          <div style="display:flex;gap:5px;align-items:center;flex-shrink:0">
+            <button class="bs" style="font-size:11px;padding:4px 9px" @click="editWeekly(project)">✏ 更新工作</button>
             <button class="bp" style="font-size:11px;padding:4px 12px;background:var(--gold)" @click="askSubmit(project)">📤 提交</button>
-            <button
-              v-if="authStore.isDirector"
-              class="ba"
-              @click="archiveProject(project)"
-            >归档</button>
-            <button
-              v-if="authStore.isDirector"
-              class="bd"
-              @click="deleteProject(project)"
-            >删除</button>
+            <button v-if="authStore.isDirector" class="ba" @click="archiveProject(project)">归档</button>
+            <button v-if="authStore.isDirector" class="bd" @click="deleteProject(project)">删除</button>
           </div>
         </div>
       </div>

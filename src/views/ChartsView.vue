@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
 import { useAppStore } from '@/stores/app';
 import { useProjectStore } from '@/stores/project';
 import { StorageService } from '@/services/storage';
@@ -88,6 +88,64 @@ function getItemListText(v: any): string {
 function truncName(name: string, max: number): string {
   return name.length > max ? name.slice(0, max) + '…' : name;
 }
+
+// PDF勾选导出
+const showPdfPicker = ref(false);
+const pdfItems = ref<Array<{projId: number; projName: string; field: string; label: string; text: string; checked: boolean}>>([]);
+
+function openPdfPicker() {
+  const items: typeof pdfItems.value = [];
+  stats.value.sorted.forEach(p => {
+    const snap = storage.getSnap(appStore.yr, appStore.wk, p.id, projectStore.projects);
+    // 上周完成
+    const output = (() => {
+      const items2 = (snap as any).coreOutputItems;
+      if (items2 && Array.isArray(items2)) {
+        return items2.filter((i: any) => i.text?.trim()).map((i: any) => i.text).join('；');
+      }
+      return snap.coreOutput || '';
+    })();
+    if (output && output !== '无') {
+      items.push({ projId: p.id, projName: p.name, field: 'coreOutput', label: '上周完成', text: output, checked: true });
+    }
+    // 本周计划
+    const action = getItemListText(snap.coreAction);
+    if (action && action !== '无') {
+      items.push({ projId: p.id, projName: p.name, field: 'coreAction', label: '本周计划', text: action, checked: true });
+    }
+    // 风险
+    const risk = getItemListText(snap.risk);
+    if (risk && risk !== '无') {
+      items.push({ projId: p.id, projName: p.name, field: 'risk', label: '风险/卡点', text: risk, checked: true });
+    }
+    // 跨部门
+    const cross = getItemListText(snap.crossDept);
+    if (cross && cross !== '无' && cross !== '本周无需跨部门支援') {
+      items.push({ projId: p.id, projName: p.name, field: 'crossDept', label: '跨部门支援', text: cross, checked: true });
+    }
+  });
+  pdfItems.value = items;
+  showPdfPicker.value = true;
+}
+
+function doPdfExport() {
+  showPdfPicker.value = false;
+  const unchecked = pdfItems.value.filter(i => !i.checked);
+  const hiddenEls: HTMLElement[] = [];
+  unchecked.forEach(item => {
+    const els = document.querySelectorAll(`[data-pdf-item="${item.projId}-${item.field}"]`);
+    els.forEach(el => {
+      (el as HTMLElement).style.display = 'none';
+      hiddenEls.push(el as HTMLElement);
+    });
+  });
+  setTimeout(() => {
+    window.print();
+    setTimeout(() => {
+      hiddenEls.forEach(el => { el.style.display = ''; });
+    }, 1000);
+  }, 100);
+}
 </script>
 
 <template>
@@ -98,7 +156,7 @@ function truncName(name: string, max: number): string {
 
   <div class="io-bar no-print">
     <span class="io-btn" style="cursor:default">☁ 已同步</span>
-    <button class="io-btn" onclick="window.print()">📄 导出 PDF</button>
+    <button class="io-btn" @click="openPdfPicker">📄 导出 PDF</button>
   </div>
 
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
@@ -199,14 +257,62 @@ function truncName(name: string, max: number): string {
   <div class="cc">
     <div class="cc-t">本周行动汇总</div>
     <div class="ali">
-      <div v-for="(p, idx) in stats.sorted" :key="p.id" class="ai">
+      <div v-for="(p, idx) in stats.sorted.filter(p => getItemListText(p.coreAction) && getItemListText(p.coreAction) !== '无' && getItemListText(p.coreAction) !== '—')" :key="p.id" class="ai" :data-pdf-item="`${p.id}-coreAction`">
         <div style="flex-shrink:0;width:20px;height:20px;border-radius:50%;background:var(--gl);color:var(--gold);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ idx + 1 }}</div>
         <div>
           <div class="badge" :class="p.status" style="font-size:10px;margin-bottom:3px">{{ p.name }}</div>
         </div>
-        <div class="at">{{ getItemListText(p.coreAction) || '—' }}</div>
+        <div class="at">{{ getItemListText(p.coreAction) }}</div>
       </div>
       <div v-if="!stats.sorted.length" class="empty">暂无数据</div>
+    </div>
+  </div>
+
+  <!-- 上周完成情况汇总 -->
+  <div class="cc">
+    <div class="cc-t">上周完成事项</div>
+    <div class="ali">
+      <template v-for="(p, idx) in stats.sorted" :key="p.id">
+        <div
+          v-if="(() => { const snap = storage.getSnap(appStore.yr, appStore.wk, p.id, projectStore.projects); const items2 = (snap as any).coreOutputItems; const txt = items2 && Array.isArray(items2) ? items2.filter((i:any)=>i.text?.trim()).map((i:any)=>i.text).join('；') : (snap.coreOutput||''); return txt && txt !== '无'; })()"
+          class="ai"
+          :data-pdf-item="`${p.id}-coreOutput`"
+        >
+          <div style="flex-shrink:0;width:20px;height:20px;border-radius:50%;background:var(--gl);color:var(--gold);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ idx + 1 }}</div>
+          <div><div class="badge" :class="p.status" style="font-size:10px;margin-bottom:3px">{{ p.name }}</div></div>
+          <div class="at">{{
+            (() => {
+              const snap = storage.getSnap(appStore.yr, appStore.wk, p.id, projectStore.projects);
+              const items2 = (snap as any).coreOutputItems;
+              return items2 && Array.isArray(items2) ? items2.filter((i:any)=>i.text?.trim()).map((i:any)=>i.text).join('；') : (snap.coreOutput||'');
+            })()
+          }}</div>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- PDF勾选导出弹窗 -->
+  <div v-if="showPdfPicker" style="position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;display:flex;align-items:center;justify-content:center" @click.self="showPdfPicker=false">
+    <div style="background:var(--card);border-radius:12px;padding:20px;width:520px;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+      <div style="font-size:15px;font-weight:700;margin-bottom:12px">选择导出内容</div>
+      <div style="margin-bottom:8px;display:flex;gap:10px">
+        <button @click="pdfItems.forEach(i=>i.checked=true)" style="font-size:12px;color:var(--gold);background:none;border:none;cursor:pointer">全选</button>
+        <button @click="pdfItems.forEach(i=>i.checked=false)" style="font-size:12px;color:var(--t3);background:none;border:none;cursor:pointer">全不选</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px">
+        <label v-for="item in pdfItems" :key="`${item.projId}-${item.field}`" style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;background:var(--bg);border-radius:8px;cursor:pointer">
+          <input type="checkbox" v-model="item.checked" style="margin-top:2px;flex-shrink:0" />
+          <div>
+            <div style="font-size:11px;color:var(--gold);font-weight:600;margin-bottom:2px">{{ item.projName }} · {{ item.label }}</div>
+            <div style="font-size:12px;color:var(--t2);line-height:1.4">{{ item.text }}</div>
+          </div>
+        </label>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px">
+        <button @click="showPdfPicker=false" style="padding:6px 16px;border:0.5px solid var(--bdr);border-radius:var(--rr);background:var(--bg);cursor:pointer;font-size:13px">取消</button>
+        <button @click="doPdfExport()" style="padding:6px 16px;background:var(--gold);color:#fff;border:none;border-radius:var(--rr);cursor:pointer;font-size:13px;font-weight:600">导出 PDF</button>
+      </div>
     </div>
   </div>
 </template>
