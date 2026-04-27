@@ -19,7 +19,6 @@
         :rows="4"
         placeholder="写点什么…"
         class="sticky-textarea"
-        @blur="onContentBlur"
         @mousedown.stop
         @touchstart.stop
       />
@@ -35,11 +34,12 @@
           🔄
         </label>
         <!-- 文字说明在图片下方 -->
-        <textarea
+        <MentionInput
           v-model="localCaption"
-          class="sticky-caption"
+          :users="userList"
+          :rows="2"
           placeholder="添加说明文字…"
-          @blur="onCaptionBlur"
+          class="sticky-caption"
           @mousedown.stop
           @touchstart.stop
         />
@@ -120,7 +120,12 @@ async function loadUsers() {
       body: JSON.stringify({ action: 'get', id: 'users' })
     });
     const data = await res.json();
-    userList.value = Object.keys(data.data || {});
+    const list = Object.keys(data.data || {});
+    // 确保当前用户也在列表里（含自己，方便 @ 自己）
+    if (props.currentUser && !list.includes(props.currentUser)) {
+      list.unshift(props.currentUser);
+    }
+    userList.value = list;
   } catch {}
 }
 onMounted(() => loadUsers());
@@ -144,13 +149,22 @@ function fmtTime(ts: number): string {
   return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
 
-function onContentBlur() {
-  emit('contentChange', props.note.id, localContent.value);
-}
+// 实时自动保存（输入停止 800ms 后触发）
+let saveTid: ReturnType<typeof setTimeout> | null = null;
+watch(localContent, (v) => {
+  if (saveTid) clearTimeout(saveTid);
+  saveTid = setTimeout(() => {
+    emit('contentChange', props.note.id, v);
+  }, 800);
+});
 
-function onCaptionBlur() {
-  emit('captionChange', props.note.id, localCaption.value);
-}
+let captionTid: ReturnType<typeof setTimeout> | null = null;
+watch(localCaption, (v) => {
+  if (captionTid) clearTimeout(captionTid);
+  captionTid = setTimeout(() => {
+    emit('captionChange', props.note.id, v);
+  }, 800);
+});
 
 function onImageUpload(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0];

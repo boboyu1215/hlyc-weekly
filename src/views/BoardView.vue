@@ -60,7 +60,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
 import { useBoardStore } from '@/stores/board';
 import { useAuthStore } from '@/stores/auth';
 import StickyNote from '@/components/StickyNote.vue';
@@ -81,6 +81,7 @@ const currentUser = computed(() => authStore.currentUser || '匿名');
 const isDirector = computed(() => authStore.isDirector);
 
 onMounted(() => store.load());
+onBeforeUnmount(() => store.save());
 
 function onCanvasDblClick(e: MouseEvent) {
   if (!currentUser.value) { alert('请先登录'); return; }
@@ -104,7 +105,7 @@ let saveTid: ReturnType<typeof setTimeout> | null = null;
 function onMove(id: string, x: number, y: number) {
   store.moveNote(id, x, y);
   if (saveTid) clearTimeout(saveTid);
-  saveTid = setTimeout(() => store.save(), 600);
+  saveTid = setTimeout(() => store.save(), 300);
 }
 
 function onResize(id: string, w: number, h: number) {

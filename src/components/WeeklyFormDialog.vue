@@ -8,7 +8,6 @@ import { wkLabel } from '@/utils/date';
 import type { Project, WeeklySnapshot, TaskItem } from '@/core/types';
 import { STAGES } from '@/config/constants';
 import DatePicker from './DatePicker.vue';
-import MentionInput from '@/components/MentionInput.vue';
 
 const props = defineProps<{
   show: boolean;
@@ -34,10 +33,67 @@ async function loadUsers() {
       body: JSON.stringify({ action: 'get', id: 'users' })
     });
     const data = await res.json();
-    userList.value = Object.keys(data.data || {});
+    const list = Object.keys(data.data || {});
+    // 确保当前用户也在列表里（含自己，方便 @ 自己）
+    const me = authStore.currentUser;
+    if (me && !list.includes(me)) list.unshift(me);
+    userList.value = list;
   } catch {}
 }
 onMounted(() => loadUsers());
+
+// @ 用户选择器
+const mentionPicker = ref({ show: false, x: 0, y: 0, keyword: '', field: '', idx: 0, inputEl: null as HTMLInputElement | null });
+const activeUserIdx = ref(0);
+
+const filteredUsers = computed(() => {
+  const kw = mentionPicker.value.keyword.toLowerCase();
+  return userList.value.filter(u => u.toLowerCase().includes(kw));
+});
+
+function onItemInput(e: Event, field: string, idx: number) {
+  const input = e.target as HTMLInputElement;
+  const val = input.value;
+  const pos = input.selectionStart ?? val.length;
+  const before = val.slice(0, pos);
+  const match = before.match(/@([^\s@]*)$/);
+  if (match) {
+    const rect = input.getBoundingClientRect();
+    mentionPicker.value = { show: true, x: rect.left, y: rect.bottom + 4, keyword: match[1], field, idx, inputEl: input };
+    activeUserIdx.value = 0;
+  } else {
+    mentionPicker.value.show = false;
+  }
+}
+
+function selectMentionUser(name: string) {
+  const { inputEl, field, idx } = mentionPicker.value;
+  if (!inputEl) return;
+  const val = inputEl.value;
+  const pos = inputEl.selectionStart ?? val.length;
+  const before = val.slice(0, pos);
+  const atPos = before.lastIndexOf('@');
+  const after = val.slice(pos);
+  const newVal = before.slice(0, atPos) + '@' + name + ' ' + after;
+  const list = (form.value as any)[field] as TaskItem[];
+  if (list?.[idx]) list[idx].text = newVal;
+  mentionPicker.value.show = false;
+  nextTick(() => {
+    const newPos = atPos + name.length + 2;
+    inputEl.setSelectionRange(newPos, newPos);
+    inputEl.focus();
+  });
+}
+
+function onItemKeydown(e: KeyboardEvent, field: string, idx: number) {
+  if (mentionPicker.value.show) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); activeUserIdx.value = (activeUserIdx.value + 1) % Math.max(filteredUsers.value.length, 1); return; }
+    if (e.key === 'ArrowUp') { e.preventDefault(); activeUserIdx.value = (activeUserIdx.value - 1 + filteredUsers.value.length) % Math.max(filteredUsers.value.length, 1); return; }
+    if (e.key === 'Enter' && filteredUsers.value.length > 0) { e.preventDefault(); selectMentionUser(filteredUsers.value[activeUserIdx.value]); return; }
+    if (e.key === 'Escape') { mentionPicker.value.show = false; return; }
+  }
+  handleKeydown(e, field as any, idx);
+}
 
 // 表单震动效果
 const formShaking = ref(false);
@@ -344,14 +400,13 @@ function handleCancel() {
               class="item-row"
             >
               <span class="item-no">{{ idx + 1 }}.</span>
-              <MentionInput
-                v-model="item.text"
-                :users="userList"
-                :rows="1"
-                :placeholder="idx === 0 ? '例：完成深化方案并提交大区' : '继续添加…'"
+              <input
+                type="text"
                 class="item-text"
-                @input="updateItemText('coreOutputItems' as any, idx, item.text)"
-                @keydown="handleKeydown($event, 'coreOutputItems' as any, idx)"
+                :value="item.text"
+                :placeholder="idx === 0 ? '例：完成深化方案并提交大区' : '继续添加…'"
+                @input="updateItemText('coreOutputItems' as any, idx, ($event.target as HTMLInputElement).value); onItemInput($event, 'coreOutputItems', idx)"
+                @keydown="onItemKeydown($event, 'coreOutputItems', idx)"
               />
               <DatePicker
                 :model-value="item.dueDate"
@@ -382,14 +437,13 @@ function handleCancel() {
               class="item-row"
             >
               <span class="item-no">{{ idx + 1 }}.</span>
-              <MentionInput
-                v-model="item.text"
-                :users="userList"
-                :rows="1"
-                :placeholder="idx === 0 ? '例：完成深化方案并提交大区' : '继续添加…'"
+              <input
+                type="text"
                 class="item-text"
-                @input="updateItemText('coreAction', idx, item.text)"
-                @keydown="handleKeydown($event, 'coreAction', idx)"
+                :value="item.text"
+                :placeholder="idx === 0 ? '例：完成深化方案并提交大区' : '继续添加…'"
+                @input="updateItemText('coreAction', idx, ($event.target as HTMLInputElement).value); onItemInput($event, 'coreAction', idx)"
+                @keydown="onItemKeydown($event, 'coreAction', idx)"
               />
               <DatePicker
                 :model-value="item.dueDate"
@@ -424,14 +478,13 @@ function handleCancel() {
               class="item-row"
             >
               <span class="item-no">{{ idx + 1 }}.</span>
-              <MentionInput
-                v-model="item.text"
-                :users="userList"
-                :rows="1"
-                :placeholder="idx === 0 ? '本周最大的风险或已卡住的问题' : '继续添加…'"
+              <input
+                type="text"
                 class="item-text"
-                @input="updateItemText('risk', idx, item.text)"
-                @keydown="handleKeydown($event, 'risk', idx)"
+                :value="item.text"
+                :placeholder="idx === 0 ? '本周最大的风险或已卡住的问题' : '继续添加…'"
+                @input="updateItemText('risk', idx, ($event.target as HTMLInputElement).value); onItemInput($event, 'risk', idx)"
+                @keydown="onItemKeydown($event, 'risk', idx)"
               />
               <DatePicker
                 :model-value="item.dueDate"
@@ -458,14 +511,13 @@ function handleCancel() {
               class="item-row"
             >
               <span class="item-no">{{ idx + 1 }}.</span>
-              <MentionInput
-                v-model="item.text"
-                :users="userList"
-                :rows="1"
-                :placeholder="idx === 0 ? '需要管理层决策或协调的事项' : '继续添加…'"
+              <input
+                type="text"
                 class="item-text"
-                @input="updateItemText('decision', idx, item.text)"
-                @keydown="handleKeydown($event, 'decision', idx)"
+                :value="item.text"
+                :placeholder="idx === 0 ? '需要管理层决策或协调的事项' : '继续添加…'"
+                @input="updateItemText('decision', idx, ($event.target as HTMLInputElement).value); onItemInput($event, 'decision', idx)"
+                @keydown="onItemKeydown($event, 'decision', idx)"
               />
               <DatePicker
                 :model-value="item.dueDate"
@@ -496,14 +548,13 @@ function handleCancel() {
               class="item-row"
             >
               <span class="item-no">{{ idx + 1 }}.</span>
-              <MentionInput
-                v-model="item.text"
-                :users="userList"
-                :rows="1"
-                :placeholder="idx === 0 ? '例：需采购部协助核价2项' : '继续添加…'"
+              <input
+                type="text"
                 class="item-text"
-                @input="updateItemText('crossDept', idx, item.text)"
-                @keydown="handleKeydown($event, 'crossDept', idx)"
+                :value="item.text"
+                :placeholder="idx === 0 ? '例：需采购部协助核价2项' : '继续添加…'"
+                @input="updateItemText('crossDept', idx, ($event.target as HTMLInputElement).value); onItemInput($event, 'crossDept', idx)"
+                @keydown="onItemKeydown($event, 'crossDept', idx)"
               />
               <DatePicker
                 :model-value="item.dueDate"
@@ -526,6 +577,25 @@ function handleCancel() {
       </div>
     </div>
   </div>
+
+  <!-- @ 用户选择浮层 -->
+  <Teleport to="body">
+    <div
+      v-if="mentionPicker.show && filteredUsers.length > 0"
+      :style="{ position:'fixed', left: mentionPicker.x + 'px', top: mentionPicker.y + 'px', zIndex: 9999, background:'var(--card)', border:'1px solid var(--bdr)', borderRadius:'8px', boxShadow:'0 4px 16px rgba(0,0,0,.15)', minWidth:'140px', overflow:'hidden' }"
+      @mousedown.prevent
+    >
+      <div
+        v-for="(u, i) in filteredUsers"
+        :key="u"
+        :style="{ padding:'8px 12px', cursor:'pointer', fontSize:'13px', background: i === activeUserIdx ? 'var(--bg)' : '', display:'flex', alignItems:'center', gap:'8px' }"
+        @click="selectMentionUser(u)"
+      >
+        <span :style="{ width:'24px', height:'24px', borderRadius:'50%', background:'var(--gold)', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'12px', fontWeight:'600', flexShrink:0 }">{{ u.slice(0,1) }}</span>
+        {{ u }}
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
