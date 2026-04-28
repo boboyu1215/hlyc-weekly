@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAppStore } from '@/stores/app';
 import { useAuthStore } from '@/stores/auth';
@@ -183,6 +183,10 @@ watch(() => authStore.currentUser, (u) => {
 onMounted(() => {
   nextTick(updateIndicator);
   document.addEventListener('click', onDocClick);
+});
+
+onUnmounted(() => {
+  if (mentionTimer) clearInterval(mentionTimer);
 });
 </script>
 

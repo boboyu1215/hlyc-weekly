@@ -4,6 +4,7 @@
 
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
+import { useAuthStore } from '@/stores/auth';
 import { StorageService } from '@/services/storage';
 import apiClient from '@/services/api';
 import type { Project } from '@/core/types';
@@ -39,7 +40,15 @@ export const useProjectStore = defineStore('project', () => {
 
   // 计算属性：显示的项目列表
   const displayProjects = computed(() => {
-    return showArchived.value ? archivedProjects.value : activeProjects.value;
+    const list = showArchived.value ? archivedProjects.value : activeProjects.value;
+    const currentUser = useAuthStore().currentUser;
+    if (!currentUser) return list;
+    return [...list].sort((a, b) => {
+      const aOwn = a.designOwner === currentUser ? 0 : 1;
+      const bOwn = b.designOwner === currentUser ? 0 : 1;
+      if (aOwn !== bOwn) return aOwn - bOwn;
+      return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+    });
   });
 
   // 获取项目
@@ -66,16 +75,23 @@ export const useProjectStore = defineStore('project', () => {
   function deleteProject(id: number) {
     projects.value = projects.value.filter(p => p.id !== id);
     saveProjects();
+    // 原子同步整个项目列表到服务器
+    apiClient.setDoc('projects', { projects: projects.value }).catch(e => {
+      console.error('删除同步失败:', e);
+    });
   }
 
-  // 归档项目
-  function archiveProject(id: number) {
+  async function archiveProject(id: number) {
     updateProject(id, { archived: true });
+    try {
+      await apiClient.setDoc('projects', { projects: projects.value });
+    } catch(e) { console.error('归档同步失败:', e); }
   }
-
-  // 恢复项目
-  function restoreProject(id: number) {
+  async function restoreProject(id: number) {
     updateProject(id, { archived: false });
+    try {
+      await apiClient.setDoc('projects', { projects: projects.value });
+    } catch(e) { console.error('恢复同步失败:', e); }
   }
 
   // 更新项目排序

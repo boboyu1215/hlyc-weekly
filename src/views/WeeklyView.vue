@@ -27,21 +27,17 @@ const submittingProject = ref<Project | null>(null);
 
 const isNow = computed(() => appStore.isCurrentWeek);
 
-// 当前用户的项目置顶排序（匹配旧系统 weekly.js 的当前用户项目排前面逻辑）
+// 当前用户的项目置顶排序：当前用户项目始终排最前，组内再按 sortOrder
 const activeProjects = computed({
   get() {
     const user = authStore.currentUser;
     const projects = [...projectStore.activeProjects];
-    const hasCustomOrder = projects.some(p => p.sortOrder !== undefined && p.sortOrder !== null);
-    if (hasCustomOrder) {
-      // 已有自定义排序，直接按 sortOrder
-      return projects.sort((a, b) => (a.sortOrder ?? a.id) - (b.sortOrder ?? b.id));
-    }
-    // 无自定义排序时，当前用户项目置顶
     return projects.sort((a, b) => {
+      // 第一优先级：当前用户的项目置顶
       const aMine = user && a.designOwner === user ? 0 : 1;
       const bMine = user && b.designOwner === user ? 0 : 1;
       if (aMine !== bMine) return aMine - bMine;
+      // 第二优先级：组内按 sortOrder 排序
       return (a.sortOrder ?? a.id) - (b.sortOrder ?? b.id);
     });
   },

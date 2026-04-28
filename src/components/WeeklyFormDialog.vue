@@ -307,6 +307,52 @@ function handleSave() {
     weekKey: appStore.weekKey
   });
 
+  // 提交时扫描 @ 并推送微信+铃铛
+  try {
+    const currentUser = authStore.currentUser || '同事';
+    const allTexts = [
+      form.value.coreOutput || '',
+      form.value.next || '',
+      form.value.incident || '',
+      form.value.knowledge || '',
+      // 列表字段：取每个 item 的 text
+      ...((form.value.coreOutputItems || []) as any[]).map((i: any) => i.text || ''),
+      ...(form.value.risk || []).map((i: any) => i.text || ''),
+      ...(form.value.coreAction || []).map((i: any) => i.text || ''),
+      ...(form.value.decision || []).map((i: any) => i.text || ''),
+      ...(form.value.crossDept || []).map((i: any) => i.text || ''),
+    ];
+    const sent = new Set<string>();
+    for (const text of allTexts) {
+      if (!text) continue;
+      let m;
+      const re = new RegExp('@([^\\s，。！？,!?@]+)', 'g');
+      while ((m = re.exec(text)) !== null) {
+        const toUser = m[1];
+        if (!sent.has(toUser) && toUser.trim().length > 0) {
+          sent.add(toUser);
+          // 提取@后面的内容作为推送消息（去掉@用户名本身，避免后端重复显示）
+          const fullMatch = '@' + toUser;
+          const atIdx = text.indexOf(fullMatch);
+          let mentionText = text.slice(atIdx + fullMatch.length).trim();
+          // 如果@后面没内容，就用整条 item 的内容
+          if (!mentionText) mentionText = text.trim();
+          // 截到200字符
+          if (mentionText.length > 200) mentionText = mentionText.slice(0, 200) + '…';
+          fetch('/api', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'set',
+              id: 'mentions/' + Date.now() + '_' + toUser,
+              data: { from: currentUser, to: toUser, text: mentionText, source: 'weekly', createdAt: Date.now() }
+            })
+          }).catch(err => console.error('[mention] push failed', toUser, err));
+        }
+      }
+    }
+  } catch(e) { console.error('mention push error', e); }
+
   emit('save');
   emit('close');
 }
