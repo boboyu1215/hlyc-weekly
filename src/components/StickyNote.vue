@@ -1,94 +1,85 @@
 <template>
-  <div
-    class="sticky-note"
-    :style="noteStyle"
-    @mousedown.stop="onMouseDown"
-    @touchstart.stop.prevent="onTouchStart"
-  >
-    <div class="sticky-header" :style="{ filter: 'brightness(0.88)' }">
+  <div ref="noteEl" class="sticky-note" :style="noteStyle">
+
+    <!-- 拖拽把手：仅头部触发拖拽 -->
+    <div class="sticky-header" @mousedown="onDragStart" @touchstart.prevent="onTouchDragStart">
       <span class="sticky-author">{{ note.author }}</span>
       <span class="sticky-time">{{ fmtTime(note.createdAt) }}</span>
       <button class="sticky-del" @click.stop="emit('delete', note.id)">✕</button>
     </div>
 
+    <!-- 内容区 -->
     <div class="sticky-body">
-      <MentionInput
-        v-if="note.type === 'text'"
-        v-model="localContent"
-        :users="userList"
-        :rows="4"
-        placeholder="写点什么…"
-        class="sticky-textarea"
-        @mousedown.stop
-        @touchstart.stop
-      />
-      <div v-else class="sticky-image-wrap" @mousedown.stop @touchstart.stop>
-        <!-- 图片区 -->
+      <!-- image 类型：图片 + 说明文字 -->
+      <div v-if="note.type === 'image'" class="sticky-image-wrap">
         <img v-if="note.content" :src="note.content" class="sticky-img" />
         <label v-else class="sticky-upload">
           <input type="file" accept="image/*" @change="onImageUpload" style="display:none" />
-          <span>＋ 点击上传图片</span>
+          <span>点击上传图片</span>
         </label>
         <label v-if="note.content" class="sticky-reupload" title="更换图片">
-          <input type="file" accept="image/*" @change="onImageUpload" style="display:none" />
-          🔄
+          <input type="file" accept="image/*" @change="onImageUpload" style="display:none" />↺
         </label>
-        <!-- 文字说明在图片下方 -->
-        <MentionInput
+        <textarea
           v-model="localCaption"
-          :users="userList"
-          :rows="2"
-          placeholder="添加说明文字…"
-          class="sticky-caption"
-          @mousedown.stop
-          @touchstart.stop
+          class="sticky-textarea"
+          placeholder="添加说明…"
+          @blur="emit('captionChange', note.id, localCaption)"
         />
+      </div>
+
+      <!-- text 类型：只有文字 -->
+      <textarea
+        v-if="note.type === 'text'"
+        ref="taRef"
+        v-model="localContent"
+        class="sticky-textarea"
+        placeholder="写点什么…"
+        @input="onTextInput"
+        @blur="emit('contentChange', note.id, localContent)"
+      />
+    </div>
+
+    <!-- 评论区（朋友圈风格） -->
+    <div v-if="note.comments.length > 0" class="sticky-comments">
+      <div v-for="c in note.comments" :key="c.id" class="sticky-comment">
+        <span class="comment-text">{{ c.text }}</span>
+        <span class="comment-author">–{{ c.author }}</span>
+        <button v-if="canDelete(c)" class="comment-del" @click.stop="emit('deleteComment', note.id, c.id)">×</button>
       </div>
     </div>
 
-    <div class="sticky-footer" @mousedown.stop @touchstart.stop>
-      <button
-        class="sticky-like"
-        :class="{ liked: note.likes.includes(currentUser) }"
-        @click.stop="emit('like', note.id)"
-      >❤ {{ note.likes.length }}</button>
-      <button class="sticky-comment-btn" @click.stop="showComments = !showComments">
+    <!-- 底部操作栏 -->
+    <div class="sticky-footer">
+      <button class="btn-like" @click.stop="emit('like', note.id)">
+        ❤ {{ note.likes?.length || 0 }}
+      </button>
+      <button class="btn-comment" @click.stop="isReplying = !isReplying">
         💬 {{ note.comments.length }}
       </button>
     </div>
 
-    <div v-if="showComments" class="sticky-comments" @mousedown.stop @touchstart.stop>
-      <div v-for="c in note.comments" :key="c.id" class="sticky-comment">
-        <span class="comment-text">{{ c.text }}</span>
-        <span class="comment-author"> — {{ c.author }}</span>
-        <button
-          v-if="c.author === currentUser || isDirector"
-          class="comment-del"
-          @click.stop="emit('deleteComment', note.id, c.id)"
-        >✕</button>
-      </div>
-      <div class="sticky-comment-input">
-        <input
-          v-model="commentText"
-          placeholder="写评论…"
-          @keydown.enter.prevent="submitComment"
-          class="comment-input"
-        />
-        <button @click.stop="submitComment" class="comment-submit">发</button>
-      </div>
+    <!-- 回复输入框（点击💬展开） -->
+    <div v-if="isReplying" class="sticky-reply">
+      <input
+        ref="replyRef"
+        v-model="replyText"
+        class="reply-input"
+        placeholder="回复…"
+        @keydown.enter.prevent="submitReply"
+      />
+      <button class="reply-submit" @click.stop="submitReply">发</button>
     </div>
 
-    <div class="sticky-resize" @mousedown.stop="onResizeDown" @touchstart.stop.prevent="onResizeTouchStart" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
-import type { StickyNote } from '@/stores/board';
-import MentionInput from '@/components/MentionInput.vue';
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
+import type { BoardNote } from '@/stores/board';
 
 const props = defineProps<{
-  note: StickyNote;
+  note: BoardNote;
   currentUser: string;
   isDirector: boolean;
   boardEl: HTMLElement | null;
@@ -106,65 +97,77 @@ const emit = defineEmits<{
   (e: 'captionChange', id: string, caption: string): void;
 }>();
 
-const showComments = ref(false);
-const commentText = ref('');
-const localContent = ref(props.note.content);
+const noteEl = ref<HTMLElement | null>(null);
+const localContent = ref(props.note.content || '');
 const localCaption = ref(props.note.caption || '');
+const replyText = ref('');
+const isReplying = ref(false);
+const taRef = ref<HTMLTextAreaElement | null>(null);
+const replyRef = ref<HTMLInputElement | null>(null);
 
-const userList = ref<string[]>([]);
-async function loadUsers() {
-  try {
-    const res = await fetch('/api', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'get', id: 'users' })
-    });
-    const data = await res.json();
-    const list = Object.keys(data.data || {});
-    // 确保当前用户也在列表里（含自己，方便 @ 自己）
-    if (props.currentUser && !list.includes(props.currentUser)) {
-      list.unshift(props.currentUser);
-    }
-    userList.value = list;
-  } catch {}
-}
-onMounted(() => loadUsers());
-
-watch(() => props.note.content, v => { localContent.value = v; });
+watch(() => props.note.content, v => { localContent.value = v || ''; nextTick(() => onTextInput()); });
 watch(() => props.note.caption, v => { localCaption.value = v || ''; });
+watch(isReplying, v => { if (v) nextTick(() => replyRef.value?.focus()); });
 
 const noteStyle = computed(() => ({
   position: 'absolute' as const,
   left: props.note.position.x + 'px',
   top: props.note.position.y + 'px',
   width: props.note.width + 'px',
-  minHeight: props.note.height + 'px',
   zIndex: props.note.position.zIndex,
-  background: props.note.color,
+  background: props.note.color || '#deeaf7',
   transform: `rotate(${props.note.rotation}deg)`,
+  transformOrigin: 'center top',
 }));
 
-function fmtTime(ts: number): string {
+function fmtTime(ts: number) {
   const d = new Date(ts);
-  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
 
-// 实时自动保存（输入停止 800ms 后触发）
-let saveTid: ReturnType<typeof setTimeout> | null = null;
-watch(localContent, (v) => {
-  if (saveTid) clearTimeout(saveTid);
-  saveTid = setTimeout(() => {
-    emit('contentChange', props.note.id, v);
-  }, 800);
+function canDelete(c: any) {
+  return props.isDirector || c.author === props.currentUser;
+}
+
+function onTextInput() {
+  const ta = taRef.value;
+  if (!ta) return;
+  ta.style.height = 'auto';
+  ta.style.height = ta.scrollHeight + 'px';
+}
+
+onMounted(() => {
+  nextTick(() => onTextInput());
+  // 监听 CSS resize: both 的尺寸变化
+  if (noteEl.value) {
+    resizeObs.observe(noteEl.value);
+  }
 });
 
-let captionTid: ReturnType<typeof setTimeout> | null = null;
-watch(localCaption, (v) => {
-  if (captionTid) clearTimeout(captionTid);
-  captionTid = setTimeout(() => {
-    emit('captionChange', props.note.id, v);
-  }, 800);
+onBeforeUnmount(() => {
+  resizeObs.disconnect();
 });
+
+// ResizeObserver：CSS resize 不会触发 JS 事件，需要这个来捕获
+let resizeTid: ReturnType<typeof setTimeout> | null = null;
+const resizeObs = new ResizeObserver(entries => {
+  for (const entry of entries) {
+    const { width, height } = entry.contentRect;
+    if (width < 10 || height < 10) continue; // 忽略初始化时的异常值
+    if (resizeTid) clearTimeout(resizeTid);
+    resizeTid = setTimeout(() => {
+      emit('resize', props.note.id, Math.round(width), Math.round(height));
+    }, 300);
+  }
+});
+
+function submitReply() {
+  const t = replyText.value.trim();
+  if (!t) return;
+  emit('comment', props.note.id, t);
+  replyText.value = '';
+  isReplying.value = false;
+}
 
 function onImageUpload(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0];
@@ -174,189 +177,185 @@ function onImageUpload(e: Event) {
   reader.readAsDataURL(file);
 }
 
-function submitComment() {
-  const t = commentText.value.trim();
-  if (!t) return;
-  emit('comment', props.note.id, t);
-  commentText.value = '';
-}
+// 拖拽：仅头部触发
+let dragStartX = 0, dragStartY = 0, dragStartNX = 0, dragStartNY = 0;
 
-// 拖拽
-let dragOffX = 0, dragOffY = 0;
-
-function startDrag(clientX: number, clientY: number) {
+function onDragStart(e: MouseEvent) {
   emit('front', props.note.id);
-  dragOffX = clientX - props.note.position.x;
-  dragOffY = clientY - props.note.position.y;
-}
-
-function onDragMove(clientX: number, clientY: number) {
-  const board = props.boardEl;
-  let x = clientX - dragOffX;
-  let y = clientY - dragOffY;
-  if (board) {
-    x = Math.max(0, Math.min(x, board.scrollWidth - props.note.width));
-    y = Math.max(0, Math.min(y, board.scrollHeight - props.note.height));
-  }
-  emit('move', props.note.id, x, y);
-}
-
-function onMouseDown(e: MouseEvent) {
-  if (e.button !== 0) return;
-  startDrag(e.clientX, e.clientY);
-  const onMove = (ev: MouseEvent) => onDragMove(ev.clientX, ev.clientY);
-  const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-  window.addEventListener('mousemove', onMove);
-  window.addEventListener('mouseup', onUp);
-}
-
-function onTouchStart(e: TouchEvent) {
-  const t = e.touches[0];
-  startDrag(t.clientX, t.clientY);
-  const onMove = (ev: TouchEvent) => { const tt = ev.touches[0]; onDragMove(tt.clientX, tt.clientY); };
-  const onEnd = () => { window.removeEventListener('touchmove', onMove); window.removeEventListener('touchend', onEnd); };
-  window.addEventListener('touchmove', onMove, { passive: true });
-  window.addEventListener('touchend', onEnd);
-}
-
-// Resize
-let resizeStartX = 0, resizeStartY = 0, resizeStartW = 0, resizeStartH = 0;
-
-function onResizeDown(e: MouseEvent) {
-  e.preventDefault();
-  resizeStartX = e.clientX; resizeStartY = e.clientY;
-  resizeStartW = props.note.width; resizeStartH = props.note.height;
+  dragStartX = e.clientX; dragStartY = e.clientY;
+  dragStartNX = props.note.position.x; dragStartNY = props.note.position.y;
   const onMove = (ev: MouseEvent) => {
-    emit('resize', props.note.id,
-      Math.max(140, resizeStartW + ev.clientX - resizeStartX),
-      Math.max(120, resizeStartH + ev.clientY - resizeStartY));
+    emit('move', props.note.id,
+      dragStartNX + ev.clientX - dragStartX,
+      dragStartNY + ev.clientY - dragStartY);
   };
-  const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+  const onUp = () => {
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
+  };
   window.addEventListener('mousemove', onMove);
   window.addEventListener('mouseup', onUp);
 }
 
-function onResizeTouchStart(e: TouchEvent) {
+function onTouchDragStart(e: TouchEvent) {
+  emit('front', props.note.id);
   const t = e.touches[0];
-  resizeStartX = t.clientX; resizeStartY = t.clientY;
-  resizeStartW = props.note.width; resizeStartH = props.note.height;
+  dragStartX = t.clientX; dragStartY = t.clientY;
+  dragStartNX = props.note.position.x; dragStartNY = props.note.position.y;
   const onMove = (ev: TouchEvent) => {
     const tt = ev.touches[0];
-    emit('resize', props.note.id,
-      Math.max(140, resizeStartW + tt.clientX - resizeStartX),
-      Math.max(120, resizeStartH + tt.clientY - resizeStartY));
+    emit('move', props.note.id,
+      dragStartNX + tt.clientX - dragStartX,
+      dragStartNY + tt.clientY - dragStartY);
   };
-  const onEnd = () => { window.removeEventListener('touchmove', onMove); window.removeEventListener('touchend', onEnd); };
-  window.addEventListener('touchmove', onMove, { passive: true });
+  const onEnd = () => {
+    window.removeEventListener('touchmove', onMove);
+    window.removeEventListener('touchend', onEnd);
+  };
+  window.addEventListener('touchmove', onMove, { passive: false });
   window.addEventListener('touchend', onEnd);
 }
 </script>
 
 <style scoped>
 .sticky-note {
-  border-radius: 4px;
-  box-shadow: 3px 4px 12px rgba(0,0,0,.18), 0 1px 3px rgba(0,0,0,.12);
+  border-radius: 8px;
+  box-shadow: 3px 4px 12px rgba(0,0,0,.18);
   display: flex;
   flex-direction: column;
-  cursor: grab;
-  user-select: none;
+  min-width: 160px;
+  position: absolute;
   transition: box-shadow .15s;
-  min-width: 140px;
+  /* 纯CSS缩放，浏览器原生右下角拖拽 */
+  resize: both;
+  overflow: hidden;
 }
-.sticky-note:active { cursor: grabbing; box-shadow: 6px 8px 20px rgba(0,0,0,.28); }
 
 .sticky-header {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 8px;
-  border-radius: 4px 4px 0 0;
-  background: rgba(0,0,0,.08);
-  font-size: 11px;
-  color: #555;
+  padding: 6px 9px;
+  background: rgba(0,0,0,.09);
+  border-radius: 8px 8px 0 0;
+  cursor: grab;
+  flex-shrink: 0;
+  user-select: none;
 }
-.sticky-author { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sticky-time { opacity: .7; white-space: nowrap; }
-.sticky-del { background: none; border: none; cursor: pointer; color: #888; padding: 0 2px; font-size: 12px; }
-.sticky-del:hover { color: #e53935; }
+.sticky-header:active { cursor: grabbing; }
+.sticky-author { font-weight: 700; flex: 1; font-size: 12px; color: #222; }
+.sticky-time { color: #666; font-size: 10px; white-space: nowrap; }
+.sticky-del {
+  background: none; border: none; cursor: pointer;
+  color: #aaa; font-size: 12px; padding: 0 2px; line-height: 1;
+  flex-shrink: 0;
+}
+.sticky-del:hover { color: #c00; }
 
-.sticky-body { flex: 1; padding: 6px; }
+.sticky-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 
 .sticky-textarea {
-  width: 100%; height: 100%; min-height: 90px;
-  border: none; background: transparent; resize: none;
-  font-size: 13px; line-height: 1.5; color: #333;
-  font-family: inherit; cursor: text; outline: none;
-  box-sizing: border-box;
-}
-
-.sticky-image-wrap { position: relative; width: 100%; min-height: 100px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.sticky-img { max-width: 100%; max-height: 200px; border-radius: 3px; display: block; }
-.sticky-upload {
-  display: flex; align-items: center; justify-content: center;
-  width: 100%; min-height: 90px; border: 2px dashed #bbb; border-radius: 4px;
-  cursor: pointer; color: #999; font-size: 13px;
-}
-.sticky-upload:hover { border-color: #888; color: #555; }
-.sticky-reupload {
-  position: absolute; top: 4px; right: 4px;
-  background: rgba(255,255,255,.7); border-radius: 50%;
-  padding: 2px 4px; cursor: pointer; font-size: 14px;
-}
-.sticky-caption {
   width: 100%;
-  min-height: 40px;
   border: none;
-  border-top: 1px solid rgba(0,0,0,.08);
   background: transparent;
   resize: none;
   font-size: 13px;
-  font-family: inherit;
-  color: #333;
-  padding: 6px 4px;
-  outline: none;
+  line-height: 1.6;
+  color: #222;
+  padding: 8px 10px;
   box-sizing: border-box;
+  word-break: break-word;
+  white-space: pre-wrap;
+  overflow: hidden;
+  font-family: inherit;
+  cursor: text;
+  user-select: text;
+  min-height: 60px;
 }
 
-.sticky-footer {
-  display: flex; gap: 6px; padding: 4px 8px 6px;
-  border-top: 1px solid rgba(0,0,0,.06);
+.sticky-image-wrap {
+  position: relative;
+  width: 100%;
+  padding: 0 5px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
-.sticky-like, .sticky-comment-btn {
-  background: none; border: none; cursor: pointer;
-  font-size: 12px; color: #777; padding: 2px 4px; border-radius: 4px;
+.sticky-img { max-width: 100%; display: block; border-radius: 4px; }
+.sticky-upload {
+  width: 100%; min-height: 80px; border: 2px dashed #bbb; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 13px; color: #888;
 }
-.sticky-like:hover, .sticky-comment-btn:hover { background: rgba(0,0,0,.07); }
-.sticky-like.liked { color: #e53935; }
+.sticky-reupload {
+  position: absolute; top: 8px; right: 8px;
+  background: rgba(255,255,255,.85); border: none; border-radius: 50%;
+  width: 24px; height: 24px; cursor: pointer; font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+}
 
 .sticky-comments {
-  border-top: 1px solid rgba(0,0,0,.08);
-  padding: 6px 8px; max-height: 160px; overflow-y: auto;
-  display: flex; flex-direction: column; gap: 4px;
+  padding: 4px 10px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border-top: 1px solid rgba(0,0,0,.07);
+  flex-shrink: 0;
 }
-.sticky-comment { font-size: 12px; line-height: 1.4; color: #444; display: flex; align-items: flex-start; gap: 4px; }
-.comment-author { font-weight: 600; white-space: nowrap; color: #888; font-size: 11px; }
-.comment-text { flex: 1; word-break: break-all; }
-.comment-del { background: none; border: none; color: #bbb; cursor: pointer; font-size: 11px; padding: 0 2px; }
-.comment-del:hover { color: #e53935; }
+.sticky-comment {
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.comment-text { color: #1a5c2a; word-break: break-all; flex: 1; }
+.comment-author { color: #999; font-size: 10px; white-space: nowrap; flex-shrink: 0; margin-top: 1px; }
+.comment-del {
+  background: none; border: none; cursor: pointer;
+  color: #ccc; font-size: 11px; padding: 0 2px; flex-shrink: 0;
+}
+.comment-del:hover { color: #c00; }
 
-.sticky-comment-input { display: flex; gap: 4px; margin-top: 4px; }
-.comment-input {
-  flex: 1; border: 1px solid #ddd; border-radius: 4px;
-  padding: 3px 6px; font-size: 12px; outline: none;
-  background: rgba(255,255,255,.6);
+.sticky-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 10px;
+  border-top: 1px solid rgba(0,0,0,.07);
+  flex-shrink: 0;
+  user-select: none;
 }
-.comment-input:focus { border-color: #aaa; }
-.comment-submit {
-  background: #555; color: #fff; border: none; border-radius: 4px;
-  padding: 3px 8px; font-size: 12px; cursor: pointer;
+.btn-like, .btn-comment {
+  background: none; border: none; cursor: pointer;
+  font-size: 12px; color: #999; padding: 0;
 }
-.comment-submit:hover { background: #333; }
+.btn-like:hover { color: #e05; }
+.btn-comment:hover { color: #4a90d9; }
 
-.sticky-resize {
-  position: absolute; right: 0; bottom: 0;
-  width: 14px; height: 14px; cursor: se-resize;
-  background: linear-gradient(135deg, transparent 50%, rgba(0,0,0,.15) 50%);
-  border-radius: 0 0 4px 0;
+.sticky-reply {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px 6px;
+  border-top: 1px solid rgba(0,0,0,.07);
+  background: rgba(0,0,0,.03);
+  flex-shrink: 0;
 }
+.reply-input {
+  flex: 1; border: none; background: transparent;
+  border-bottom: 1px solid rgba(0,0,0,.18);
+  font-size: 12px; padding: 2px 4px; outline: none;
+  font-family: inherit; color: #333;
+}
+.reply-submit {
+  background: none; border: none; cursor: pointer;
+  font-size: 12px; color: #555; font-weight: 500; padding: 0 4px;
+}
+.reply-submit:hover { color: #111; }
 </style>

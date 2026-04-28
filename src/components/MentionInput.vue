@@ -28,7 +28,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 
 const props = defineProps<{
   modelValue: string;
@@ -49,7 +49,10 @@ const keyword = ref('');
 const activeIdx = ref(0);
 let atPos = -1;
 
-watch(() => props.modelValue, v => { if (v !== localValue.value) localValue.value = v; });
+watch(() => props.modelValue, v => {
+  if (v !== localValue.value) localValue.value = v;
+  nextTick(autoResize);
+});
 watch(localValue, v => emit('update:modelValue', v));
 
 const filteredUsers = computed(() => {
@@ -57,7 +60,15 @@ const filteredUsers = computed(() => {
   return props.users.filter(u => u.toLowerCase().includes(kw));
 });
 
+function autoResize() {
+  const ta = textareaEl.value;
+  if (!ta) return;
+  ta.style.height = 'auto';
+  ta.style.height = ta.scrollHeight + 'px';
+}
+
 function onInput() {
+  autoResize();
   const ta = textareaEl.value;
   if (!ta) return;
   const pos = ta.selectionStart;
@@ -125,7 +136,8 @@ function selectUser(name: string) {
   font-family: inherit;
   background: var(--bg);
   color: var(--t1);
-  resize: vertical;
+  resize: none;
+  overflow-y: hidden;
   outline: none;
   transition: border-color .15s;
 }

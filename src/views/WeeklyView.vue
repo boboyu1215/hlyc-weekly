@@ -434,7 +434,7 @@ onBeforeUnmount(() => {
           <!-- 工作点评 -->
           <div v-if="editingComment !== project.id"
             style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;overflow:hidden">
-            <span style="font-size:12px;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">
+            <span style="font-size:12px;color:#1a5c2a;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">
               {{ comments[project.id] || '' }}
             </span>
             <button

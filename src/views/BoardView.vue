@@ -33,7 +33,7 @@
           @front="store.bringToFront"
           @delete="onDelete"
           @like="store.toggleLike($event, currentUser)"
-          @comment="store.addComment"
+          @comment="(id, text) => store.addComment(id, currentUser, text)"
           @deleteComment="store.deleteComment"
           @contentChange="onContentChange"
           @captionChange="onCaptionChange"
@@ -60,7 +60,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
+import { ref, nextTick, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useBoardStore } from '@/stores/board';
 import { useAuthStore } from '@/stores/auth';
 import StickyNote from '@/components/StickyNote.vue';
@@ -72,16 +72,50 @@ const boardEl = ref<HTMLElement | null>(null);
 const showArchives = ref(false);
 const exporting = ref(false);
 
-const notes = computed(() => store.notes);
-const meta = computed(() => store.meta);
-const archives = computed(() => store.archives);
-const loading = computed(() => store.loading);
-const shouldArchive = computed(() => store.shouldArchive);
-const currentUser = computed(() => authStore.currentUser || '匿名');
-const isDirector = computed(() => authStore.isDirector);
+const notes = ref(store.notes);
+const meta = ref(store.meta);
+const archives = ref(store.archives);
+const loading = ref(store.loading);
+const shouldArchive = ref(store.shouldArchive);
+const currentUser = ref(authStore.currentUser || '匿名');
+const isDirector = ref(authStore.isDirector);
 
-onMounted(() => store.load());
+onMounted(async () => {
+  await store.load();
+  notes.value = store.notes;
+  meta.value = store.meta;
+  archives.value = store.archives;
+  loading.value = store.loading;
+  shouldArchive.value = store.shouldArchive;
+  await nextTick();
+  updateCanvasHeight();
+});
+
 onBeforeUnmount(() => store.save());
+
+// notes 变化时重新计算画布高度
+watch(() => store.notes, async () => {
+  await nextTick();
+  updateCanvasHeight();
+}, { deep: true });
+
+// 用 DOM 实测便签实际位置和高度来设置画布大小
+function updateCanvasHeight() {
+  if (!boardEl.value) return;
+  const noteEls = boardEl.value.querySelectorAll<HTMLElement>('.sticky-note');
+  if (!noteEls.length) {
+    boardEl.value.style.minHeight = 'max(100vh, 1200px)';
+    return;
+  }
+  let maxBottom = 1200;
+  for (const el of noteEls) {
+    const rect = el.getBoundingClientRect();
+    const canvasRect = boardEl.value!.getBoundingClientRect();
+    const bottomInCanvas = rect.bottom - canvasRect.top;
+    if (bottomInCanvas > maxBottom) maxBottom = bottomInCanvas;
+  }
+  boardEl.value.style.minHeight = `max(100vh, ${maxBottom + 50}px)`;
+}
 
 function onCanvasDblClick(e: MouseEvent) {
   if (!currentUser.value) { alert('请先登录'); return; }
@@ -89,36 +123,45 @@ function onCanvasDblClick(e: MouseEvent) {
   const x = e.clientX - el.getBoundingClientRect().left + el.scrollLeft - 100;
   const y = e.clientY - el.getBoundingClientRect().top + el.scrollTop - 90;
   store.addNote(Math.max(0, x), Math.max(0, y), currentUser.value, 'text');
+  setTimeout(updateCanvasHeight, 100);
 }
 
 function addTextNote() {
   if (!currentUser.value) { alert('请先登录'); return; }
   store.addNote(40 + Math.random() * 400, 40 + Math.random() * 300, currentUser.value, 'text');
+  setTimeout(updateCanvasHeight, 100);
 }
 
 function addImageNote() {
   if (!currentUser.value) { alert('请先登录'); return; }
   store.addNote(40 + Math.random() * 400, 40 + Math.random() * 300, currentUser.value, 'image');
+  setTimeout(updateCanvasHeight, 100);
 }
 
 let saveTid: ReturnType<typeof setTimeout> | null = null;
 function onMove(id: string, x: number, y: number) {
   store.moveNote(id, x, y);
   if (saveTid) clearTimeout(saveTid);
-  saveTid = setTimeout(() => store.save(), 300);
+  saveTid = setTimeout(() => {
+    store.save();
+    updateCanvasHeight();
+  }, 300);
 }
 
 function onResize(id: string, w: number, h: number) {
   store.updateNote(id, { width: w, height: h });
+  setTimeout(updateCanvasHeight, 350);
 }
 
 function onDelete(id: string) {
   if (!confirm('删除这张便签？')) return;
   store.deleteNote(id);
+  setTimeout(updateCanvasHeight, 100);
 }
 
 function onContentChange(id: string, content: string) {
   store.updateNote(id, { content });
+  setTimeout(updateCanvasHeight, 350);
 }
 
 function onCaptionChange(id: string, caption: string) {
@@ -160,8 +203,7 @@ async function exportPdf() {
 .board-root {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 56px);
-  overflow: hidden;
+  min-height: 100vh;
   background: #f5f0e8;
 }
 
@@ -175,6 +217,9 @@ async function exportPdf() {
   flex-shrink: 0;
   gap: 12px;
   flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
 
 .board-title-block { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -191,19 +236,17 @@ async function exportPdf() {
 .board-main {
   flex: 1;
   display: flex;
-  overflow: hidden;
   position: relative;
 }
 
 .board-canvas {
   flex: 1;
-  overflow: auto;
   position: relative;
+  width: 2400px;
+  min-height: max(100vh, 1200px);
   background-color: #f5f0e8;
   background-image: radial-gradient(circle, #c8bea8 1px, transparent 1px);
   background-size: 24px 24px;
-  min-width: 2400px;
-  min-height: 1800px;
 }
 
 .board-empty {
@@ -219,6 +262,10 @@ async function exportPdf() {
   background: var(--card, #fff);
   border-left: 1px solid #e0d8cc;
   overflow-y: auto;
+  position: sticky;
+  top: 56px;
+  align-self: flex-start;
+  max-height: calc(100vh - 56px);
 }
 .sidebar-header {
   display: flex;

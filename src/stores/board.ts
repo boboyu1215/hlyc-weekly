@@ -100,7 +100,7 @@ export const useBoardStore = defineStore('board', () => {
       if (res.notes) notes.value = res.notes;
       if (res.meta) meta.value = res.meta;
       if (res.archives) archives.value = res.archives;
-      if (!meta.value) await initBoard();
+      if (!meta.value && notes.value.length === 0) await initBoard();
       if (shouldArchive.value) await archiveBoard();
     } finally {
       loading.value = false;
