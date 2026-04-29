@@ -227,7 +227,7 @@ function autoHeight(e: Event) {
 }
 
 // 保存
-function handleSave() {
+async function handleSave() {
   if (!props.project) return;
 
   // 维度一：上周完成情况 - 日期必填验证
@@ -311,7 +311,7 @@ function handleSave() {
   try {
     const currentUser = authStore.currentUser || '同事';
     const allTexts = [
-      form.value.coreOutput || '',
+      // 注意：不含 coreOutput 字符串字段（与 coreOutputItems 重复）
       form.value.next || '',
       form.value.incident || '',
       form.value.knowledge || '',
@@ -322,30 +322,87 @@ function handleSave() {
       ...(form.value.decision || []).map((i: any) => i.text || ''),
       ...(form.value.crossDept || []).map((i: any) => i.text || ''),
     ];
-    const sent = new Set<string>();
+    const projectName = props.project?.name || '';
+    // 收集所有需要推送的 @mention（先去重再统一发送）
+    const pendingMentions: { toUser: string; finalText: string; dedupeKey: string }[] = [];
+    const seenKeys = new Set<string>();
+
     for (const text of allTexts) {
       if (!text) continue;
       let m;
       const re = new RegExp('@([^\\s，。！？,!?@]+)', 'g');
       while ((m = re.exec(text)) !== null) {
         const toUser = m[1];
-        if (!sent.has(toUser) && toUser.trim().length > 0) {
-          sent.add(toUser);
-          // 提取@后面的内容作为推送消息（去掉@用户名本身，避免后端重复显示）
-          const fullMatch = '@' + toUser;
-          const atIdx = text.indexOf(fullMatch);
-          let mentionText = text.slice(atIdx + fullMatch.length).trim();
-          // 如果@后面没内容，就用整条 item 的内容
-          if (!mentionText) mentionText = text.trim();
-          // 截到200字符
-          if (mentionText.length > 200) mentionText = mentionText.slice(0, 200) + '…';
+        if (toUser.trim().length === 0) continue;
+        // 提取@用户名后面的事项内容
+        const fullMatch = '@' + toUser;
+        const atIdx = text.indexOf(fullMatch);
+        let afterAt = text.slice(atIdx + fullMatch.length).trim();
+        // 去掉可能残留的正则/特殊字符串
+        afterAt = afterAt.replace(/^\(\?=[^)]*\)\s*/g, '').replace(/@\S+\s*/g, '').trim();
+        // 如果@后面没内容，就截取整条文本（去掉@用户名部分）
+        if (!afterAt) afterAt = text.replace(fullMatch, '').trim();
+        // 拼上项目名：在「项目名」afterAt
+        const mentionText = projectName
+          ? `在「${projectName}」${afterAt}`
+          : afterAt;
+        const finalText = mentionText.length > 200 ? mentionText.slice(0, 200) + '…' : mentionText;
+        // 去重 key：用户名 + 内容前20字
+        const dedupeKey = toUser + '|' + afterAt.slice(0, 20);
+        if (!seenKeys.has(dedupeKey)) {
+          seenKeys.add(dedupeKey);
+          pendingMentions.push({ toUser, finalText, dedupeKey });
+        }
+      }
+    }
+
+    if (pendingMentions.length === 0) { /* 无需推送 */ }
+    else {
+      // 先拉取已有的 mentions，用去重 key 对比，已推送过的不再发
+      try {
+        const existingRes = await fetch('/api', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'query', query: { prefix: 'mentions/' } })
+        });
+        const existingData = await existingRes.json();
+        const existingKeys = new Set<string>();
+        if (Array.isArray(existingData)) {
+          for (const doc of existingData) {
+            const d = doc.data || doc;
+            if (d.to && d.text) {
+              // 从已有记录的 text 中提取内容指纹（去掉项目名前缀）
+              const rawText = d.text.replace(/^在「[^\n]+?」/, '').trim();
+              existingKeys.add(d.to + '|' + rawText.slice(0, 20));
+            }
+          }
+        }
+        // 过滤掉已推送过的
+        const toPush = pendingMentions.filter(p => !existingKeys.has(p.dedupeKey));
+        // 逐条推送
+        for (const { toUser, finalText } of toPush) {
           fetch('/api', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               action: 'set',
-              id: 'mentions/' + Date.now() + '_' + toUser,
-              data: { from: currentUser, to: toUser, text: mentionText, source: 'weekly', createdAt: Date.now() }
+              id: 'mentions/' + Date.now() + '_' + toUser + '_' + Math.random().toString(36).slice(2, 6),
+              data: { from: currentUser, to: toUser, text: finalText, source: 'weekly', createdAt: Date.now() }
+            })
+          }).catch(err => console.error('[mention] push failed', toUser, err));
+        }
+        console.log(`[mention] 去重结果: ${pendingMentions.length} 条中 ${toPush.length} 条需推送，${pendingMentions.length - toPush.length} 条已存在`);
+      } catch (e) {
+        // 查询已有 mentions 失败，降级为全部推送（前端 Set 去重保底）
+        console.warn('[mention] 查询已有 mentions 失败，降级全量推送', e);
+        for (const { toUser, finalText } of pendingMentions) {
+          fetch('/api', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'set',
+              id: 'mentions/' + Date.now() + '_' + toUser + '_' + Math.random().toString(36).slice(2, 6),
+              data: { from: currentUser, to: toUser, text: finalText, source: 'weekly', createdAt: Date.now() }
             })
           }).catch(err => console.error('[mention] push failed', toUser, err));
         }
