@@ -78,14 +78,14 @@ onMounted(async () => {
   authStore.initAuth();
   syncStore.initSync();
 
-  // 先加载项目列表，再从云端拉取全量数据（snap依赖projectIds）
-  projectStore.loadProjects();
-
+  // 先从云端拉projects写入hlzc_p，再拉snap，最后读hlzc_p渲染项目列表
   try {
-    await syncStore.pullFromServer();
+    await syncStore.pullFromServer(); // pullFromServer内部已先拉projects(第230行)
   } catch (e) {
     console.warn('[App] 初始化拉取失败，使用本地数据', e);
   }
+
+  projectStore.loadProjects(); // 读已更新的hlzc_p渲染项目列表
 
   // 数据就绪后加载活动日志
   loadActivity();

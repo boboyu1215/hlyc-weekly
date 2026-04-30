@@ -222,12 +222,15 @@ export class ApiClient {
       const projId = localData._projId;
       // 读取现有snap数据
       const existingResp = await proxy('get', `snap_${projId}`, null);
-      // proxy返回 {success, data}，data里才是snap内容
-      // snap内容服务端又包了一层{data: snapContent}，所以要取 .data.data
-      const snapData: Record<string, any> =
-        (existingResp?.success && existingResp?.data?.data && typeof existingResp.data.data === 'object')
-          ? { ...existingResp.data.data }
-          : {};
+      // 服务端返回{data: snapContent}，proxy再包一层{success, data}
+      // 所以正确路径是 existingResp?.data?.data 或 existingResp?.data
+      let snapData: Record<string, any> = {}
+      if (existingResp?.data?.data && typeof existingResp.data.data === 'object') {
+        snapData = { ...existingResp.data.data }
+      } else if (existingResp?.data && typeof existingResp.data === 'object'
+                 && !existingResp.data.success) {
+        snapData = { ...existingResp.data }
+      }
       // 把本次所有周数据合并进snap
       for (const [wk, wkData] of Object.entries(localData.weeks)) {
         snapData[wk] = wkData;

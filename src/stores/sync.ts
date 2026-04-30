@@ -256,7 +256,16 @@ export const useSyncStore = defineStore('sync', () => {
               const localSnap = local[weekKey][projId]
               const remoteTs = (remoteSnap as any)?._ts ?? 0
               const localTs = localSnap?._ts ?? 0
-              if (remoteTs >= localTs) {
+              // 检查本地是否有未提交的更新
+              const pendingKey = `hlzc_pending_submit`
+              const pendingRaw = localStorage.getItem(pendingKey)
+              const pendingIds: number[] = pendingRaw ? JSON.parse(pendingRaw) : []
+              const hasPending = pendingIds.includes(Number(projId))
+
+              if (hasPending && localTs > remoteTs) {
+                // 本地有未提交且比远端新，保留本地
+              } else if (remoteTs >= localTs) {
+                // 远端较新或相等，用远端覆盖
                 local[weekKey][projId] = remoteSnap
               }
             }
