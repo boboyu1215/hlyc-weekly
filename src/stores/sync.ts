@@ -244,66 +244,59 @@ export const useSyncStore = defineStore('sync', () => {
         storage.saveActivityLog(logsResult.data);
       }
 
-      // 拉取所有周报快照（weeks/{weekKey}） → 合并到本地
+      // 拉取云端 weeks 数据，兼容新旧两种格式
       try {
-        const weeksResult = await apiClient.queryDocs<any[]>('weeks/');
-        if (weeksResult.success && Array.isArray(weeksResult.data)) {
-          const localWeeks = storage.loadWeeks();
-          for (const row of weeksResult.data) {
-            // queryDocs 返回格式：{ _id: 'weeks/2026-W19', ...weekData }
-            const weekKey = row._id?.replace('weeks/', '');
-            if (!weekKey) continue;
-            const remoteWeekData = { ...row };
-            delete remoteWeekData._id; // 移除 _id 前缀字段
+        const results = await apiClient.queryDocs('weeks/')
+        const localRaw = localStorage.getItem('hlzc_w')
+        const local: Record<string, Record<string, any>> = localRaw ? JSON.parse(localRaw) : {}
 
-            if (!localWeeks[weekKey]) localWeeks[weekKey] = {} as any;
-            for (const [pid, remoteSnap] of Object.entries(remoteWeekData)) {
-              if (pid.startsWith('__')) continue; // 跳过 __meetings 等内部字段
-              const localSnap = localWeeks[weekKey][pid];
-              localWeeks[weekKey][pid] = localSnap
-                ? mergeSnapshot(localSnap, remoteSnap as WeeklySnapshot)
-                : (remoteSnap as WeeklySnapshot);
+        for (const item of results) {
+          const key = item.key  // 如 "weeks/2026-W19"
+          const value = item.value
+
+          // 跳过元数据key
+          if (!key.match(/weeks\/20\d\d-W\d+/)) continue
+
+          const weekKey = key.replace('weeks/', '')  // "2026-W19"
+
+          // value 结构: { projId: snapshot, ... }
+          if (typeof value !== 'object' || !value) continue
+
+          if (!local[weekKey]) local[weekKey] = {}
+
+          for (const [projId, remoteSnap] of Object.entries(value)) {
+            if (typeof remoteSnap !== 'object' || !remoteSnap) continue
+            const localSnap = local[weekKey][projId]
+            const remoteTs = (remoteSnap as any)._ts ?? 0
+            const localTs = localSnap?._ts ?? 0
+            // 远端较新则覆盖
+            if (remoteTs > localTs) {
+              local[weekKey][projId] = remoteSnap
             }
           }
-          storage.saveWeeks(localWeeks);
-          console.log('[sync] pullFromServer: 已合并云端周报数据');
         }
-      } catch (e) {
-        console.warn('[sync] 拉取周报快照失败（非致命）:', e);
-      }
 
-      // 拉取云端所有 weeks 周报数据，合并到本地 localStorage
-      try {
-        const weeksData = await apiClient.queryDocsRaw('weeks/')
-        if (Object.keys(weeksData).length > 0) {
-          // 读取本地现有数据
-          const localRaw = localStorage.getItem('hlzc_w')
-          const local: Record<string, Record<string, any>> = localRaw ? JSON.parse(localRaw) : {}
-
-          for (const [weekKey, projMap] of Object.entries(weeksData)) {
+        // 兼容旧格式 weeks/data
+        const dataItem = results.find(r => r.key === 'weeks/data')
+        if (dataItem?.value) {
+          for (const [weekKey, projMap] of Object.entries(dataItem.value)) {
+            if (!weekKey.match(/20\d\d-W\d+/)) continue
             if (!local[weekKey]) local[weekKey] = {}
-            // projMap 结构: { projId: snapshot }
-            for (const [projId, remoteSnap] of Object.entries(projMap as Record<string, any>)) {
+            for (const [projId, remoteSnap] of Object.entries(projMap as any)) {
+              if (typeof remoteSnap !== 'object' || !remoteSnap) continue
               const localSnap = local[weekKey][projId]
-              if (!localSnap) {
-                // 本地无此项，直接写入
+              const remoteTs = (remoteSnap as any)._ts ?? 0
+              const localTs = localSnap?._ts ?? 0
+              if (remoteTs > localTs) {
                 local[weekKey][projId] = remoteSnap
-              } else {
-                // 字段级合并，以 _ts 较新者为准
-                const remoteTs = remoteSnap._ts ?? 0
-                const localTs = localSnap._ts ?? 0
-                if (remoteTs > localTs) {
-                  local[weekKey][projId] = remoteSnap
-                }
               }
             }
           }
-
-          localStorage.setItem('hlzc_w', JSON.stringify(local))
-          console.log('[sync] pullFromServer: queryDocsRaw 已合并云端周报数据')
         }
+
+        localStorage.setItem('hlzc_w', JSON.stringify(local))
       } catch (e) {
-        console.warn('[sync] 拉取 weeks 数据失败', e)
+        console.warn('[Sync] 拉取 weeks 数据失败', e)
       }
 
       setSyncStatus('sync');

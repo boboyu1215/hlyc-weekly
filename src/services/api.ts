@@ -85,12 +85,15 @@ export class ApiClient {
     return proxy('set', id, data);
   }
 
-  /**
-   * 按前缀批量查询文档（利用服务端 query action + LIKE）
-   * 返回 [{ _id, ...docData }] 数组
-   */
-  async queryDocs<T = any>(prefix: string): Promise<ApiResponse<T[]>> {
-    return proxy<T[]>('query', undefined, undefined, { query: { prefix } });
+  // ==================== 批量文档查询 ====================
+
+  // 批量拉取云端前缀数据
+  async queryDocs(prefix: string): Promise<Array<{key: string, value: any}>> {
+    const res = await this.post('/api', {
+      action: 'query',
+      query: { prefix }
+    })
+    return res?.data?.results ?? []
   }
 
   // ==================== 项目相关 ====================
@@ -238,24 +241,6 @@ export class ApiClient {
   async getServerTimestamp(): Promise<ApiResponse<number>> {
     const res = await proxy('ping');
     return { success: res.success, data: res.data?.time };
-  }
-
-  // ==================== 批量文档查询 ====================
-
-  // 批量拉取云端所有 weeks 数据
-  async queryDocsRaw(prefix: string): Promise<Record<string, any>> {
-    const res = await this.post('/api', {
-      action: 'query',
-      query: { prefix }
-    })
-    // 服务端返回格式: { results: [{key, value}] }
-    const results: Record<string, any> = {}
-    if (res?.data?.results && Array.isArray(res.data.results)) {
-      for (const item of res.data.results) {
-        results[item.key] = item.value
-      }
-    }
-    return results
   }
 
   // ==================== 兼容旧版 get/post/put/delete 方法 ====================

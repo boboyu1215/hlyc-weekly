@@ -7,7 +7,8 @@ import { useSyncStore } from '@/stores/sync';
 import { StorageService } from '@/services/storage';
 import { STAGES, STATUS_LABELS } from '@/config/constants';
 import { DEL_PWD } from '@/config/constants';
-import { wkLabel, wkRange } from '@/utils/date';
+import { can } from '@/utils/permission';
+import { wkLabel, wkRange, wkKey, getCurrentYearWeek, shouldShowNextWeek, getNextWeek } from '@/utils/date';
 import type { Project, WeeklySnapshot } from '@/core/types';
 import draggable from 'vuedraggable';
 import SubmitDiffDialog from '@/components/SubmitDiffDialog.vue';
@@ -24,6 +25,24 @@ const editingProject = ref<Project | null>(null);
 const showPendingConfirm = ref(false);
 const showSubmitDialog = ref(false);
 const submittingProject = ref<Project | null>(null);
+
+// 用户权限数据（供 can() 使用）
+const users = computed(() => authStore.userRegistry);
+
+// 当前周 key（用于日期标签比较）
+const currentWeekKey = computed(() => {
+  const cur = getCurrentYearWeek();
+  return shouldShowNextWeek()
+    ? wkKey(getNextWeek(cur.yr, cur.wk).yr, getNextWeek(cur.yr, cur.wk).wk)
+    : wkKey(cur.yr, cur.wk);
+});
+
+// 日期标签：历史查阅 / 预先填写
+function getWeekLabel(viewWeek: string, currentWeek: string): string {
+  if (viewWeek < currentWeek) return '· 历史查阅';
+  if (viewWeek > currentWeek) return '· 预先填写';
+  return '';
+}
 
 const isNow = computed(() => appStore.isCurrentWeek);
 
@@ -220,9 +239,9 @@ const meetingCount = computed(() => {
 const pendingSubmits = ref<Set<number>>(storage.loadPendingSubmit());
 function refreshPending() { pendingSubmits.value = storage.loadPendingSubmit(); }
 
-// 删除项目（仅总监，匹配旧系统 _deleteProjectConfirm）
+// 删除项目（仅 admin）
 function deleteProject(project: Project) {
-  if (!authStore.isDirector) return;
+  if (!can('delete', authStore.currentUser || '', users.value, project)) return;
   const pwd = prompt('请输入删除密码：');
   if (pwd !== DEL_PWD) {
     alert('删除密码错误');
@@ -244,9 +263,9 @@ function deleteProject(project: Project) {
   });
 }
 
-// 归档项目（仅总监）
+// 归档项目（仅 admin）
 function archiveProject(project: Project) {
-  if (!authStore.isDirector) return;
+  if (!can('archive', authStore.currentUser || '', users.value, project)) return;
   if (!confirm(`确定归档「${project.name}」吗？归档后将从周报中移除。`)) return;
 
   projectStore.archiveProject(project.id);
@@ -340,8 +359,8 @@ onBeforeUnmount(() => {
       <div class="wkbar-l">{{ wkLabel(appStore.yr, appStore.wk) }}</div>
       <div class="wkbar-sub">
         {{ wkRange(appStore.yr, appStore.wk) }}
-        <span v-if="isNow" style="color:var(--gt);font-weight:700"> · 本周</span>
-        <span v-else style="color:var(--t3)"> · 历史查阅</span>
+        <span v-if="getWeekLabel(appStore.weekKey, currentWeekKey)" style="color:var(--t3);font-weight:400">{{ getWeekLabel(appStore.weekKey, currentWeekKey) }}</span>
+        <span v-else style="color:var(--gt);font-weight:700"> · 本周</span>
       </div>
     </div>
     <button class="add-btn" @click="$router.push('/users')">＋ 新增项目</button>
@@ -373,7 +392,7 @@ onBeforeUnmount(() => {
     item-key="id"
     :animation="200"
     handle=".drag-handle"
-    :disabled="!authStore.isDirector"
+    :disabled="!can('manage', authStore.currentUser || '', users)"
   >
     <template #item="{ element: project }">
       <div
@@ -383,7 +402,7 @@ onBeforeUnmount(() => {
       >
         <!-- 卡片头部 -->
         <div class="pc-top">
-          <div v-if="authStore.isDirector" class="drag-handle" title="拖动排序" style="cursor:grab;padding:0 6px 0 0;color:var(--t3);font-size:14px;flex-shrink:0;">⠿</div>
+          <div v-if="can('manage', authStore.currentUser || '', users)" class="drag-handle" title="拖动排序" style="cursor:grab;padding:0 6px 0 0;color:var(--t3);font-size:14px;flex-shrink:0;">⠿</div>
           <div class="pc-nm">
             {{ project.name }}
             <span v-if="authStore.isLoggedIn && project.designOwner === authStore.currentUser"
@@ -467,7 +486,7 @@ onBeforeUnmount(() => {
               {{ comments[project.id] || '' }}
             </span>
             <button
-              v-if="authStore.isDirector"
+              v-if="can('comment', authStore.currentUser || '', users, project)"
               @click="editingComment = project.id; commentDraft = comments[project.id] || ''"
               style="font-size:11px;color:var(--gold);background:none;border:none;cursor:pointer;flex-shrink:0;white-space:nowrap"
             >✏ 工作点评</button>
@@ -495,10 +514,10 @@ onBeforeUnmount(() => {
 
           <!-- 操作按钮组 -->
           <div style="display:flex;gap:5px;align-items:center;flex-shrink:0">
-            <button class="bs" style="font-size:11px;padding:4px 9px" @click="editWeekly(project)">✏ 更新工作</button>
-            <button class="bp" style="font-size:11px;padding:4px 12px;background:var(--gold)" @click="askSubmit(project)">📤 提交</button>
-            <button v-if="authStore.isDirector" class="ba" @click="archiveProject(project)">归档</button>
-            <button v-if="authStore.isDirector" class="bd" @click="deleteProject(project)">删除</button>
+            <button v-if="can('edit', authStore.currentUser || '', users, project)" class="bs" style="font-size:11px;padding:4px 9px" @click="editWeekly(project)">✏ 更新工作</button>
+            <button v-if="can('submit', authStore.currentUser || '', users, project)" class="bp" style="font-size:11px;padding:4px 12px;background:var(--gold)" @click="askSubmit(project)">📤 提交</button>
+            <button v-if="can('archive', authStore.currentUser || '', users, project)" class="ba" @click="archiveProject(project)">归档</button>
+            <button v-if="can('delete', authStore.currentUser || '', users, project)" class="bd" @click="deleteProject(project)">删除</button>
           </div>
         </div>
       </div>
