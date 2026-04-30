@@ -339,6 +339,14 @@ export const useSyncStore = defineStore('sync', () => {
       storage.removePendingSubmit(projId);
       setSyncStatus('saved');
       syncStatus.value.lastSync = Date.now();
+
+      // 提交成功后立即同步队列，确保activity_log即时写入云端
+      try {
+        await syncNow();
+      } catch (e) {
+        console.warn('[Sync] syncNow after submit failed', e);
+      }
+
       return true;
     } catch (error) {
       console.warn('submit error:', error);
@@ -491,8 +499,7 @@ export const useSyncStore = defineStore('sync', () => {
         }
       }
     } catch (error) {
-      // 轮询失败不改变状态，静默重试
-      console.warn('[Poll] 轮询失败:', error);
+      console.warn('[Poll] pollOnce error:', error);
     }
   }
 
