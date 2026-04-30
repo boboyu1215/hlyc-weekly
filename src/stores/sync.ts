@@ -27,6 +27,9 @@ function queueDedupeKey(action: string, data: any): string {
 }
 
 export const useSyncStore = defineStore('sync', () => {
+  // snap数据版本号（递增触发Vue重渲染）
+  const snapVersion = ref(0);
+
   // 同步状态
   const syncStatus = ref<SyncStatus>({
     online: navigator.onLine,
@@ -45,14 +48,17 @@ export const useSyncStore = defineStore('sync', () => {
 
   // ── 智能轮询状态 ──
   let _pollTimer: ReturnType<typeof setInterval> | null = null;
-  let _pollInterval = 30000;       // 当前轮询间隔（毫秒），固定 30s
+  let _pollInterval = 15000;       // 当前轮询间隔（毫秒），默认 15s
   let _noChangeCount = 0;         // 连续无变化次数
-  const POLL_MIN = 30000;         // 最小间隔 30s
-  const POLL_MAX = 30000;         // 最大间隔 30s
-  const POLL_STEP = 5000;         // 每次递增 5s（已无退避空间，保留备用）
+  const POLL_MIN = 15000;         // 最小间隔 15s
+  const POLL_MAX = 60000;         // 最大间隔 60s（退避上限）
+  const POLL_STEP = 5000;         // 每次递增 5s
   const NO_CHANGE_THRESHOLD = 3;  // 连续 N 次无变化后开始退避
   let _hasNewData = false;        // 是否有新数据需要提示用户刷新
   let _pollEnabled = true;        // 是否启用轮询（SettingsView 控制）
+
+  // 各项目云端 _v 版本号缓存，用于 pullSnapshots 节流
+  const _remoteVersions: Record<number, number> = {};
 
   // 初始化
   function initSync() {
@@ -340,11 +346,17 @@ export const useSyncStore = defineStore('sync', () => {
       setSyncStatus('saved');
       syncStatus.value.lastSync = Date.now();
 
-      // 提交成功后立即同步队列，确保activity_log即时写入云端
+      // 提交成功后写入活动日志，让其他端的pollOnce能检测到变化
       try {
-        await syncNow();
+        await apiClient.addActivityLog({
+          type: 'submit',
+          projectId: projId,
+          submitter,
+          timestamp: t,
+          _ts: Date.now()
+        });
       } catch (e) {
-        console.warn('[Sync] syncNow after submit failed', e);
+        console.warn('[Sync] addActivityLog after submit failed', e);
       }
 
       return true;
@@ -479,15 +491,15 @@ export const useSyncStore = defineStore('sync', () => {
         }
       }
 
+      // 每次轮询都拉snap，不依赖changed检测
+      await pullSnapshots();
+
       if (changed) {
         _noChangeCount = 0;
         _pollInterval = POLL_MIN; // 有变化重置间隔
         _hasNewData = true;
         setSyncStatus('pending');
-
-        // 自动拉取最新snap
-        await pullSnapshots();
-        console.log('[Poll] 检测到新提交，已自动同步');
+        console.log('[Poll] 检测到变化，已同步');
       } else {
         _noChangeCount++;
         if (_noChangeCount >= NO_CHANGE_THRESHOLD) {
@@ -576,13 +588,21 @@ export const useSyncStore = defineStore('sync', () => {
         ? JSON.parse(localRaw)
         : {}
 
+      let updated = false;
+
       for (const projId of projectIds) {
         try {
-          const res = await apiClient.post('/api', {
-            action: 'query',
-            query: { prefix: `snap_${projId}` }
-          })
-          const remoteData = res?.[0]?.data
+          // 先轻量检查云端 _v 版本号，没变就跳过
+          const headRes = await apiClient.getWeeklySnapshot(projId);
+          const remoteV = headRes?.data?._v ?? 0;
+          if (remoteV && remoteV === _remoteVersions[projId]) {
+            continue; // 版本号没变，跳过此项目
+          }
+          _remoteVersions[projId] = remoteV;
+
+          const results = await apiClient.queryDocs(`snap_${projId}`)
+          if (!results || results.length === 0) continue
+          const remoteData = results[0].value
           if (!remoteData || typeof remoteData !== 'object') continue
 
           // 检查本地是否有未提交的更新
@@ -603,6 +623,7 @@ export const useSyncStore = defineStore('sync', () => {
             } else if (remoteTs >= localTs) {
               // 远端较新或相等，用远端覆盖
               local[weekKey][projId] = remoteSnap
+              updated = true;
             }
           }
         } catch (e) {
@@ -610,8 +631,13 @@ export const useSyncStore = defineStore('sync', () => {
         }
       }
 
-      localStorage.setItem('hlzc_w', JSON.stringify(local))
-      console.log('[Sync] snap数据拉取完成')
+      if (updated) {
+        localStorage.setItem('hlzc_w', JSON.stringify(local))
+        // 通知Vue响应式更新
+        window.dispatchEvent(new CustomEvent('weeksDataUpdated'))
+        snapVersion.value++;
+        console.log('[Sync] snap数据拉取完成')
+      }
     } catch (e) {
       console.warn('[Sync] pullSnapshots失败', e)
     }
@@ -627,6 +653,7 @@ export const useSyncStore = defineStore('sync', () => {
     syncStatus,
     syncStatusText,
     syncStatusType,
+    snapVersion,
     offlineQueue,
     hasPendingChanges,
     queueLength,

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useAppStore } from '@/stores/app';
 import { useProjectStore } from '@/stores/project';
 import { useAuthStore } from '@/stores/auth';
@@ -239,6 +239,16 @@ const meetingCount = computed(() => {
 const pendingSubmits = ref<Set<number>>(storage.loadPendingSubmit());
 function refreshPending() { pendingSubmits.value = storage.loadPendingSubmit(); }
 
+// 强制重新渲染 key（snap 同步后递增，驱动 draggable 重建子节点）
+const forceRenderKey = ref(0);
+
+// 监听snap版本号变化，重新渲染周报数据
+watch(() => syncStore.snapVersion, () => {
+  projectStore.loadProjects();
+  refreshPending();
+  forceRenderKey.value++;
+});
+
 // 删除项目（仅 admin）
 function deleteProject(project: Project) {
   if (!can('delete', authStore.currentUser || '', users.value, project)) return;
@@ -323,6 +333,10 @@ onMounted(async () => {
     const data = await res.json();
     comments.value = data.comments || {};
   } catch {}
+  window.addEventListener('weeksDataUpdated', () => {
+    projectStore.loadProjects()
+    refreshPending()
+  })
 });
 
 async function saveComment(projectId: number) {
@@ -393,6 +407,7 @@ onBeforeUnmount(() => {
     :animation="200"
     handle=".drag-handle"
     :disabled="!can('manage', authStore.currentUser || '', users)"
+    :key="'snap-' + forceRenderKey"
   >
     <template #item="{ element: project }">
       <div

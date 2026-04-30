@@ -88,12 +88,19 @@ export class ApiClient {
   // ==================== 批量文档查询 ====================
 
   // 批量拉取云端前缀数据
+  // 服务端返回 [{_id, ...spread(data)}]，适配为 [{key, value}]
   async queryDocs(prefix: string): Promise<Array<{key: string, value: any}>> {
     const res = await this.post('/api', {
       action: 'query',
       query: { prefix }
     })
-    return res?.data?.results ?? []
+    const raw = res?.data
+    if (!Array.isArray(raw)) return []
+    return raw.map((item: any) => {
+      const key = item._id
+      const { _id, ...value } = item
+      return { key, value }
+    })
   }
 
   // ==================== 项目相关 ====================
@@ -220,16 +227,23 @@ export class ApiClient {
     }
     if (localData.weeks !== undefined && localData._projId !== undefined) {
       const projId = localData._projId;
-      // 读取现有snap数据
-      const existingResp = await proxy('get', `snap_${projId}`, null);
-      // 服务端返回{data: snapContent}，proxy再包一层{success, data}
-      // 所以正确路径是 existingResp?.data?.data 或 existingResp?.data
+      const existingResp = await proxy('get', `snap_${projId}`, null)
+
+      // proxy('get')返回 {success: true, data: 服务端返回的data字段}
+      // 服务端get返回 {data: snapContent}
+      // 所以正确路径是 existingResp?.data?.data
       let snapData: Record<string, any> = {}
       if (existingResp?.data?.data && typeof existingResp.data.data === 'object') {
         snapData = { ...existingResp.data.data }
-      } else if (existingResp?.data && typeof existingResp.data === 'object'
-                 && !existingResp.data.success) {
-        snapData = { ...existingResp.data }
+      } else if (existingResp?.data && typeof existingResp.data === 'object') {
+        // 兜底：直接用data层
+        const d = existingResp.data
+        // 只保留weekKey格式的key，过滤掉脏字段
+        for (const [k, v] of Object.entries(d)) {
+          if (k.match(/^20\d\d-W\d+$/)) {
+            snapData[k] = v
+          }
+        }
       }
       // 把本次所有周数据合并进snap
       for (const [wk, wkData] of Object.entries(localData.weeks)) {
@@ -238,7 +252,14 @@ export class ApiClient {
       snapData._v = localData._v;
       snapData._updatedBy = localData._updatedBy;
       snapData._updatedAt = localData._updatedAt;
-      promises.push(proxy('set', `snap_${projId}`, snapData));
+      // 写入前过滤，只保留合法key
+      const cleanSnapData: Record<string, any> = {}
+      for (const [k, v] of Object.entries(snapData)) {
+        if (k.match(/^20\d\d-W\d+$/) || ['_v', '_updatedBy', '_updatedAt'].includes(k)) {
+          cleanSnapData[k] = v
+        }
+      }
+      promises.push(proxy('set', `snap_${projId}`, cleanSnapData));
     }
     if (localData.activity !== undefined) {
       promises.push(proxy('set', 'activity', { logs: localData.activity }));
