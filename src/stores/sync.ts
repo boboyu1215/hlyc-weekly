@@ -592,38 +592,28 @@ export const useSyncStore = defineStore('sync', () => {
 
       for (const projId of projectIds) {
         try {
-          // 先轻量检查云端 _v 版本号，没变就跳过
-          const headRes = await apiClient.getWeeklySnapshot(projId);
-          const remoteV = headRes?.data?._v ?? 0;
-          if (remoteV && remoteV === _remoteVersions[projId]) {
-            continue; // 版本号没变，跳过此项目
-          }
-          _remoteVersions[projId] = remoteV;
+          // 用get而不是query，格式稳定
+          const res = await apiClient.getWeeklySnapshot(projId)
+          if (!res?.success || !res?.data) continue
 
-          const results = await apiClient.queryDocs(`snap_${projId}`)
-          if (!results || results.length === 0) continue
-          const remoteData = results[0].value
-          if (!remoteData || typeof remoteData !== 'object') continue
-
-          // 检查本地是否有未提交的更新
-          const pendingRaw = localStorage.getItem('hlzc_pending_submit')
-          const pendingIds: number[] = pendingRaw ? JSON.parse(pendingRaw) : []
-          const hasPending = pendingIds.includes(Number(projId))
+          const remoteData = res.data
 
           for (const [weekKey, remoteSnap] of Object.entries(remoteData)) {
             if (!weekKey.match(/^20\d\d-W\d+$/)) continue
             if (!local[weekKey]) local[weekKey] = {}
 
+            const pendingRaw = localStorage.getItem('hlzc_pending_submit')
+            const pendingIds: number[] = pendingRaw ? JSON.parse(pendingRaw) : []
+            const hasPending = pendingIds.includes(Number(projId))
             const localSnap = local[weekKey][projId]
             const remoteTs = (remoteSnap as any)?._ts ?? 0
             const localTs = localSnap?._ts ?? 0
 
             if (hasPending && localTs > remoteTs) {
-              // 本地有未提交且比远端新，保留本地
+              // 本地有未提交且更新，保留本地
             } else if (remoteTs >= localTs) {
-              // 远端较新或相等，用远端覆盖
               local[weekKey][projId] = remoteSnap
-              updated = true;
+              updated = true
             }
           }
         } catch (e) {
