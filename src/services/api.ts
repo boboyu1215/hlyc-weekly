@@ -85,6 +85,14 @@ export class ApiClient {
     return proxy('set', id, data);
   }
 
+  /**
+   * 按前缀批量查询文档（利用服务端 query action + LIKE）
+   * 返回 [{ _id, ...docData }] 数组
+   */
+  async queryDocs<T = any>(prefix: string): Promise<ApiResponse<T[]>> {
+    return proxy<T[]>('query', undefined, undefined, { query: { prefix } });
+  }
+
   // ==================== 项目相关 ====================
 
   async getProjects(): Promise<ApiResponse> {

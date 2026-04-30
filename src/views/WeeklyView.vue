@@ -78,12 +78,39 @@ function handleSubmitDone(success: boolean) {
 }
 
 // 渲染项目快照的四维信息
+// 数组字段统一格式：序号. 内容（月｜日），每项一行
 function renderDimBody(v: any, emptyText: string): string {
   const empty = emptyText || '无';
   if (!v || (typeof v === 'string' && !v.trim()) || (Array.isArray(v) && !v.length)) return empty;
   if (typeof v === 'string') return v.trim() || empty;
-  if (Array.isArray(v)) return v.filter((i: any) => i.text?.trim()).map((i: any) => i.text).join('；') || empty;
+  if (Array.isArray(v)) {
+    return v
+      .filter((i: any) => i.text?.trim())
+      .map((i: any, idx: number) => {
+        const num = idx + 1;
+        const due = i.dueDate ? formatDueDate(i.dueDate) : '';
+        return due ? `${num}. ${i.text}（${due}）` : `${num}. ${i.text}`;
+      })
+      .join('\n') || empty;
+  }
   return empty;
+}
+
+// 横幅专用：简洁显示，只取内容，不加分隔
+function renderBannerText(v: any): string {
+  if (!v || (typeof v === 'string' && !v.trim()) || (Array.isArray(v) && !v.length)) return '';
+  if (typeof v === 'string') return v.trim();
+  if (Array.isArray(v)) return v.filter((i: any) => i.text?.trim()).map((i: any) => i.text).join('；');
+  return '';
+}
+
+// 提取 dueDate 中的月和日部分，如 "2026-05-15" → "5｜15"
+function formatDueDate(dueDate: string): string {
+  if (!dueDate) return '';
+  // 支持格式：2026-05-15、2026/05/15、5月15日、05-15 等
+  const nums = dueDate.match(/(\d{1,2})[-/月](\d{1,2})/);
+  if (nums) return `${parseInt(nums[1])}｜${parseInt(nums[2])}`;
+  return dueDate;
 }
 
 // 判断字段是否有实质内容（用于决策/风险提示横幅）
@@ -386,10 +413,10 @@ onBeforeUnmount(() => {
 
         <!-- 决策/风险提示横幅（匹配旧系统 weekly.js 的 notice banners） -->
         <div v-if="fieldHasContent(getSnap(project).decision)" class="notice-banner notice-decision">
-          ⚡ 需管理层决策：{{ renderDimBody(getSnap(project).decision, '') }}
+          ⚡ 需管理层决策：{{ renderBannerText(getSnap(project).decision) }}
         </div>
         <div v-if="fieldHasContent(getSnap(project).risk)" class="notice-banner notice-risk">
-          ⚠ 风险/卡点：{{ renderDimBody(getSnap(project).risk, '') }}
+          ⚠ 风险/卡点：{{ renderBannerText(getSnap(project).risk) }}
         </div>
 
         <!-- 四维信息 -->
@@ -403,7 +430,10 @@ onBeforeUnmount(() => {
                 if (items && Array.isArray(items) && items.some((i: any) => i.text?.trim())) {
                   return items
                     .filter((i: any) => i.text?.trim())
-                    .map((i: any, idx: number) => `${idx + 1}. ${i.text}`)
+                    .map((i: any, idx: number) => {
+                      const due = i.dueDate ? formatDueDate(i.dueDate) : '';
+                      return due ? `${idx + 1}. ${i.text}（${due}）` : `${idx + 1}. ${i.text}`;
+                    })
                     .join('\n') || '无';
                 }
                 return snap.coreOutput || '无';
@@ -412,15 +442,15 @@ onBeforeUnmount(() => {
           </div>
           <div class="dim d2">
             <div class="dim-hd">本周计划</div>
-            <div class="dim-body">{{ renderDimBody(getSnap(project).coreAction, '无') }}</div>
+            <div class="dim-body" style="white-space:pre-wrap">{{ renderDimBody(getSnap(project).coreAction, '无') }}</div>
           </div>
           <div class="dim d3">
             <div class="dim-hd" style="color:#b00020">风险 / 卡点</div>
-            <div class="dim-body" style="color:#b00020">{{ renderDimBody(getSnap(project).risk, '无') }}</div>
+            <div class="dim-body" style="color:#b00020;white-space:pre-wrap">{{ renderDimBody(getSnap(project).risk, '无') }}</div>
           </div>
           <div class="dim d4">
             <div class="dim-hd" style="color:#2563a8">跨部门支援</div>
-            <div class="dim-body">{{ renderDimBody(getSnap(project).crossDept, '本周无需跨部门支援') }}</div>
+            <div class="dim-body" style="white-space:pre-wrap">{{ renderDimBody(getSnap(project).crossDept, '本周无需跨部门支援') }}</div>
           </div>
         </div>
 

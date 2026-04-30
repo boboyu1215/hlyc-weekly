@@ -244,6 +244,34 @@ export const useSyncStore = defineStore('sync', () => {
         storage.saveActivityLog(logsResult.data);
       }
 
+      // 拉取所有周报快照（weeks/{weekKey}） → 合并到本地
+      try {
+        const weeksResult = await apiClient.queryDocs<any[]>('weeks/');
+        if (weeksResult.success && Array.isArray(weeksResult.data)) {
+          const localWeeks = storage.loadWeeks();
+          for (const row of weeksResult.data) {
+            // queryDocs 返回格式：{ _id: 'weeks/2026-W19', ...weekData }
+            const weekKey = row._id?.replace('weeks/', '');
+            if (!weekKey) continue;
+            const remoteWeekData = { ...row };
+            delete remoteWeekData._id; // 移除 _id 前缀字段
+
+            if (!localWeeks[weekKey]) localWeeks[weekKey] = {} as any;
+            for (const [pid, remoteSnap] of Object.entries(remoteWeekData)) {
+              if (pid.startsWith('__')) continue; // 跳过 __meetings 等内部字段
+              const localSnap = localWeeks[weekKey][pid];
+              localWeeks[weekKey][pid] = localSnap
+                ? mergeSnapshot(localSnap, remoteSnap as WeeklySnapshot)
+                : (remoteSnap as WeeklySnapshot);
+            }
+          }
+          storage.saveWeeks(localWeeks);
+          console.log('[sync] pullFromServer: 已合并云端周报数据');
+        }
+      } catch (e) {
+        console.warn('[sync] 拉取周报快照失败（非致命）:', e);
+      }
+
       setSyncStatus('sync');
       syncStatus.value.lastSync = Date.now();
       return true;
