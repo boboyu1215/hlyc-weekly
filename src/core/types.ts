@@ -6,8 +6,8 @@
 // 项目状态：红、黄、绿
 export type ProjectStatus = 'r' | 'y' | 'g';
 
-// 用户角色
-export type UserRole = 'director' | 'manager' | 'curator' | 'supervisor' | 'pending';
+// 用户角色（三级权限体系）
+export type UserRole = 'admin' | 'member' | 'guest';
 
 // 项目接口
 export interface Project {
@@ -108,8 +108,12 @@ export interface ActivityLog {
 export interface User {
   name: string;
   role: UserRole;
+  title?: string;         // 职务：总监/研策负责人/筹备负责人/普通成员
+  employeeId?: string;    // 工号
   joinedAt?: number;
   lastSeen?: number;
+  approvedAt?: number;    // 审核时间
+  approvedBy?: string;    // 审核人
 }
 
 // 用户注册表

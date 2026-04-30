@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import type { UserRole } from '@/core/types';
+import { ROLE_LABELS } from '@/config/constants';
 
 const authStore = useAuthStore();
 
@@ -25,18 +26,19 @@ const users = computed(() => {
   }));
 });
 
-// 角色选项
+// 角色选项（三级权限体系）
 const roleOptions: { value: UserRole; label: string; color: string }[] = [
-  { value: 'director', label: '总监', color: '#8b5cf6' },
-  { value: 'manager', label: '经理', color: '#3b82f6' },
-  { value: 'curator', label: '策展人', color: '#10b981' },
-  { value: 'supervisor', label: '监理', color: '#f59e0b' },
-  { value: 'pending', label: '待审核', color: '#6b7280' }
+  { value: 'admin', label: '管理员', color: '#8b5cf6' },
+  { value: 'member', label: '成员', color: '#3b82f6' },
+  { value: 'guest', label: '访客', color: '#6b7280' }
 ];
 
-// 获取角色标签
+// 职务选项
+const titleOptions = ['总监', '研策负责人', '筹备负责人', '普通成员'];
+
+// 获取角色标签（支持新旧值）
 function getRoleLabel(role: UserRole): string {
-  return roleOptions.find(r => r.value === role)?.label || role;
+  return ROLE_LABELS[role] || role;
 }
 
 // 获取角色颜色
@@ -47,7 +49,7 @@ function getRoleColor(role: UserRole): string {
 // 添加成员（匹配旧系统 auth.js addMember）
 function addMember() {
   if (!authStore.isDirector) {
-    alert('只有总监可以添加成员');
+    alert('只有管理员可以添加成员');
     return;
   }
   const name = newMemberName.value.trim();
@@ -67,7 +69,7 @@ function addMember() {
 // 删除成员（匹配旧系统 auth.js deleteUser，需密码确认）
 function deleteUser(name: string) {
   if (!authStore.isDirector) {
-    alert('只有总监可以删除成员');
+    alert('只有管理员可以删除成员');
     return;
   }
   const pwd = prompt(`删除用户「${name}」需要输入管理密码：`);
@@ -83,13 +85,24 @@ function deleteUser(name: string) {
 // 更新用户角色
 function updateRole(name: string, newRole: UserRole) {
   if (!authStore.isDirector) {
-    alert('只有总监可以修改用户角色');
+    alert('只有管理员可以修改用户角色');
     return;
   }
 
   if (confirm(`确定将 ${name} 的角色修改为 ${getRoleLabel(newRole)} 吗？`)) {
     authStore.updateUserRole(name, newRole);
   }
+}
+
+// 更新用户单个字段（工号、职务等）
+function updateUserField(name: string, field: string, value: string) {
+  if (!authStore.isDirector) return;
+
+  const user = authStore.userRegistry[name];
+  if (!user) return;
+
+  (user as any)[field] = value;
+  authStore.importUserRegistry({ ...authStore.userRegistry });
 }
 
 // 关闭对话框
@@ -110,7 +123,7 @@ function close() {
 
       <div class="dialog-body">
         <div v-if="!authStore.isDirector" class="permission-warning">
-          ⚠️ 您没有权限管理用户角色
+          您没有权限管理用户
         </div>
 
         <!-- 添加成员按钮 -->
@@ -141,36 +154,59 @@ function close() {
             class="user-item"
           >
             <div class="user-info">
-              <div class="user-name">{{ user.name }}</div>
+              <div class="user-name">
+                {{ user.name }}
+                <span v-if="user.employeeId" class="emp-id">#{{ user.employeeId }}</span>
+              </div>
               <div class="user-meta">
+                <span v-if="user.title" class="meta-item meta-title">{{ user.title }}</span>
                 <span class="meta-item">
-                  注册时间: {{ new Date(user.joinedAt || user.registeredAt || Date.now()).toLocaleDateString() }}
+                  注册: {{ new Date(user.joinedAt || Date.now()).toLocaleDateString() }}
                 </span>
-                <span v-if="user.lastSeen || user.lastLogin" class="meta-item">
-                  最后登录: {{ new Date(user.lastSeen || user.lastLogin || Date.now()).toLocaleDateString() }}
+                <span v-if="user.lastSeen" class="meta-item">
+                  登录: {{ new Date(user.lastSeen).toLocaleDateString() }}
                 </span>
               </div>
             </div>
 
-            <div style="display:flex;align-items:center;gap:8px">
-              <div class="user-role">
-                <select
-                  :value="user.role"
-                  @change="(e) => updateRole(user.name, (e.target as HTMLSelectElement).value as UserRole)"
-                  :disabled="!authStore.isDirector"
-                  class="role-select"
-                  :style="{ borderColor: getRoleColor(user.role) }"
+            <div class="user-controls">
+              <!-- 工号（仅管理员可编辑） -->
+              <input
+                class="ctrl-input emp-input"
+                :value="user.employeeId || ''"
+                placeholder="工号"
+                :disabled="!authStore.isDirector"
+                @change="updateUserField(user.name, 'employeeId', ($event.target as HTMLInputElement).value)"
+              />
+
+              <!-- 职务下拉（仅管理员可编辑） -->
+              <select
+                class="ctrl-select title-select"
+                :value="user.title || '普通成员'"
+                :disabled="!authStore.isDirector"
+                @change="updateUserField(user.name, 'title', ($event.target as HTMLSelectElement).value)"
+              >
+                <option v-for="t in titleOptions" :key="t" :value="t">{{ t }}</option>
+              </select>
+
+              <!-- 权限角色下拉（仅管理员可编辑） -->
+              <select
+                class="ctrl-select role-select"
+                :value="user.role"
+                :disabled="!authStore.isDirector"
+                :style="{ borderColor: getRoleColor(user.role as UserRole) }"
+                @change="(e) => updateRole(user.name, (e.target as HTMLSelectElement).value as UserRole)"
+              >
+                <option
+                  v-for="option in roleOptions"
+                  :key="option.value"
+                  :value="option.value"
                 >
-                  <option
-                    v-for="option in roleOptions"
-                    :key="option.value"
-                    :value="option.value"
-                  >
-                    {{ option.label }}
-                  </option>
-                </select>
-              </div>
-              <!-- 删除按钮（仅总监可见） -->
+                  {{ option.label }}
+                </option>
+              </select>
+
+              <!-- 删除按钮（仅管理员可见） -->
               <button
                 v-if="authStore.isDirector"
                 class="del-btn"
@@ -205,7 +241,7 @@ function close() {
   background: var(--card);
   border-radius: var(--r);
   width: 100%;
-  max-width: 700px;
+  max-width: 750px;
   max-height: 80vh;
   display: flex;
   flex-direction: column;
@@ -294,6 +330,7 @@ function close() {
 
 .user-info {
   flex: 1;
+  min-width: 0;
 }
 
 .user-name {
@@ -303,9 +340,16 @@ function close() {
   margin-bottom: 4px;
 }
 
+.emp-id {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--t3);
+  margin-left: 6px;
+}
+
 .user-meta {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
@@ -314,12 +358,23 @@ function close() {
   color: var(--t3);
 }
 
-.user-role {
-  margin-left: 14px;
+.meta-title {
+  color: var(--gold);
+  font-weight: 600;
 }
 
-.role-select {
-  padding: 6px 10px;
+/* 用户控制区 */
+.user-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+
+.ctrl-input,
+.ctrl-select {
+  padding: 5px 8px;
   border: 0.5px solid var(--bdr);
   border-radius: var(--rr);
   background: var(--card);
@@ -328,21 +383,36 @@ function close() {
   font-family: var(--fn);
   cursor: pointer;
   transition: all 0.15s;
-  min-width: 100px;
   outline: none;
 }
 
-.role-select:hover:not(:disabled) {
+.ctrl-input:hover:not(:disabled),
+.ctrl-select:hover:not(:disabled) {
   border-color: var(--gold);
 }
 
-.role-select:disabled {
+.ctrl-input:focus,
+.ctrl-select:focus {
+  border-color: var(--gold);
+}
+
+.ctrl-input:disabled,
+.ctrl-select:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.role-select:focus {
-  border-color: var(--gold);
+.emp-input {
+  width: 52px;
+  text-align: center;
+}
+
+.title-select {
+  min-width: 90px;
+}
+
+.role-select {
+  min-width: 80px;
 }
 
 .dialog-footer {
@@ -404,13 +474,10 @@ function close() {
     gap: 10px;
   }
 
-  .user-role {
+  .user-controls {
     margin-left: 0;
     width: 100%;
-  }
-
-  .role-select {
-    width: 100%;
+    flex-wrap: wrap;
   }
 }
 </style>

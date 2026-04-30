@@ -424,7 +424,7 @@ onMounted(() => loadGdriveStatus());
             <div class="info-item">
               <span class="label">权限级别:</span>
               <span class="value">
-                {{ authStore.isDirector ? '总监' : authStore.isApproved ? '已审核' : '待审核' }}
+                {{ authStore.isDirector ? '管理员' : authStore.isApproved ? '成员' : '访客' }}
               </span>
             </div>
           </div>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useAuthStore } from '@/stores/auth';
-import { DIRECTORS } from '@/config/constants';
+import { isAdmin } from '@/utils/permission';
 
 const authStore = useAuthStore();
 
@@ -17,7 +17,7 @@ function handleLogin() {
 
   // 检查是否在系统注册表中（匹配旧系统 _showNotInSystemModal）
   const registry = authStore.userRegistry;
-  if (!DIRECTORS.includes(name) && !registry[name]) {
+  if (!isAdmin(name, registry) && !registry[name]) {
     showNotInSystem.value = true;
     return;
   }

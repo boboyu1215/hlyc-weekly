@@ -5,9 +5,9 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { StorageService } from '@/services/storage';
-import { DIRECTORS } from '@/config/constants';
 import apiClient from '@/services/api';
 import type { UserRole, User } from '@/core/types';
+import { isAdmin } from '@/utils/permission';
 
 const storage = StorageService.getInstance();
 
@@ -69,26 +69,22 @@ export const useAuthStore = defineStore('auth', () => {
 
   // 计算属性：用户角色
   const userRole = computed((): UserRole => {
-    if (!currentUser.value) return 'pending';
-
-    // 总监
-    if (DIRECTORS.includes(currentUser.value)) {
-      return 'director';
-    }
+    if (!currentUser.value) return 'guest';
 
     // 从注册表获取角色
     const user = userRegistry.value[currentUser.value];
-    return user?.role || 'pending';
+    return user?.role || 'guest';
   });
 
-  // 计算属性：是否是总监
+  // 计算属性：是否是管理员（向后兼容别名）
   const isDirector = computed(() => {
-    return userRole.value === 'director';
+    return isAdmin(currentUser.value || '', userRegistry.value);
   });
 
-  // 计算属性：是否已审核通过
+  // 计算属性：是否已审核通过（admin 和 member 均视为已审核）
   const isApproved = computed(() => {
-    return userRole.value !== 'pending';
+    const role = userRole.value;
+    return role === 'admin' || role === 'member';
   });
 
   // 登录
@@ -100,7 +96,7 @@ export const useAuthStore = defineStore('auth', () => {
     if (!userRegistry.value[name]) {
       userRegistry.value[name] = {
         name,
-        role: DIRECTORS.includes(name) ? 'director' : 'pending',
+        role: 'guest',
         joinedAt: Date.now(),
         lastSeen: Date.now()
       };
@@ -148,7 +144,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     userRegistry.value[name] = {
       name,
-      role: 'pending',
+      role: 'guest',
       joinedAt: Date.now(),
       lastSeen: Date.now()
     };

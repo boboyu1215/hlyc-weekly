@@ -7,9 +7,6 @@
 export const PROXY_URL = import.meta.env.VITE_API_ENDPOINT || '';
 export const ENV_ID = import.meta.env.VITE_ENV_ID || '';
 
-// 总监列表
-export const DIRECTORS = ['张建波', '冷耀秋', 'Kenbe'];
-
 // 删除密码（管理员删除项目时需输入）
 export const DEL_PWD = '1234';
 
@@ -30,13 +27,18 @@ export const STAGES = [
   '竣工'
 ];
 
-// 角色标签
+// 角色标签（三级权限体系）
 export const ROLE_LABELS: Record<string, string> = {
-  director: '总监',
-  manager: '设计经理',
-  curator: '策展经理',
-  supervisor: '主管',
-  pending: '待审核'
+  // 新三级
+  'admin':   '管理员',
+  'member':  '成员',
+  'guest':   '访客',
+  // 旧值兼容映射（只读展示用，不再写入）
+  'director':   '管理员',
+  'manager':    '成员',
+  'curator':    '成员',
+  'supervisor': '成员',
+  'pending':    '待审核',
 };
 
 // 状态标签

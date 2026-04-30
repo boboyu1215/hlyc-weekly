@@ -1,12 +1,11 @@
 // 权限中枢，所有判断走此处
-import { DIRECTORS } from '@/config/constants'
+import type { User } from '@/core/types'
 
-export type Role = 'admin' | 'member'
+export type Role = 'admin' | 'member' | 'guest'
 export type Title = '总监' | '研策负责人' | '筹备负责人' | '普通成员'
 
 // 判断是否管理员
 export function isAdmin(user: string, users: Record<string, any>): boolean {
-  if (DIRECTORS.includes(user)) return true
   return users[user]?.role === 'admin'
 }
 
@@ -15,14 +14,23 @@ export function isProjectOwner(user: string, project: any): boolean {
   return project?.designOwner === user || project?.prepOwner === user
 }
 
+// 判断是否访客
+export function isGuest(user: string, users: Record<string, any>): boolean {
+  return users[user]?.role === 'guest'
+}
+
+// 向后兼容别名
+export const isDirector = isAdmin
+
 // 统一权限判断入口
 export function can(
-  action: 'edit' | 'submit' | 'comment' | 'archive' | 'delete' | 'create' | 'manage',
+  action: 'edit' | 'submit' | 'comment' | 'archive' | 'delete' | 'create' | 'manage' | 'board',
   user: string,
   users: Record<string, any>,
   project?: any
 ): boolean {
   const admin = isAdmin(user, users)
+  const member = !isGuest(user, users)
   const owner = project ? isProjectOwner(user, project) : false
 
   switch (action) {
@@ -33,6 +41,7 @@ export function can(
     case 'delete':  return admin
     case 'create':  return admin
     case 'manage':  return admin
+    case 'board':   return admin || member  // 管理员+成员均可编辑黑板报
     default:        return false
   }
 }
