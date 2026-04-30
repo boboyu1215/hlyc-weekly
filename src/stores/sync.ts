@@ -241,14 +241,14 @@ export const useSyncStore = defineStore('sync', () => {
           ? JSON.parse(localRaw)
           : {}
 
-        await Promise.all(projectIds.map(async (projId: number) => {
+        for (const projId of projectIds) {
           try {
             const res = await apiClient.post('/api', {
               action: 'query',
               query: { prefix: `snap_${projId}` }
             })
             const remoteData = res?.[0]?.data
-            if (!remoteData || typeof remoteData !== 'object') return
+            if (!remoteData || typeof remoteData !== 'object') continue
 
             for (const [weekKey, remoteSnap] of Object.entries(remoteData)) {
               if (!weekKey.match(/^20\d\d-W\d+$/)) continue
@@ -260,34 +260,10 @@ export const useSyncStore = defineStore('sync', () => {
                 local[weekKey][projId] = remoteSnap
               }
             }
-
-            // 同时兼容新weeks/格式：拉取weeks/{weekKey}里该projId的数据
-            const weeksRes = await apiClient.post('/api', {
-              action: 'query',
-              query: { prefix: `weeks/20` }
-            })
-            if (Array.isArray(weeksRes)) {
-              for (const item of weeksRes) {
-                const weekKey = item._id?.replace('weeks/', '')
-                if (!weekKey?.match(/^20\d\d-W\d+$/)) continue
-                const value = item
-                // 判断是否为正确map结构
-                if (value && typeof value === 'object' && value[projId]) {
-                  if (!local[weekKey]) local[weekKey] = {}
-                  const remoteSnap = value[projId]
-                  const localSnap = local[weekKey][projId]
-                  const remoteTs = remoteSnap?._ts ?? 0
-                  const localTs = localSnap?._ts ?? 0
-                  if (remoteTs >= localTs) {
-                    local[weekKey][projId] = remoteSnap
-                  }
-                }
-              }
-            }
-          } catch (e) {
+          } catch(e) {
             console.warn(`[Sync] 拉取proj ${projId} 失败`, e)
           }
-        }))
+        }
 
         localStorage.setItem('hlzc_w', JSON.stringify(local))
         console.log('[Sync] 全量数据拉取完成')

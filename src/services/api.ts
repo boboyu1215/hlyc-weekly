@@ -219,25 +219,23 @@ export class ApiClient {
       promises.push(proxy('set', 'users', localData.users));
     }
     if (localData.weeks !== undefined && localData._projId !== undefined) {
-      const projId = String(localData._projId);
+      const projId = localData._projId;
+      // 读取现有snap数据
+      const existingResp = await proxy('get', `snap_${projId}`, null);
+      // proxy返回 {success, data}，data里才是snap内容
+      // snap内容服务端又包了一层{data: snapContent}，所以要取 .data.data
+      const snapData: Record<string, any> =
+        (existingResp?.success && existingResp?.data?.data && typeof existingResp.data.data === 'object')
+          ? { ...existingResp.data.data }
+          : {};
+      // 把本次所有周数据合并进snap
       for (const [wk, wkData] of Object.entries(localData.weeks)) {
-        promises.push(
-          proxy('get', `weeks/${wk}`, null)
-            .then((existing: any) => {
-              // 判断是否已是正确map结构（有projId层，无status平铺）
-              const isValidMap = existing &&
-                typeof existing === 'object' &&
-                existing.status === undefined;
-              const map = isValidMap ? existing : {};
-              map[projId] = wkData;
-              return proxy('set', `weeks/${wk}`, map);
-            })
-            .catch(() => {
-              // 读取失败则直接写新map
-              return proxy('set', `weeks/${wk}`, { [projId]: wkData });
-            })
-        );
+        snapData[wk] = wkData;
       }
+      snapData._v = localData._v;
+      snapData._updatedBy = localData._updatedBy;
+      snapData._updatedAt = localData._updatedAt;
+      promises.push(proxy('set', `snap_${projId}`, snapData));
     }
     if (localData.activity !== undefined) {
       promises.push(proxy('set', 'activity', { logs: localData.activity }));
