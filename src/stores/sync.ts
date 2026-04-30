@@ -232,6 +232,69 @@ export const useSyncStore = defineStore('sync', () => {
         storage.saveProjects(projectsResult.data);
       }
 
+      // 拉取所有项目snap数据，合并到本地hlzc_w（必须在 projects 之后，依赖 projectIds）
+      try {
+        const projects = JSON.parse(localStorage.getItem('hlzc_p') || '[]')
+        const projectIds: number[] = projects.map((p: any) => p.id)
+        const localRaw = localStorage.getItem('hlzc_w')
+        const local: Record<string, Record<string, any>> = localRaw
+          ? JSON.parse(localRaw)
+          : {}
+
+        await Promise.all(projectIds.map(async (projId: number) => {
+          try {
+            const res = await apiClient.post('/api', {
+              action: 'query',
+              query: { prefix: `snap_${projId}` }
+            })
+            const remoteData = res?.[0]?.data
+            if (!remoteData || typeof remoteData !== 'object') return
+
+            for (const [weekKey, remoteSnap] of Object.entries(remoteData)) {
+              if (!weekKey.match(/^20\d\d-W\d+$/)) continue
+              if (!local[weekKey]) local[weekKey] = {}
+              const localSnap = local[weekKey][projId]
+              const remoteTs = (remoteSnap as any)?._ts ?? 0
+              const localTs = localSnap?._ts ?? 0
+              if (remoteTs >= localTs) {
+                local[weekKey][projId] = remoteSnap
+              }
+            }
+
+            // 同时兼容新weeks/格式：拉取weeks/{weekKey}里该projId的数据
+            const weeksRes = await apiClient.post('/api', {
+              action: 'query',
+              query: { prefix: `weeks/20` }
+            })
+            if (Array.isArray(weeksRes)) {
+              for (const item of weeksRes) {
+                const weekKey = item._id?.replace('weeks/', '')
+                if (!weekKey?.match(/^20\d\d-W\d+$/)) continue
+                const value = item
+                // 判断是否为正确map结构
+                if (value && typeof value === 'object' && value[projId]) {
+                  if (!local[weekKey]) local[weekKey] = {}
+                  const remoteSnap = value[projId]
+                  const localSnap = local[weekKey][projId]
+                  const remoteTs = remoteSnap?._ts ?? 0
+                  const localTs = localSnap?._ts ?? 0
+                  if (remoteTs >= localTs) {
+                    local[weekKey][projId] = remoteSnap
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            console.warn(`[Sync] 拉取proj ${projId} 失败`, e)
+          }
+        }))
+
+        localStorage.setItem('hlzc_w', JSON.stringify(local))
+        console.log('[Sync] 全量数据拉取完成')
+      } catch (e) {
+        console.warn('[Sync] 拉取数据失败', e)
+      }
+
       // 获取用户注册表 → 直接覆盖
       const usersResult = await apiClient.getUserRegistry();
       if (usersResult.success && usersResult.data) {
@@ -242,61 +305,6 @@ export const useSyncStore = defineStore('sync', () => {
       const logsResult = await apiClient.getActivityLog(100);
       if (logsResult.success && logsResult.data) {
         storage.saveActivityLog(logsResult.data);
-      }
-
-      // 拉取云端 weeks 数据，兼容新旧两种格式
-      try {
-        const results = await apiClient.queryDocs('weeks/')
-        const localRaw = localStorage.getItem('hlzc_w')
-        const local: Record<string, Record<string, any>> = localRaw ? JSON.parse(localRaw) : {}
-
-        for (const item of results) {
-          const key = item.key  // 如 "weeks/2026-W19"
-          const value = item.value
-
-          // 跳过元数据key
-          if (!key.match(/weeks\/20\d\d-W\d+/)) continue
-
-          const weekKey = key.replace('weeks/', '')  // "2026-W19"
-
-          // value 结构: { projId: snapshot, ... }
-          if (typeof value !== 'object' || !value) continue
-
-          if (!local[weekKey]) local[weekKey] = {}
-
-          for (const [projId, remoteSnap] of Object.entries(value)) {
-            if (typeof remoteSnap !== 'object' || !remoteSnap) continue
-            const localSnap = local[weekKey][projId]
-            const remoteTs = (remoteSnap as any)._ts ?? 0
-            const localTs = localSnap?._ts ?? 0
-            // 远端较新则覆盖
-            if (remoteTs > localTs) {
-              local[weekKey][projId] = remoteSnap
-            }
-          }
-        }
-
-        // 兼容旧格式 weeks/data
-        const dataItem = results.find(r => r.key === 'weeks/data')
-        if (dataItem?.value) {
-          for (const [weekKey, projMap] of Object.entries(dataItem.value)) {
-            if (!weekKey.match(/20\d\d-W\d+/)) continue
-            if (!local[weekKey]) local[weekKey] = {}
-            for (const [projId, remoteSnap] of Object.entries(projMap as any)) {
-              if (typeof remoteSnap !== 'object' || !remoteSnap) continue
-              const localSnap = local[weekKey][projId]
-              const remoteTs = (remoteSnap as any)._ts ?? 0
-              const localTs = localSnap?._ts ?? 0
-              if (remoteTs > localTs) {
-                local[weekKey][projId] = remoteSnap
-              }
-            }
-          }
-        }
-
-        localStorage.setItem('hlzc_w', JSON.stringify(local))
-      } catch (e) {
-        console.warn('[Sync] 拉取 weeks 数据失败', e)
       }
 
       setSyncStatus('sync');
@@ -377,6 +385,7 @@ export const useSyncStore = defineStore('sync', () => {
       // 上传到云端
       const result = await apiClient.fullSync({
         weeks: mergedSnap,
+        _projId: projId,
         _v: now,
         _updatedBy: submitter,
         _updatedAt: t

@@ -70,23 +70,35 @@ function formatTime(ts: number): string {
   return d.toLocaleDateString('zh-CN');
 }
 
-onMounted(() => {
+// 页面是否已就绪（pullFromServer 完成后才渲染主内容）
+const ready = ref(false);
+
+onMounted(async () => {
   appStore.init();
   authStore.initAuth();
-  projectStore.loadProjects();
   syncStore.initSync();
+
+  // 先加载项目列表，再从云端拉取全量数据（snap依赖projectIds）
+  projectStore.loadProjects();
+
+  try {
+    await syncStore.pullFromServer();
+  } catch (e) {
+    console.warn('[App] 初始化拉取失败，使用本地数据', e);
+  }
+
+  // 数据就绪后加载活动日志
   loadActivity();
 
   // 周五及之后自动跳转下周（init 之后执行，确保覆盖 init 设置的当前周）
-  // shouldShowNextWeek()：周五 getDay()=5、周六=6、周日=0... 等等
-  // 原逻辑 getDay() >= 5 只覆盖周五和周六，周日 getDay()=0 不满足
-  // 修正：周日也应该跳下周
   const day = new Date().getDay();
   const isWeekend = day === 0 || day >= 5; // 周五=5 周六=6 周日=0
   if (isWeekend) {
     const next = getNextWeek(appStore.yr, appStore.wk);
-    appStore.gotoWeek(next); // 用 store 方法，触发响应式更新
+    appStore.gotoWeek(next);
   }
+
+  ready.value = true;
 
   // 监听页面可见性变化
   document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -118,7 +130,7 @@ onBeforeUnmount(() => {
       <button class="refresh-btn" @click="doRefresh">刷新</button>
     </div>
 
-    <div class="shell"><div class="content"><RouterView /></div></div>
+    <div class="shell"><div class="content"><RouterView v-if="ready" /></div></div>
 
     <!-- 底部活动流（匹配旧系统 app.js activity bar） -->
     <div v-if="activityLogs.length > 0" class="activity-bar">

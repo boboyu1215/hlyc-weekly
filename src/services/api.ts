@@ -218,9 +218,25 @@ export class ApiClient {
     if (localData.users !== undefined) {
       promises.push(proxy('set', 'users', localData.users));
     }
-    if (localData.weeks !== undefined) {
+    if (localData.weeks !== undefined && localData._projId !== undefined) {
+      const projId = String(localData._projId);
       for (const [wk, wkData] of Object.entries(localData.weeks)) {
-        promises.push(proxy('set', `weeks/${wk}`, wkData));
+        promises.push(
+          proxy('get', `weeks/${wk}`, null)
+            .then((existing: any) => {
+              // 判断是否已是正确map结构（有projId层，无status平铺）
+              const isValidMap = existing &&
+                typeof existing === 'object' &&
+                existing.status === undefined;
+              const map = isValidMap ? existing : {};
+              map[projId] = wkData;
+              return proxy('set', `weeks/${wk}`, map);
+            })
+            .catch(() => {
+              // 读取失败则直接写新map
+              return proxy('set', `weeks/${wk}`, { [projId]: wkData });
+            })
+        );
       }
     }
     if (localData.activity !== undefined) {
