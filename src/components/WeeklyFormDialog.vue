@@ -33,7 +33,11 @@ async function loadUsers() {
       body: JSON.stringify({ action: 'get', id: 'users' })
     });
     const data = await res.json();
-    const list = Object.keys(data.data || {});
+    // 兼容新旧两种格式，过滤元数据字段
+    const userData = data.data || data
+    const list = Object.keys(userData).filter(
+      k => !['_v', '_updatedAt', '_updatedBy', '_id', 'ok'].includes(k)
+    )
     // 确保当前用户也在列表里（含自己，方便 @ 自己）
     const me = authStore.currentUser;
     if (me && !list.includes(me)) list.unshift(me);
