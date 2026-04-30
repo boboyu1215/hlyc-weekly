@@ -272,6 +272,40 @@ export const useSyncStore = defineStore('sync', () => {
         console.warn('[sync] 拉取周报快照失败（非致命）:', e);
       }
 
+      // 拉取云端所有 weeks 周报数据，合并到本地 localStorage
+      try {
+        const weeksData = await apiClient.queryDocsRaw('weeks/')
+        if (Object.keys(weeksData).length > 0) {
+          // 读取本地现有数据
+          const localRaw = localStorage.getItem('hlzc_w')
+          const local: Record<string, Record<string, any>> = localRaw ? JSON.parse(localRaw) : {}
+
+          for (const [weekKey, projMap] of Object.entries(weeksData)) {
+            if (!local[weekKey]) local[weekKey] = {}
+            // projMap 结构: { projId: snapshot }
+            for (const [projId, remoteSnap] of Object.entries(projMap as Record<string, any>)) {
+              const localSnap = local[weekKey][projId]
+              if (!localSnap) {
+                // 本地无此项，直接写入
+                local[weekKey][projId] = remoteSnap
+              } else {
+                // 字段级合并，以 _ts 较新者为准
+                const remoteTs = remoteSnap._ts ?? 0
+                const localTs = localSnap._ts ?? 0
+                if (remoteTs > localTs) {
+                  local[weekKey][projId] = remoteSnap
+                }
+              }
+            }
+          }
+
+          localStorage.setItem('hlzc_w', JSON.stringify(local))
+          console.log('[sync] pullFromServer: queryDocsRaw 已合并云端周报数据')
+        }
+      } catch (e) {
+        console.warn('[sync] 拉取 weeks 数据失败', e)
+      }
+
       setSyncStatus('sync');
       syncStatus.value.lastSync = Date.now();
       return true;

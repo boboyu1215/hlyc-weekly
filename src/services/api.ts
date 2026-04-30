@@ -240,6 +240,24 @@ export class ApiClient {
     return { success: res.success, data: res.data?.time };
   }
 
+  // ==================== 批量文档查询 ====================
+
+  // 批量拉取云端所有 weeks 数据
+  async queryDocsRaw(prefix: string): Promise<Record<string, any>> {
+    const res = await this.post('/api', {
+      action: 'query',
+      query: { prefix }
+    })
+    // 服务端返回格式: { results: [{key, value}] }
+    const results: Record<string, any> = {}
+    if (res?.data?.results && Array.isArray(res.data.results)) {
+      for (const item of res.data.results) {
+        results[item.key] = item.value
+      }
+    }
+    return results
+  }
+
   // ==================== 兼容旧版 get/post/put/delete 方法 ====================
 
   async get<T>(endpoint: string): Promise<ApiResponse<T>> {

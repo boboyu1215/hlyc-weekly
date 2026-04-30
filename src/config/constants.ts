@@ -59,6 +59,7 @@ export const SNAP_CONTENT_FIELDS = [
   'stage',
   'risk',
   'coreOutput',
+  'coreOutputItems',
   'coreAction',
   'decision',
   'crossDept',
