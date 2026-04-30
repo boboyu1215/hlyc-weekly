@@ -104,12 +104,15 @@ function renderBannerText(v: any): string {
   return '';
 }
 
-// 提取 dueDate 中的月和日部分，如 "2026-05-15" → "5｜15"
+// 提取 dueDate 中的月和日部分，如 "2026-05-15" → "5.15"
 function formatDueDate(dueDate: string): string {
   if (!dueDate) return '';
-  // 支持格式：2026-05-15、2026/05/15、5月15日、05-15 等
+  // 优先匹配 YYYY-MM-DD / YYYY/MM/DD 格式
+  const full = dueDate.match(/\d{4}[-/](\d{1,2})[-/](\d{1,2})/);
+  if (full) return `${parseInt(full[1])}.${parseInt(full[2])}`;
+  // 兜底：匹配 M/D 或 M月D日
   const nums = dueDate.match(/(\d{1,2})[-/月](\d{1,2})/);
-  if (nums) return `${parseInt(nums[1])}｜${parseInt(nums[2])}`;
+  if (nums) return `${parseInt(nums[1])}.${parseInt(nums[2])}`;
   return dueDate;
 }
 
