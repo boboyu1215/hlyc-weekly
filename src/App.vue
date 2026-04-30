@@ -38,11 +38,14 @@ function doRefresh() {
 
 function handleVisibilityChange() {
   if (document.visibilityState === 'visible') {
-    // 页面重新可见 → 重置轮询间隔
-    syncStore.resetPollInterval();
-    // 重新加载项目列表（轮询可能已经更新了本地数据）
+    // 切回页面：立即拉一次最新snap，重启轮询
+    syncStore.pullSnapshots();
     projectStore.loadProjects();
     loadActivity();
+    syncStore.startPolling();
+  } else {
+    // 切走页面：停止轮询
+    syncStore.stopPolling();
   }
 }
 

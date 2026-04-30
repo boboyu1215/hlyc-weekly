@@ -45,11 +45,11 @@ export const useSyncStore = defineStore('sync', () => {
 
   // ── 智能轮询状态 ──
   let _pollTimer: ReturnType<typeof setInterval> | null = null;
-  let _pollInterval = 5000;       // 当前轮询间隔（毫秒），初始 5s
+  let _pollInterval = 30000;       // 当前轮询间隔（毫秒），固定 30s
   let _noChangeCount = 0;         // 连续无变化次数
-  const POLL_MIN = 5000;          // 最小间隔 5s
+  const POLL_MIN = 30000;         // 最小间隔 30s
   const POLL_MAX = 30000;         // 最大间隔 30s
-  const POLL_STEP = 5000;         // 每次递增 5s
+  const POLL_STEP = 5000;         // 每次递增 5s（已无退避空间，保留备用）
   const NO_CHANGE_THRESHOLD = 3;  // 连续 N 次无变化后开始退避
   let _hasNewData = false;        // 是否有新数据需要提示用户刷新
   let _pollEnabled = true;        // 是否启用轮询（SettingsView 控制）
@@ -232,53 +232,8 @@ export const useSyncStore = defineStore('sync', () => {
         storage.saveProjects(projectsResult.data);
       }
 
-      // 拉取所有项目snap数据，合并到本地hlzc_w（必须在 projects 之后，依赖 projectIds）
-      try {
-        const projects = JSON.parse(localStorage.getItem('hlzc_p') || '[]')
-        const projectIds: number[] = projects.map((p: any) => p.id)
-        const localRaw = localStorage.getItem('hlzc_w')
-        const local: Record<string, Record<string, any>> = localRaw
-          ? JSON.parse(localRaw)
-          : {}
-
-        for (const projId of projectIds) {
-          try {
-            const res = await apiClient.post('/api', {
-              action: 'query',
-              query: { prefix: `snap_${projId}` }
-            })
-            const remoteData = res?.[0]?.data
-            if (!remoteData || typeof remoteData !== 'object') continue
-
-            for (const [weekKey, remoteSnap] of Object.entries(remoteData)) {
-              if (!weekKey.match(/^20\d\d-W\d+$/)) continue
-              if (!local[weekKey]) local[weekKey] = {}
-              const localSnap = local[weekKey][projId]
-              const remoteTs = (remoteSnap as any)?._ts ?? 0
-              const localTs = localSnap?._ts ?? 0
-              // 检查本地是否有未提交的更新
-              const pendingKey = `hlzc_pending_submit`
-              const pendingRaw = localStorage.getItem(pendingKey)
-              const pendingIds: number[] = pendingRaw ? JSON.parse(pendingRaw) : []
-              const hasPending = pendingIds.includes(Number(projId))
-
-              if (hasPending && localTs > remoteTs) {
-                // 本地有未提交且比远端新，保留本地
-              } else if (remoteTs >= localTs) {
-                // 远端较新或相等，用远端覆盖
-                local[weekKey][projId] = remoteSnap
-              }
-            }
-          } catch(e) {
-            console.warn(`[Sync] 拉取proj ${projId} 失败`, e)
-          }
-        }
-
-        localStorage.setItem('hlzc_w', JSON.stringify(local))
-        console.log('[Sync] 全量数据拉取完成')
-      } catch (e) {
-        console.warn('[Sync] 拉取数据失败', e)
-      }
+      // 拉取所有项目snap数据，合并到本地hlzc_w（独立函数，轮询也可复用）
+      await pullSnapshots();
 
       // 获取用户注册表 → 直接覆盖
       const usersResult = await apiClient.getUserRegistry();
@@ -521,6 +476,10 @@ export const useSyncStore = defineStore('sync', () => {
         _pollInterval = POLL_MIN; // 有变化重置间隔
         _hasNewData = true;
         setSyncStatus('pending');
+
+        // 自动拉取最新snap
+        await pullSnapshots();
+        console.log('[Poll] 检测到新提交，已自动同步');
       } else {
         _noChangeCount++;
         if (_noChangeCount >= NO_CHANGE_THRESHOLD) {
@@ -594,6 +553,63 @@ export const useSyncStore = defineStore('sync', () => {
     return false;
   }
 
+  /**
+   * 拉取所有项目snap数据并合并到本地hlzc_w
+   * 独立函数，pullFromServer和轮询均可复用
+   */
+  async function pullSnapshots(): Promise<void> {
+    try {
+      const projectsRaw = localStorage.getItem('hlzc_p')
+      const projects = projectsRaw ? JSON.parse(projectsRaw) : []
+      const projectIds: number[] = projects.map((p: any) => p.id)
+      if (projectIds.length === 0) return
+
+      const localRaw = localStorage.getItem('hlzc_w')
+      const local: Record<string, Record<string, any>> = localRaw
+        ? JSON.parse(localRaw)
+        : {}
+
+      for (const projId of projectIds) {
+        try {
+          const res = await apiClient.post('/api', {
+            action: 'query',
+            query: { prefix: `snap_${projId}` }
+          })
+          const remoteData = res?.[0]?.data
+          if (!remoteData || typeof remoteData !== 'object') continue
+
+          // 检查本地是否有未提交的更新
+          const pendingRaw = localStorage.getItem('hlzc_pending_submit')
+          const pendingIds: number[] = pendingRaw ? JSON.parse(pendingRaw) : []
+          const hasPending = pendingIds.includes(Number(projId))
+
+          for (const [weekKey, remoteSnap] of Object.entries(remoteData)) {
+            if (!weekKey.match(/^20\d\d-W\d+$/)) continue
+            if (!local[weekKey]) local[weekKey] = {}
+
+            const localSnap = local[weekKey][projId]
+            const remoteTs = (remoteSnap as any)?._ts ?? 0
+            const localTs = localSnap?._ts ?? 0
+
+            if (hasPending && localTs > remoteTs) {
+              // 本地有未提交且比远端新，保留本地
+            } else if (remoteTs >= localTs) {
+              // 远端较新或相等，用远端覆盖
+              local[weekKey][projId] = remoteSnap
+            }
+          }
+        } catch (e) {
+          console.warn(`[Sync] 拉取proj ${projId} 失败`, e)
+        }
+      }
+
+      localStorage.setItem('hlzc_w', JSON.stringify(local))
+      console.log('[Sync] snap数据拉取完成')
+    } catch (e) {
+      console.warn('[Sync] pullSnapshots失败', e)
+    }
+  }
+
   // 同步对话框由 App.vue + SyncDialog.vue 组件层管理
   // 此方法已废弃，保留为空以兼容旧引用
   function openSyncDialog() {
@@ -622,7 +638,8 @@ export const useSyncStore = defineStore('sync', () => {
     stopPolling,
     resetPollInterval,
     setPollingEnabled,
-    consumeNewDataFlag
+    consumeNewDataFlag,
+    pullSnapshots
   };
 });
 
