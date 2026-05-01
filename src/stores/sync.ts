@@ -625,26 +625,6 @@ export const useSyncStore = defineStore('sync', () => {
             }
           }
 
-          // 第二步：兼容读旧格式 snap_{projId}（过渡期）
-          const oldRes = await apiClient.getWeeklySnapshot(projId)
-          if (oldRes?.success && oldRes?.data) {
-            for (const [wk, remoteSnap] of Object.entries(oldRes.data)) {
-              if (!wk.match(/^20\d\d-W\d+$/)) continue
-              if (!local[wk]) local[wk] = {}
-
-              const hasPending = pendingIds.includes(Number(projId))
-              const localSnap = local[wk][projId]
-              const remoteTs = (remoteSnap as any)?._ts ?? 0
-              const localTs = localSnap?._ts ?? 0
-
-              if (hasPending && localTs > remoteTs) {
-                // 保留本地
-              } else if (remoteTs >= localTs) {
-                local[wk][projId] = remoteSnap
-              }
-            }
-          }
-
         } catch (e) {
           console.warn(`[Sync] 拉取proj ${projId} 失败`, e)
         }
