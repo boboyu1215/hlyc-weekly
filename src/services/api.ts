@@ -160,10 +160,32 @@ export class ApiClient {
   /**
    * 保存某个项目的所有周快照（匹配旧系统 snap_{projId} 格式）
    */
-  async saveProjectSnapshots(projectId: number, data: any, version?: string): Promise<ApiResponse> {
-    const payload: any = { data };
-    if (version) payload._v = version;
-    return proxy('set', `snap_${projectId}`, payload);
+  async saveProjectSnapshots(
+    projectId: number,
+    data: Record<string, any>,
+    version?: string
+  ): Promise<ApiResponse> {
+    const promises: Promise<any>[] = [];
+    for (const [wk, snap] of Object.entries(data)) {
+      if (!wk.match(/^20\d\d-W\d+$/)) continue;
+      // 清洗snapshot字段
+      const VALID_SNAP_FIELDS = new Set([
+        'status', 'stage', 'coreOutput', 'coreOutputItems', 'coreAction',
+        'risk', 'crossDept', 'decision', 'next', 'incident', 'knowledge',
+        '_ts', '_fieldTs', '_savedWk', '_updatedBy', '_updatedAt'
+      ]);
+      const cleaned: Record<string, any> = {};
+      if (snap && typeof snap === 'object') {
+        for (const [k, v] of Object.entries(snap as Record<string, any>)) {
+          if (VALID_SNAP_FIELDS.has(k)) cleaned[k] = v;
+        }
+      }
+      if (Object.keys(cleaned).length === 0) continue;
+      if (version) cleaned._v = version;
+      promises.push(proxy('set', `snap_${projectId}_${wk}`, cleaned));
+    }
+    await Promise.all(promises);
+    return { success: true };
   }
 
   async saveWeeklySnapshot(weekKey: string, projectId: number, snapshot: any): Promise<ApiResponse> {
