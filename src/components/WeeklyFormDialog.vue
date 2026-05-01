@@ -141,6 +141,20 @@ function toItemList(v: any): TaskItem[] {
   return v.split('\n').filter((s: string) => s.trim()).map((s: string) => ({ text: s, dueDate: '' })).concat([{ text: '', dueDate: '' }]);
 }
 
+// 自动保存：用户输入时延迟写入 localStorage，防止轮询覆盖
+let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+function autoSaveForm() {
+  if (!props.project) return;
+  // 保存当前表单数据到 localStorage（setSnap 会自动更新 _ts）
+  storage.setSnap(appStore.yr, appStore.wk, props.project.id, { ...form.value });
+}
+
+watch(form, () => {
+  if (autoSaveTimer) clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(autoSaveForm, 500);
+}, { deep: true });
+
 // 监听项目变化，加载快照数据
 watch(() => props.project, (project) => {
   if (project) {
