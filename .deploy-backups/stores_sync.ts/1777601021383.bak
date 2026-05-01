@@ -651,8 +651,8 @@ export const useSyncStore = defineStore('sync', () => {
       }
 
       localStorage.setItem('hlzc_w', JSON.stringify(local))
-     // snapVersion通过事件通知，不直接引用store
-window.dispatchEvent(new CustomEvent('weeksDataUpdated'))
+      syncStore.snapVersion++
+      window.dispatchEvent(new CustomEvent('weeksDataUpdated'))
       console.log('[Sync] snap数据拉取完成')
     } catch (e) {
       console.warn('[Sync] pullSnapshots失败', e)
