@@ -16,6 +16,18 @@ export default defineConfig({
   },
   server: {
     port: 3003,
-    open: true
+    open: true,
+    proxy: {
+      '/api': {
+        target: 'https://www.moodway.top',
+        changeOrigin: true,
+        secure: true
+      },
+      '/weeklyProxy': {
+        target: 'https://www.moodway.top',
+        changeOrigin: true,
+        secure: true
+      }
+    }
   }
 })

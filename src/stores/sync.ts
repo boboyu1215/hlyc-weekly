@@ -588,49 +588,84 @@ export const useSyncStore = defineStore('sync', () => {
         ? JSON.parse(localRaw)
         : {}
 
-      let updated = false;
+      const pendingRaw = localStorage.getItem('hlzc_pending_submit')
+      const pendingIds: number[] = pendingRaw ? JSON.parse(pendingRaw) : []
 
       for (const projId of projectIds) {
         try {
-          // 用get而不是query，格式稳定
-          const res = await apiClient.getWeeklySnapshot(projId)
-          if (!res?.success || !res?.data) continue
+          // 第一步：读新格式 snap_{projId}_{weekKey}（按周拆分）
+          // 拉当前周及前8周，共9周
+          const now = new Date()
+          const weekKeys: string[] = []
+          for (let i = 0; i < 9; i++) {
+            const d = new Date(now)
+            d.setDate(d.getDate() - i * 7)
+            const year = d.getFullYear()
+            const week = getISOWeek(d)
+            weekKeys.push(`${year}-W${String(week).padStart(2, '0')}`)
+          }
 
-          const remoteData = res.data
+          for (const wk of weekKeys) {
+            const snapKey = `snap_${projId}_${wk}`
+            const res = await apiClient.getWeeklySnapshot2(snapKey)
+            if (!res?.success || !res?.data) continue
 
-          for (const [weekKey, remoteSnap] of Object.entries(remoteData)) {
-            if (!weekKey.match(/^20\d\d-W\d+$/)) continue
-            if (!local[weekKey]) local[weekKey] = {}
+            const remoteSnap = res.data
+            if (!local[wk]) local[wk] = {}
 
-            const pendingRaw = localStorage.getItem('hlzc_pending_submit')
-            const pendingIds: number[] = pendingRaw ? JSON.parse(pendingRaw) : []
             const hasPending = pendingIds.includes(Number(projId))
-            const localSnap = local[weekKey][projId]
-            const remoteTs = (remoteSnap as any)?._ts ?? 0
+            const localSnap = local[wk][projId]
+            const remoteTs = remoteSnap?._ts ?? 0
             const localTs = localSnap?._ts ?? 0
 
             if (hasPending && localTs > remoteTs) {
               // 本地有未提交且更新，保留本地
             } else if (remoteTs >= localTs) {
-              local[weekKey][projId] = remoteSnap
-              updated = true
+              local[wk][projId] = remoteSnap
             }
           }
+
+          // 第二步：兼容读旧格式 snap_{projId}（过渡期）
+          const oldRes = await apiClient.getWeeklySnapshot(projId)
+          if (oldRes?.success && oldRes?.data) {
+            for (const [wk, remoteSnap] of Object.entries(oldRes.data)) {
+              if (!wk.match(/^20\d\d-W\d+$/)) continue
+              if (!local[wk]) local[wk] = {}
+
+              const hasPending = pendingIds.includes(Number(projId))
+              const localSnap = local[wk][projId]
+              const remoteTs = (remoteSnap as any)?._ts ?? 0
+              const localTs = localSnap?._ts ?? 0
+
+              if (hasPending && localTs > remoteTs) {
+                // 保留本地
+              } else if (remoteTs >= localTs) {
+                local[wk][projId] = remoteSnap
+              }
+            }
+          }
+
         } catch (e) {
           console.warn(`[Sync] 拉取proj ${projId} 失败`, e)
         }
       }
 
-      if (updated) {
-        localStorage.setItem('hlzc_w', JSON.stringify(local))
-        // 通知Vue响应式更新
-        window.dispatchEvent(new CustomEvent('weeksDataUpdated'))
-        snapVersion.value++;
-        console.log('[Sync] snap数据拉取完成')
-      }
+      localStorage.setItem('hlzc_w', JSON.stringify(local))
+      syncStore.snapVersion++
+      window.dispatchEvent(new CustomEvent('weeksDataUpdated'))
+      console.log('[Sync] snap数据拉取完成')
     } catch (e) {
       console.warn('[Sync] pullSnapshots失败', e)
     }
+  }
+
+  // ISO周数计算工具函数
+  function getISOWeek(date: Date): number {
+    const d = new Date(date)
+    d.setHours(0, 0, 0, 0)
+    d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7)
+    const week1 = new Date(d.getFullYear(), 0, 4)
+    return 1 + Math.round(((d.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7)
   }
 
   // 同步对话框由 App.vue + SyncDialog.vue 组件层管理

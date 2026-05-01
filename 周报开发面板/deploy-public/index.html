@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>华力开发平台</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,sans-serif;background:#0f1117;color:#e2e8f0;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+.topbar{background:#1a1d2e;border-bottom:1px solid #2d3748;padding:0 16px;height:48px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+.logo{font-size:14px;font-weight:700;color:#c8a951}
+select.proj-select{background:#2d3748;border:1px solid #4a5568;color:#e2e8f0;padding:4px 8px;border-radius:6px;font-size:13px}
+.topbar-right{display:flex;gap:6px;margin-left:auto;align-items:center}
+.btn{padding:6px 12px;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-gold{background:#c8a951;color:#0f1117}
+.btn-gold:hover:not(:disabled){background:#d4b565}
+.btn-red{background:#9b2335;color:#fff}
+.btn-red:hover:not(:disabled){background:#c53030}
+.btn-gray{background:#2d3748;color:#e2e8f0}
+.btn-gray:hover:not(:disabled){background:#4a5568}
+.btn-green{background:#276749;color:#fff}
+.btn-green:hover:not(:disabled){background:#38a169}
+.btn-blue{background:#2b4c7e;color:#fff}
+.btn-blue:hover:not(:disabled){background:#3182ce}
+.tag{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+.tag-green{background:#1c4532;color:#48bb78}
+.tag-yellow{background:#744210;color:#f6ad55}
+.tag-red{background:#742a2a;color:#fc8181}
+.main{display:flex;flex:1;overflow:hidden}
+.sidebar{width:200px;background:#141620;border-right:1px solid #2d3748;display:flex;flex-direction:column;flex-shrink:0}
+.sidebar-header{padding:10px 12px;font-size:10px;font-weight:700;color:#718096;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #2d3748}
+.filetree{flex:1;overflow-y:auto}
+.tree-item{padding:4px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:2px solid transparent}
+.tree-item:hover{background:#1e2235}
+.tree-item.active{background:#1e2d45;border-left-color:#c8a951;color:#c8a951}
+.tree-item.dir{color:#718096;font-weight:600;font-size:11px;padding-top:8px}
+.tree-item.file{color:#a0aec0;padding-left:20px}
+.editor-area{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.editor-toolbar{padding:8px 12px;background:#1a1d2e;border-bottom:1px solid #2d3748;display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap}
+.current-file{font-size:12px;color:#a0aec0;font-family:monospace;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.search-bar{display:none;gap:6px;width:100%;padding:6px 0 0}
+.search-bar.show{display:flex}
+.search-input{background:#0d1117;border:1px solid #2d3748;border-radius:4px;padding:5px 8px;color:#e2e8f0;font-size:12px;width:200px}
+.editor-wrap{flex:1;overflow:hidden;position:relative}
+#monaco-container{width:100%;height:100%}
+.diff-panel{display:none;flex:1;overflow:hidden;flex-direction:column}
+.diff-panel.show{display:flex}
+.diff-header{padding:8px 12px;background:#1a1d2e;border-bottom:1px solid #2d3748;font-size:12px;color:#718096;display:flex;gap:8px;align-items:center}
+#diff-container{flex:1}
+.right-panel{width:280px;background:#0d1117;border-left:1px solid #2d3748;display:flex;flex-direction:column;flex-shrink:0}
+.panel-tabs{display:flex;border-bottom:1px solid #2d3748;flex-shrink:0}
+.panel-tab{flex:1;padding:8px;font-size:11px;font-weight:600;text-align:center;cursor:pointer;color:#718096;border-bottom:2px solid transparent}
+.panel-tab.active{color:#c8a951;border-bottom-color:#c8a951}
+.panel-body{flex:1;overflow-y:auto;padding:10px}
+.log-box{font-family:monospace;font-size:11px;line-height:1.6}
+.log-info{color:#718096}
+.log-success{color:#48bb78}
+.log-error{color:#fc8181}
+.log-warn{color:#f6ad55}
+.bak-item{padding:6px 8px;background:#1a1d2e;border-radius:6px;margin-bottom:6px;cursor:pointer;font-size:11px}
+.bak-item:hover{background:#2d3748}
+.bak-time{color:#a0aec0}
+.statusbar{background:#1a1d2e;border-top:1px solid #2d3748;padding:4px 12px;font-size:11px;color:#718096;display:flex;gap:12px;align-items:center;flex-shrink:0}
+.commit-row{padding:8px 12px;background:#1a1d2e;border-top:1px solid #2d3748;display:flex;gap:6px;flex-shrink:0}
+.commit-input{flex:1;background:#0d1117;border:1px solid #2d3748;border-radius:6px;padding:6px 10px;color:#e2e8f0;font-size:12px}
+.server-info{padding:8px;background:#1a1d2e;border-radius:6px;margin-bottom:8px;font-size:11px}
+.server-row{display:flex;justify-content:space-between;margin-bottom:4px;color:#a0aec0}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="logo">华力开发平台</span>
+  <select class="proj-select" id="proj-select" onchange="switchProject(this.value)">
+    <option value="weekly">华力周报系统</option>
+    <option value="taoyue">桃悦OS</option>
+  </select>
+  <span class="tag tag-green" id="git-hash">...</span>
+  <span class="tag tag-yellow" id="preview-tag" style="display:none">预览中</span>
+  <div class="topbar-right">
+    <button class="btn btn-blue" id="preview-btn" onclick="togglePreview()">▶ 本地预览</button>
+    <button class="btn btn-gray" onclick="openPreview()">🌐 打开</button>
+    <button class="btn btn-gray" onclick="showDiff()" id="diff-btn" disabled>≠ 对比</button>
+    <button class="btn btn-gray" onclick="doBuild()">🔨 构建</button>
+    <button class="btn btn-gold" onclick="doDeploy()">🚀 部署</button>
+    <button class="btn btn-red" onclick="doRollback()">⏪ 回滚</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-header">📁 源码文件</div>
+    <div class="filetree" id="tree-root"></div>
+  </div>
+
+  <div class="editor-area">
+    <div class="editor-toolbar">
+      <span class="current-file" id="current-file">← 选择文件</span>
+      <button class="btn btn-gray" style="font-size:11px;padding:4px 8px" onclick="toggleSearch()" title="Ctrl+F">🔍</button>
+      <button class="btn btn-gray" style="font-size:11px;padding:4px 8px" onclick="toggleReplace()" title="Ctrl+H">⇄</button>
+      <button class="btn btn-gray" id="restore-btn" onclick="showBackups()" disabled>⏪ 备份</button>
+      <button class="btn btn-green" id="save-btn" onclick="saveFile()" disabled>💾 保存</button>
+      <div class="search-bar" id="search-bar">
+        <input class="search-input" id="search-input" placeholder="查找..." oninput="doSearch()">
+        <input class="search-input" id="replace-input" placeholder="替换为..." id="replace-input" style="display:none">
+        <button class="btn btn-gray" onclick="doReplace()" id="replace-btn" style="display:none">替换</button>
+        <button class="btn btn-gray" onclick="doReplaceAll()" id="replace-all-btn" style="display:none">全部替换</button>
+        <span id="search-count" style="font-size:11px;color:#718096"></span>
+      </div>
+    </div>
+
+    <div class="editor-wrap" id="editor-wrap">
+      <div id="monaco-container"></div>
+    </div>
+
+    <div class="commit-row">
+      <input class="commit-input" id="commit-msg" placeholder="提交说明（部署时用，留空自动生成）">
+    </div>
+  </div>
+
+  <div class="right-panel">
+    <div class="panel-tabs">
+      <div class="panel-tab active" onclick="switchTab('log')">日志</div>
+      <div class="panel-tab" onclick="switchTab('server')">服务器</div>
+      <div class="panel-tab" onclick="switchTab('backup')">备份</div>
+    </div>
+    <div class="panel-body" id="panel-body">
+      <div class="log-box" id="log-box"><div class="log-info">等待操作...</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="statusbar">
+  <span id="status-text">就绪</span>
+  <span id="changed-files"></span>
+  <span id="cursor-pos" style="margin-left:auto"></span>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+<script>
+const API = 'http://localhost:3006'
+let currentProject = 'weekly'
+let currentFile = null
+let editor = null
+let diffEditor = null
+let originalContent = ''
+let busy = false
+let previewRunning = false
+let currentTab = 'log'
+let searchDecorations = []
+
+// 初始化Monaco
+require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } })
+require(['vs/editor/editor.main'], function() {
+  monaco.editor.defineTheme('hlyc-dark', {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [],
+    colors: {
+      'editor.background': '#0d1117',
+      'editor.lineHighlightBackground': '#1a1d2e',
+      'editorLineNumber.foreground': '#4a5568',
+      'editor.selectionBackground': '#2d4a7a',
+    }
+  })
+
+  editor = monaco.editor.create(document.getElementById('monaco-container'), {
+    theme: 'hlyc-dark',
+    language: 'typescript',
+    fontSize: 13,
+    lineHeight: 20,
+    minimap: { enabled: false },
+    scrollBeyondLastLine: false,
+    wordWrap: 'off',
+    automaticLayout: true,
+    tabSize: 2,
+    placeholder: '← 选择左侧文件开始编辑'
+  })
+
+  // 光标位置
+  editor.onDidChangeCursorPosition(e => {
+    document.getElementById('cursor-pos').textContent =
+      `行 ${e.position.lineNumber}，列 ${e.position.column}`
+  })
+
+  // 内容变化标记
+  editor.onDidChangeModelContent(() => {
+    if (!currentFile) return
+    const changed = editor.getValue() !== originalContent
+    document.getElementById('save-btn').textContent = changed ? '💾 保存 *' : '💾 保存'
+    document.getElementById('diff-btn').disabled = !changed || !currentFile
+  })
+
+  // 快捷键
+  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, saveFile)
+
+  loadStatus()
+  loadTree()
+  startLogStream()
+  setInterval(loadStatus, 20000)
+})
+
+// 项目切换
+function switchProject(id) {
+  currentProject = id
+  currentFile = null
+  originalContent = ''
+  if (editor) editor.setValue('')
+  document.getElementById('current-file').textContent = '← 选择文件'
+  document.getElementById('save-btn').disabled = true
+  document.getElementById('restore-btn').disabled = true
+  document.getElementById('diff-btn').disabled = true
+  loadStatus()
+  loadTree()
+}
+
+// 加载状态
+async function loadStatus() {
+  try {
+    const r = await fetch(`${API}/status?project=${currentProject}`)
+    const d = await r.json()
+    document.getElementById('git-hash').textContent = d.current
+    document.getElementById('changed-files').textContent =
+      d.changes.length ? `${d.changes.length}个文件已修改` : ''
+  } catch {}
+}
+
+// 加载文件树
+async function loadTree() {
+  try {
+    const r = await fetch(`${API}/files?project=${currentProject}`)
+    const tree = await r.json()
+    document.getElementById('tree-root').innerHTML = renderTree(tree)
+  } catch {}
+}
+
+function renderTree(items) {
+  let html = ''
+  for (const item of items) {
+    if (item.type === 'dir') {
+      html += `<div class="tree-item dir">📂 ${item.name}</div>`
+      html += renderTree(item.children)
+    } else {
+      const icon = item.name.endsWith('.vue') ? '🟢' : item.name.endsWith('.ts') ? '🔵' : item.name.endsWith('.css') ? '🟡' : '📄'
+      const id = 'f_' + item.path.replace(/[/.]/g,'_')
+      html += `<div class="tree-item file" id="${id}" onclick="openFile('${item.path}')">${icon} ${item.name}</div>`
+    }
+  }
+  return html
+}
+
+// 打开文件
+async function openFile(filePath) {
+  try {
+    const r = await fetch(`${API}/file?path=${encodeURIComponent(filePath)}&project=${currentProject}`)
+    const d = await r.json()
+    currentFile = filePath
+    originalContent = d.content
+
+    // 设置语言
+    const lang = filePath.endsWith('.vue') ? 'html' :
+                 filePath.endsWith('.ts') ? 'typescript' :
+                 filePath.endsWith('.css') ? 'css' : 'javascript'
+
+    const model = monaco.editor.createModel(d.content, lang)
+    editor.setModel(model)
+
+    document.getElementById('current-file').textContent = `src/${filePath}`
+    document.getElementById('save-btn').disabled = false
+    document.getElementById('restore-btn').disabled = false
+    document.getElementById('status-text').textContent = `已打开: src/${filePath}`
+
+    // 高亮选中
+    document.querySelectorAll('.tree-item.active').forEach(el => el.classList.remove('active'))
+    const el = document.getElementById('f_' + filePath.replace(/[/.]/g,'_'))
+    if (el) { el.classList.add('active'); el.scrollIntoView({ block: 'nearest' }) }
+  } catch(e) {
+    pushLocalLog(`打开文件失败: ${e.message}`, 'error')
+  }
+}
+
+// 保存文件
+async function saveFile() {
+  if (!currentFile || !editor) return
+  const content = editor.getValue()
+  document.getElementById('status-text').textContent = '🔍 校验中...'
+  document.getElementById('save-btn').disabled = true
+  try {
+    const r = await fetch(`${API}/file`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: currentFile, content, project: currentProject })
+    })
+    const d = await r.json()
+    if (d.ok) {
+      originalContent = content
+      document.getElementById('save-btn').textContent = '💾 保存'
+      document.getElementById('diff-btn').disabled = true
+      document.getElementById('status-text').textContent = `✅ 已保存: src/${currentFile}`
+      loadStatus()
+    } else {
+      document.getElementById('status-text').textContent = '❌ 语法错误'
+      pushLocalLog(`❌ ${d.error}\n${d.detail || ''}`, 'error')
+      switchTab('log')
+      alert(`❌ 保存被阻止\n\n${d.error}\n\n详情见右侧日志`)
+    }
+  } catch(e) {
+    document.getElementById('status-text').textContent = `❌ 保存失败`
+    pushLocalLog(`保存失败: ${e.message}`, 'error')
+  } finally {
+    document.getElementById('save-btn').disabled = !currentFile
+  }
+}
+
+// Diff对比
+async function showDiff() {
+  if (!currentFile || !editor) return
+  const newContent = editor.getValue()
+  const r = await fetch(`${API}/diff`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: currentFile, newContent, project: currentProject })
+  })
+  const { original } = await r.json()
+
+  // 在新窗口显示diff
+  const win = window.open('', '_blank', 'width=1200,height=800')
+  win.document.write(`<!DOCTYPE html>
+<html><head><title>代码对比</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"><\/script>
+</head><body style="margin:0;background:#0f1117">
+<div id="diff" style="height:100vh"></div>
+<script>
+require.config({paths:{vs:'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs'}})
+require(['vs/editor/editor.main'],function(){
+  const d = monaco.editor.createDiffEditor(document.getElementById('diff'),{theme:'vs-dark',readOnly:true,automaticLayout:true})
+  d.setModel({original:monaco.editor.createModel(${JSON.stringify(original)},'typescript'),modified:monaco.editor.createModel(${JSON.stringify(newContent)},'typescript')})
+})
+<\/script></body></html>`)
+}
+
+// 搜索
+function toggleSearch() {
+  editor?.getAction('actions.find').run()
+}
+
+function toggleReplace() {
+  editor?.getAction('editor.action.startFindReplaceAction').run()
+}
+
+// 备份
+async function showBackups() {
+  if (!currentFile) return
+  switchTab('backup')
+  const r = await fetch(`${API}/backups?path=${encodeURIComponent(currentFile)}&project=${currentProject}`)
+  const baks = await r.json()
+  const body = document.getElementById('panel-body')
+  if (!baks.length) {
+    body.innerHTML = '<div style="color:#718096;font-size:12px;padding:8px">暂无备份</div>'
+    return
+  }
+  body.innerHTML = baks.map(b =>
+    `<div class="bak-item" onclick="restoreBackup('${b.file}')">
+      <div class="bak-time">🕐 ${b.time}</div>
+      <div style="color:#718096;font-size:10px">点击恢复此版本</div>
+    </div>`
+  ).join('')
+}
+
+async function restoreBackup(bakFile) {
+  if (!currentFile || !confirm('确认恢复此备份？当前内容将被覆盖')) return
+  const r = await fetch(`${API}/restore`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: currentFile, bakFile, project: currentProject })
+  })
+  const d = await r.json()
+  if (d.ok && d.content) {
+    originalContent = d.content
+    editor.setValue(d.content)
+    document.getElementById('status-text').textContent = '✅ 备份已恢复'
+  }
+}
+
+// 服务器状态
+async function loadServerStatus() {
+  const r = await fetch(`${API}/server-status?project=${currentProject}`)
+  const d = await r.json()
+  return `<div class="server-info">
+    <div class="server-row"><span>状态</span><span class="tag ${d.online ? 'tag-green' : 'tag-red'}">${d.online ? '在线' : '离线'}</span></div>
+    <div class="server-row"><span>CPU</span><span>${d.cpu}%</span></div>
+    <div class="server-row"><span>内存</span><span>${d.memory}MB</span></div>
+  </div>`
+}
+
+// Tab切换
+function switchTab(tab) {
+  currentTab = tab
+  document.querySelectorAll('.panel-tab').forEach((el, i) => {
+    el.classList.toggle('active', ['log','server','backup'][i] === tab)
+  })
+  const body = document.getElementById('panel-body')
+  if (tab === 'log') {
+    body.innerHTML = '<div class="log-box" id="log-box"></div>'
+  } else if (tab === 'server') {
+    loadServerStatus().then(html => body.innerHTML = html)
+  } else if (tab === 'backup') {
+    showBackups()
+  }
+}
+
+// 本地日志（不来自SSE）
+function pushLocalLog(msg, type = 'info') {
+  let box = document.getElementById('log-box')
+  if (!box) { switchTab('log'); box = document.getElementById('log-box') }
+  const div = document.createElement('div')
+  div.className = `log-${type}`
+  div.style.whiteSpace = 'pre-wrap'
+  div.textContent = msg
+  box.appendChild(div)
+  box.scrollTop = box.scrollHeight
+}
+
+// SSE日志
+function startLogStream() {
+  const es = new EventSource(`${API}/log-stream`)
+  es.onmessage = e => {
+    const { msg, type } = JSON.parse(e.data)
+    pushLocalLog(`[${new Date().toLocaleTimeString('zh-CN')}] ${msg}`, type)
+  }
+}
+
+function clearLog() {
+  const box = document.getElementById('log-box')
+  if (box) box.innerHTML = ''
+}
+
+// 预览
+async function togglePreview() {
+  const proj = currentProject
+  if (previewRunning) {
+    await fetch(`${API}/preview/stop`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({project: proj}) })
+    previewRunning = false
+    document.getElementById('preview-btn').textContent = '▶ 本地预览'
+    document.getElementById('preview-tag').style.display = 'none'
+  } else {
+    await fetch(`${API}/preview/start`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({project: proj}) })
+    previewRunning = true
+    document.getElementById('preview-btn').textContent = '⏹ 停止预览'
+    document.getElementById('preview-tag').style.display = 'inline-flex'
+  }
+}
+
+function openPreview() {
+  const proj = currentProject === 'weekly' ? 'http://localhost:3003/weekly/' : 'http://localhost:3001'
+  window.open(proj, '_blank')
+}
+
+function setBusy(val) {
+  busy = val
+  document.querySelectorAll('.btn').forEach(b => b.disabled = val)
+  if (!val) {
+    document.getElementById('save-btn').disabled = !currentFile
+    document.getElementById('restore-btn').disabled = !currentFile
+  }
+}
+
+async function doBuild() {
+  if (busy) return
+  setBusy(true); clearLog(); switchTab('log')
+  await fetch(`${API}/build`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({project: currentProject}) })
+  setTimeout(() => { setBusy(false); loadStatus() }, 60000)
+}
+
+async function doDeploy() {
+  if (busy) return
+  if (!confirm(`确认部署 ${currentProject === 'weekly' ? '华力周报系统' : '桃悦OS'} 到生产环境？`)) return
+  setBusy(true); clearLog(); switchTab('log')
+  const msg = document.getElementById('commit-msg').value
+  await fetch(`${API}/deploy`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ project: currentProject, message: msg })
+  })
+  setTimeout(() => { setBusy(false); loadStatus() }, 180000)
+}
+
+async function doRollback() {
+  if (busy) return
+  if (!confirm('确认回滚到上一版本？')) return
+  setBusy(true); clearLog(); switchTab('log')
+  await fetch(`${API}/rollback`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({project: currentProject}) })
+  setTimeout(() => { setBusy(false); loadStatus() }, 120000)
+}
+</script>
+</body>
+</html>
