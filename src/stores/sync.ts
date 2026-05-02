@@ -618,9 +618,11 @@ export const useSyncStore = defineStore('sync', () => {
             const remoteTs = remoteSnap?._ts ?? 0
             const localTs = localSnap?._ts ?? 0
 
-            if (hasPending && localTs > remoteTs) {
-              // 本地有未提交且更新，保留本地
-            } else if (remoteTs >= localTs) {
+            if (hasPending) {
+              // 有未提交数据，无论_ts，一律保留本地不覆盖
+              continue
+            }
+            if (remoteTs > localTs) {
               local[wk][projId] = remoteSnap
             }
           }
