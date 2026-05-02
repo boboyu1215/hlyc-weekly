@@ -227,20 +227,34 @@ export class ApiClient {
   // ==================== 活动日志 ====================
 
   async getActivityLog(limit?: number): Promise<ApiResponse> {
-    const res = await proxy<any>('get', 'activity');
-    if (!res.success) return res;
-    let logs: any[] = res.data?.logs ?? [];
-    if (limit) logs = logs.slice(-limit);
-    return { success: true, data: logs };
+    const res = await fetch('/api', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'get', id: 'activity' })
+    }).then(r => r.json())
+
+    let logs: any[] = res?.logs ?? []
+    if (limit) logs = logs.slice(-limit)
+    return { success: true, data: logs }
   }
 
   async addActivityLog(log: any): Promise<ApiResponse> {
-    const res = await proxy<any>('get', 'activity');
-    const logs: any[] = res.success ? (res.data?.logs ?? []) : [];
-    logs.push(log);
+    const res = await fetch('/api', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'get', id: 'activity' })
+    }).then(r => r.json())
+
+    const logs: any[] = res?.logs ?? []
+    logs.push(log)
     // 保留最近500条
-    if (logs.length > 500) logs.splice(0, logs.length - 500);
-    return proxy('set', 'activity', { logs });
+    if (logs.length > 500) logs.splice(0, logs.length - 500)
+
+    return fetch('/api', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'set', id: 'activity', data: { logs } })
+    }).then(r => r.json())
   }
 
   // ==================== 快照工具 ====================
