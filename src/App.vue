@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useAppStore } from '@/stores/app';
 import { useAuthStore } from '@/stores/auth';
 import { useProjectStore } from '@/stores/project';
-import { useSyncStore } from '@/stores/sync';
+import { useSyncStore, pullAll } from '@/stores/sync';
 import { getNextWeek } from '@/utils/date';
 import { StorageService } from '@/services/storage';
 import AppHeader from '@/components/layout/AppHeader.vue';
@@ -38,13 +38,11 @@ function doRefresh() {
 
 function handleVisibilityChange() {
   if (document.visibilityState === 'visible') {
-    // 切回页面：立即拉一次最新snap，重启轮询
-    syncStore.pullSnapshots();
+    // pollOnce 会自动拉取最新数据
     projectStore.loadProjects();
     loadActivity();
     syncStore.startPolling();
   } else {
-    // 切走页面：停止轮询
     syncStore.stopPolling();
   }
 }
@@ -81,9 +79,9 @@ onMounted(async () => {
   authStore.initAuth();
   syncStore.initSync();
 
-  // 先从云端拉projects写入hlzc_p，再拉snap，最后读hlzc_p渲染项目列表
+  // 先从云端拉取全量数据
   try {
-    await syncStore.pullFromServer(); // pullFromServer内部已先拉projects(第230行)
+    await pullAll();
   } catch (e) {
     console.warn('[App] 初始化拉取失败，使用本地数据', e);
   }

@@ -25,6 +25,7 @@ const editingProject = ref<Project | null>(null);
 const showPendingConfirm = ref(false);
 const showSubmitDialog = ref(false);
 const submittingProject = ref<Project | null>(null);
+const pendingSnapData = ref<any>(null);
 
 // 用户权限数据（供 can() 使用）
 const users = computed(() => authStore.userRegistry);
@@ -82,6 +83,14 @@ function editWeekly(project: Project) {
 
 function handleWeeklySaved() { projectStore.loadProjects(); refreshPending(); }
 
+// 表单"保存并提交"：关闭编辑弹窗 → 打开 diff 确认弹窗
+function handleFormSubmit(form: any) {
+  showWeeklyDialog.value = false;
+  pendingSnapData.value = form;
+  submittingProject.value = editingProject.value;
+  showSubmitDialog.value = true;
+}
+
 function askSubmit(project: Project) {
   if (!authStore.isLoggedIn) { authStore.showLoginDialog = true; return; }
   submittingProject.value = project;
@@ -94,6 +103,7 @@ function handleSubmitDone(success: boolean) {
     refreshPending();
   }
   showSubmitDialog.value = false;
+  pendingSnapData.value = null;
 }
 
 // 渲染项目快照的四维信息
@@ -333,9 +343,19 @@ onMounted(async () => {
     const data = await res.json();
     comments.value = data.comments || {};
   } catch {}
-  window.addEventListener('weeksDataUpdated', () => {
+  window.addEventListener('weeksDataUpdated', async () => {
     projectStore.loadProjects()
     refreshPending()
+    // 同时刷新工作点评
+    try {
+      const res = await fetch('/api', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({action:'get', id:'director_comments'})
+      });
+      const data = await res.json();
+      comments.value = data.comments || {};
+    } catch {}
   })
 });
 
@@ -348,6 +368,8 @@ async function saveComment(projectId: number) {
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({action:'set', id:'director_comments', data:{ comments: comments.value }})
   });
+  // 通知其他端更新
+  window.dispatchEvent(new CustomEvent('weeksDataUpdated'));
 }
 
 onBeforeUnmount(() => {
@@ -530,7 +552,6 @@ onBeforeUnmount(() => {
           <!-- 操作按钮组 -->
           <div style="display:flex;gap:5px;align-items:center;flex-shrink:0">
             <button v-if="can('edit', authStore.currentUser || '', users, project)" class="bs" style="font-size:11px;padding:4px 9px" @click="editWeekly(project)">✏ 更新工作</button>
-            <button v-if="can('submit', authStore.currentUser || '', users, project)" class="bp" style="font-size:11px;padding:4px 12px;background:var(--gold)" @click="askSubmit(project)">📤 提交</button>
             <button v-if="can('archive', authStore.currentUser || '', users, project)" class="ba" @click="archiveProject(project)">归档</button>
             <button v-if="can('delete', authStore.currentUser || '', users, project)" class="bd" @click="deleteProject(project)">删除</button>
           </div>
@@ -547,13 +568,15 @@ onBeforeUnmount(() => {
     :project="editingProject"
     @close="showWeeklyDialog = false"
     @save="handleWeeklySaved"
+    @submit="handleFormSubmit"
   />
 
   <!-- 提交确认 Diff 对话框 -->
   <SubmitDiffDialog
     :show="showSubmitDialog"
     :project="submittingProject"
-    @close="showSubmitDialog = false"
+    :snapData="pendingSnapData"
+    @close="showSubmitDialog = false; pendingSnapData = null"
     @submitted="handleSubmitDone"
   />
 

@@ -247,121 +247,11 @@ export const useSyncStore = defineStore('sync', () => {
         storage.saveUserRegistry(usersResult.data);
       }
 
-      // 获取活动日志 → 直接覆盖（旧系统行为）
-      const logsResult = await apiClient.getActivityLog(100);
-      if (logsResult.success && logsResult.data) {
-        storage.saveActivityLog(logsResult.data);
-      }
-
       setSyncStatus('sync');
       syncStatus.value.lastSync = Date.now();
       return true;
     } catch (error) {
       console.error('下载数据失败:', error);
-      setSyncStatus('err');
-      throw error;
-    }
-  }
-
-  // 提交项目（带乐观锁，匹配旧系统 submitProject）
-  async function submitProject(projId: number, submitter?: string): Promise<boolean | 'queued'> {
-    if (!apiClient.isConfigured()) {
-      throw new Error('云端未配置');
-    }
-
-    const t = new Date().toLocaleString('zh-CN', {
-      month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit'
-    });
-    const now = Date.now();
-
-    // 收集该项目本周所有快照
-    const weeks = storage.loadWeeks();
-    const localSnap: Record<string, WeeklySnapshot> = {};
-    for (const [wk, wkData] of Object.entries(weeks)) {
-      if (wkData[projId] !== undefined) {
-        localSnap[wk] = wkData[projId];
-      }
-    }
-
-    if (!syncStatus.value.online) {
-      // 离线：入队等待
-      addToQueue('submitProject', {
-        projectId: projId,
-        snapshot: localSnap,
-        _v: now,
-        _updatedBy: submitter,
-        _updatedAt: t
-      });
-      return 'queued';
-    }
-
-    setSyncStatus('saving');
-
-    try {
-      // 获取远程版本
-      const remoteId = `snap_${projId}`;
-      const remoteRec = await apiClient.getWeeklySnapshot(projId);
-      const remoteData = (remoteRec.success && remoteRec.data) ? remoteRec.data : {};
-
-      // 合并本地和远程快照
-      const mergedSnap: Record<string, WeeklySnapshot> = {};
-      const allWks = new Set([...Object.keys(localSnap), ...Object.keys(remoteData)]);
-
-      for (const wk of allWks) {
-        const local = localSnap[wk] || null;
-        const remote = remoteData[wk] || null;
-
-        if (local && remote) {
-          mergedSnap[wk] = stampSnap(mergeSnapshot(local, remote), submitter, t);
-        } else if (local) {
-          mergedSnap[wk] = stampSnap(local, submitter, t);
-        } else {
-          mergedSnap[wk] = remote;
-        }
-      }
-
-      // 写回本地
-      const allWeeks = storage.loadWeeks();
-      for (const [wk, snap] of Object.entries(mergedSnap)) {
-        if (!allWeeks[wk]) allWeeks[wk] = {};
-        allWeeks[wk][projId] = snap;
-      }
-      storage.saveWeeks(allWeeks);
-
-      // 上传到云端
-      const result = await apiClient.fullSync({
-        weeks: mergedSnap,
-        _projId: projId,
-        _v: now,
-        _updatedBy: submitter,
-        _updatedAt: t
-      });
-
-      if (!result.success) {
-        throw new Error(result.error || '提交失败');
-      }
-
-      // 清除待提交标记
-      storage.removePendingSubmit(projId);
-      setSyncStatus('saved');
-      syncStatus.value.lastSync = Date.now();
-
-      // 提交成功后写入活动日志，让其他端的pollOnce能检测到变化
-      try {
-        await apiClient.addActivityLog({
-          type: 'submit',
-          projectId: projId,
-          submitter,
-          timestamp: t,
-          _ts: Date.now()
-        });
-      } catch (e) {
-        console.warn('[Sync] addActivityLog after submit failed', e);
-      }
-
-      return true;
-    } catch (error) {
-      console.warn('submit error:', error);
       setSyncStatus('err');
       throw error;
     }
@@ -463,53 +353,79 @@ export const useSyncStore = defineStore('sync', () => {
     if (!apiClient.isConfigured() || !syncStatus.value.online) return;
 
     try {
-      const [projRes, actRes] = await Promise.all([
-        apiClient.getProjects(),
-        apiClient.getActivityLog(100)
-      ]);
-
-      let changed = false;
-
-      // 比较项目列表
+      // 1. 拉项目列表并比较
+      const projRes = await apiClient.getProjects();
       if (projRes.success && projRes.data) {
         const remoteStr = JSON.stringify(projRes.data);
         const localStr = JSON.stringify(storage.loadProjects());
         if (remoteStr !== localStr) {
-          changed = true;
-          // 直接更新本地项目列表（旧系统行为）
           storage.saveProjects(projRes.data);
         }
       }
 
-      // 比较活动日志
-      if (actRes.success && actRes.data) {
-        const remoteStr = JSON.stringify(actRes.data);
-        const localStr = JSON.stringify(storage.loadActivity());
-        if (remoteStr !== localStr) {
-          changed = true;
-          storage.saveActivityLog(actRes.data);
+      // 2. 轻量轮询：只拉版本号
+      const res = await fetch('/api/snap_versions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      }).then(r => r.json());
+
+      if (!res?.success) return;
+
+      const remoteVersions: Record<string, number> = res.versions;
+      const local = storage.loadWeeks();
+      const toFetch: Array<{ projId: number; weekKey: string; key: string }> = [];
+
+      for (const [key, remoteTs] of Object.entries(remoteVersions)) {
+        const m = key.match(/snap_(\d+)_(20\d\d-W\d+)/);
+        if (!m) continue;
+        const projId = Number(m[1]);
+        const weekKey = m[2];
+        const localTs = (local[weekKey]?.[projId] as any)?._ts ?? 0;
+        if ((remoteTs ?? 0) > localTs) {
+          toFetch.push({ projId, weekKey, key });
         }
       }
 
-      // 每次轮询都拉snap，不依赖changed检测
-      await pullSnapshots();
-
-      if (changed) {
-        _noChangeCount = 0;
-        _pollInterval = POLL_MIN; // 有变化重置间隔
-        _hasNewData = true;
-        setSyncStatus('pending');
-        console.log('[Poll] 检测到变化，已同步');
-      } else {
+      if (toFetch.length === 0) {
         _noChangeCount++;
         if (_noChangeCount >= NO_CHANGE_THRESHOLD) {
-          // 连续无变化 → 退避
           _pollInterval = Math.min(_pollInterval + POLL_STEP, POLL_MAX);
         }
         if (syncStatusType.value !== 'pending') {
           setSyncStatus('sync');
         }
+        return;
       }
+
+      console.log(`[Poll] 发现${toFetch.length}个更新，拉取中...`);
+      for (const { projId, weekKey, key } of toFetch) {
+        try {
+          const snapRes = await fetch('/api', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'get', id: key })
+          }).then(r => r.json());
+
+          if (!snapRes || Object.keys(snapRes).length === 0) continue;
+          if (!local[weekKey]) local[weekKey] = {};
+          local[weekKey][projId] = snapRes;
+        } catch (e) {
+          console.warn(`[Poll] 拉取${key}失败`, e);
+        }
+      }
+
+      storage.saveWeeks(local);
+      window.dispatchEvent(new CustomEvent('weeksDataUpdated'));
+      console.log('[Poll] 同步完成，触发页面刷新');
+      
+      // 直接刷新页面以确保数据更新
+      window.location.reload();
+
+      _noChangeCount = 0;
+      _pollInterval = POLL_MIN;
+      _hasNewData = true;
+      setSyncStatus('pending');
+      console.log('[Poll] 检测到变化，已同步');
     } catch (error) {
       console.warn('[Poll] pollOnce error:', error);
     }
@@ -670,7 +586,6 @@ window.dispatchEvent(new CustomEvent('weeksDataUpdated'))
     syncNow,
     pullFromServer,
     pushToServer,
-    submitProject,
     mergeSnapshot,
     clearQueue,
     openSyncDialog,
@@ -679,8 +594,7 @@ window.dispatchEvent(new CustomEvent('weeksDataUpdated'))
     stopPolling,
     resetPollInterval,
     setPollingEnabled,
-    consumeNewDataFlag,
-    pullSnapshots
+    consumeNewDataFlag
   };
 });
 
@@ -709,4 +623,112 @@ function stampSnap(snap: WeeklySnapshot, submitter?: string, submitTime?: string
   }
 
   return stamped;
+}
+
+// ============ 核心同步函数（取代 submitProject） ============
+
+// 保存并立即上传云端
+export async function saveAndSync(
+  projId: number,
+  weekKey: string,
+  snapData: any,
+  submitter: string
+): Promise<boolean> {
+  try {
+    const key = `snap_${projId}_${weekKey}`;
+    const VALID_FIELDS = new Set([
+      'status','stage','coreOutput','coreOutputItems','coreAction',
+      'risk','crossDept','decision','next','incident','knowledge',
+      '_ts','_fieldTs','_savedWk','_updatedBy','_updatedAt'
+    ]);
+    const cleaned: Record<string,any> = {};
+    for (const [k,v] of Object.entries(snapData as any)) {
+      if (VALID_FIELDS.has(k)) cleaned[k] = v;
+    }
+    cleaned._updatedBy = submitter;
+    cleaned._updatedAt = new Date().toLocaleString('zh-CN', {
+      month: 'numeric', day: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+    cleaned._ts = Date.now();
+
+    // 写入新格式
+    await fetch('/api', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'set', id: key, data: cleaned })
+    }).then(r => r.json());
+
+    // 同时更新旧格式snap_{projId}（兼容历史查阅）
+    const oldRes = await apiClient.getWeeklySnapshot(projId);
+    const oldData = (oldRes?.success && oldRes?.data) ? oldRes.data : {};
+    oldData[weekKey] = cleaned;
+    await fetch('/api', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'set', id: `snap_${projId}`, data: oldData })
+    }).then(r => r.json());
+
+    // 写回本地
+    const local = storage.loadWeeks();
+    if (!local[weekKey]) local[weekKey] = {};
+    local[weekKey][projId] = cleaned;
+    storage.saveWeeks(local);
+
+    // 通知页面更新
+    window.dispatchEvent(new CustomEvent('weeksDataUpdated'));
+    return true;
+  } catch(e) {
+    console.error('[Sync] saveAndSync失败', e);
+    return false;
+  }
+}
+
+// 登录时全量拉取（使用新格式 snap_{projId}_{weekKey}）
+export async function pullAll(): Promise<void> {
+  try {
+    const projects = JSON.parse(localStorage.getItem('hlzc_p') || '[]');
+    const projectIds: number[] = projects.map((p: any) => p.id);
+    const local = storage.loadWeeks();
+
+    // 一次拉取所有版本号
+    const res = await fetch('/api/snap_versions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    }).then(r => r.json());
+
+    if (!res?.success) return;
+
+    const remoteVersions: Record<string, number> = res.versions;
+
+    for (const [key, remoteTs] of Object.entries(remoteVersions)) {
+      const m = key.match(/snap_(\d+)_(20\d\d-W\d+)/);
+      if (!m) continue;
+      const projId = Number(m[1]);
+      if (!projectIds.includes(projId)) continue;
+      const weekKey = m[2];
+      const localTs = (local[weekKey]?.[projId] as any)?._ts ?? 0;
+      if ((remoteTs ?? 0) <= localTs) continue;
+
+      try {
+        const snapRes = await fetch('/api', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'get', id: key })
+        }).then(r => r.json());
+
+        if (!snapRes || Object.keys(snapRes).length === 0) continue;
+        if (!local[weekKey]) local[weekKey] = {};
+        local[weekKey][projId] = snapRes;
+      } catch(e) {
+        console.warn(`[Sync] pullAll 拉取${key}失败`, e);
+      }
+    }
+
+    storage.saveWeeks(local);
+    window.dispatchEvent(new CustomEvent('weeksDataUpdated'));
+    console.log('[Sync] 全量拉取完成');
+  } catch(e) {
+    console.warn('[Sync] pullAll失败', e);
+  }
 }

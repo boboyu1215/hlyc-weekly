@@ -17,6 +17,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'close'): void;
   (e: 'save'): void;
+  (e: 'submit', form: any): void;
 }>();
 
 const appStore = useAppStore();
@@ -432,6 +433,75 @@ async function handleSave() {
   emit('close');
 }
 
+// 保存并提交：验证通过后 emit submit 事件，由父组件弹出 diff 确认
+function saveAndSubmit() {
+  if (!props.project) return;
+
+  // 维度一：上周完成情况 - 日期必填验证
+  const coreOutputItems = (form.value as any).coreOutputItems as TaskItem[];
+  for (let i = 0; i < coreOutputItems.length; i++) {
+    const item = coreOutputItems[i];
+    if (item.text && item.text.trim() && !item.dueDate) {
+      shakeForm();
+      alert(`上周完成情况 第 ${i + 1} 项「${item.text}」未填写实际完成日期，请填写后再保存`);
+      return;
+    }
+  }
+
+  // 维度二：本周计划 - 日期必填验证
+  const coreActions = form.value.coreAction as TaskItem[];
+  for (let i = 0; i < coreActions.length; i++) {
+    const item = coreActions[i];
+    if (item.text && item.text.trim() && !item.dueDate) {
+      shakeForm();
+      alert(`本周计划 第 ${i + 1} 项「${item.text}」未设置计划完成时间，请设置后再保存`);
+      return;
+    }
+  }
+
+  // 维度三风险/卡点 - 有内容必须填日期
+  const risks = form.value.risk as TaskItem[];
+  for (let i = 0; i < risks.length; i++) {
+    const item = risks[i];
+    if (item.text && item.text.trim() && !item.dueDate) {
+      shakeForm();
+      alert(`风险/卡点 第 ${i + 1} 项「${item.text}」未填写预计解决日期，请填写后再保存`);
+      return;
+    }
+  }
+  const decisions = form.value.decision as TaskItem[];
+  for (let i = 0; i < decisions.length; i++) {
+    const item = decisions[i];
+    if (item.text && item.text.trim() && !item.dueDate) {
+      shakeForm();
+      alert(`需管理层决策 第 ${i + 1} 项「${item.text}」未填写预计完成日期，请填写后再保存`);
+      return;
+    }
+  }
+  const crossDepts = form.value.crossDept as TaskItem[];
+  for (let i = 0; i < crossDepts.length; i++) {
+    const item = crossDepts[i];
+    if (item.text && item.text.trim() && !item.dueDate) {
+      shakeForm();
+      alert(`跨部门支援 第 ${i + 1} 项「${item.text}」未填写预计完成日期，请填写后再保存`);
+      return;
+    }
+  }
+
+  // 清理空行
+  const cleanedForm = {
+    ...form.value,
+    risk: risks.filter(item => item.text.trim()),
+    coreOutputItems: coreOutputItems.filter(item => item.text.trim()),
+    coreAction: coreActions.filter(item => item.text.trim()),
+    decision: decisions.filter(item => item.text.trim()),
+    crossDept: crossDepts.filter(item => item.text.trim())
+  };
+
+  // emit 给父组件，由父组件弹出 diff 确认弹窗
+  emit('submit', cleanedForm);
+}
+
 // 取消
 function handleCancel() {
   emit('close');
@@ -693,8 +763,8 @@ function handleCancel() {
 
       <!-- 底部 -->
       <div class="modal-footer">
-        <button class="bs" @click="handleCancel">取消</button>
-        <button class="bp" @click="handleSave">保存本周状态</button>
+        <button class="bs" @click="$emit('close')">取消</button>
+        <button class="btn-submit" @click="saveAndSubmit">保存并提交</button>
       </div>
     </div>
   </div>

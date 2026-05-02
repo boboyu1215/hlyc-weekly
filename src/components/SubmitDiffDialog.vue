@@ -1,17 +1,18 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import { useSyncStore } from '@/stores/sync';
 import { useAuthStore } from '@/stores/auth';
 import { useProjectStore } from '@/stores/project';
 import { StorageService } from '@/services/storage';
-import { SNAP_CONTENT_FIELDS, FIELD_LABELS } from '@/config/constants';
+import { FIELD_LABELS } from '@/config/constants';
 import apiClient from '@/services/api';
 import { useAppStore } from '@/stores/app';
+import { saveAndSync } from '@/stores/sync';
 import type { Project, WeeklySnapshot } from '@/core/types';
 
 const props = defineProps<{
   show: boolean;
   project: Project | null;
+  snapData?: any;
 }>();
 
 const emit = defineEmits<{
@@ -19,7 +20,6 @@ const emit = defineEmits<{
   (e: 'submitted', success: boolean): void;
 }>();
 
-const syncStore = useSyncStore();
 const authStore = useAuthStore();
 const projectStore = useProjectStore();
 const appStore = useAppStore();
@@ -129,17 +129,15 @@ async function handleSubmit() {
   submitResult.value = null;
 
   try {
-    const ok = await syncStore.submitProject(
+    // 使用传入的 snapData 上传
+    const weekKey = appStore.weekKey;
+    const ok = await saveAndSync(
       props.project.id,
-      authStore.currentUser || undefined
+      weekKey,
+      props.snapData,
+      authStore.currentUser || ''
     );
-
-    if (ok === 'queued') {
-      submitResult.value = { success: true, queued: true };
-    } else if (ok === 'CONFLICT') {
-      submitResult.value = { success: false, conflict: true };
-    } else if (ok) {
-      // 更新项目的 _updatedBy 和 _updatedAt
+    if (ok) {
       projectStore.updateProject(props.project.id, {
         _updatedBy: authStore.currentUser || '',
         _updatedAt: new Date().toLocaleString('zh-CN', {
@@ -159,16 +157,9 @@ async function handleSubmit() {
   }
 }
 
-// 冲突后自动拉取
-async function handleConflict() {
-  if (!props.project) return;
-  try {
-    await syncStore.pullFromServer();
-    projectStore.loadProjects();
-    emit('close');
-  } catch (e) {
-    console.error('拉取失败:', e);
-  }
+// 冲突后关闭
+function handleConflict() {
+  emit('close');
 }
 
 // 关闭
