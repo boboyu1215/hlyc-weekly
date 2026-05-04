@@ -363,23 +363,25 @@ async function saveComment(projectId: number) {
   const text = commentDraft.value.trim();
   comments.value[projectId] = text;
   editingComment.value = null;
+  // 保存评论到云端
   await fetch('/api', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({action:'set', id:'director_comments', data:{ comments: comments.value }})
   });
-  // ✅ 保存后立即刷新本地工作点评数据
-  try {
-    const res = await fetch('/api', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({action:'get', id:'director_comments'})
-    });
-    const data = await res.json();
-    comments.value = data.comments || {};
-  } catch {}
-  // ✅ 通知其他端刷新（直接刷新页面确保实时同步）
-  window.location.reload();
+  // ✅ 同时更新对应项目的snap版本号，触发其他端轮询检测
+  const weekKey = appStore.weekKey;
+  await fetch('/api', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      action: 'set',
+      id: `snap_${projectId}_${weekKey}`,
+      data: { _commentUpdated: Date.now(), _updatedBy: authStore.currentUser }
+    })
+  });
+  // ✅ 本端无感：不再刷新页面，数据已在本地更新
+  // 其他端轮询检测到snap版本号变化后会自动无感更新
 }
 
 onBeforeUnmount(() => {
