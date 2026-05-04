@@ -635,6 +635,10 @@ export async function saveAndSync(
   submitter: string
 ): Promise<boolean> {
   try {
+    if (!snapData) {
+      console.error('[Sync] saveAndSync失败: snapData为空');
+      return false;
+    }
     const key = `snap_${projId}_${weekKey}`;
     const VALID_FIELDS = new Set([
       'status','stage','coreOutput','coreOutputItems','coreAction',
@@ -642,7 +646,7 @@ export async function saveAndSync(
       '_ts','_fieldTs','_savedWk','_updatedBy','_updatedAt'
     ]);
     const cleaned: Record<string,any> = {};
-    for (const [k,v] of Object.entries(snapData as any)) {
+    for (const [k,v] of Object.entries(snapData)) {
       if (VALID_FIELDS.has(k)) cleaned[k] = v;
     }
     cleaned._updatedBy = submitter;

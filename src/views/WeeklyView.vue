@@ -368,8 +368,18 @@ async function saveComment(projectId: number) {
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({action:'set', id:'director_comments', data:{ comments: comments.value }})
   });
-  // 通知其他端更新
-  window.dispatchEvent(new CustomEvent('weeksDataUpdated'));
+  // ✅ 保存后立即刷新本地工作点评数据
+  try {
+    const res = await fetch('/api', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({action:'get', id:'director_comments'})
+    });
+    const data = await res.json();
+    comments.value = data.comments || {};
+  } catch {}
+  // ✅ 通知其他端刷新（直接刷新页面确保实时同步）
+  window.location.reload();
 }
 
 onBeforeUnmount(() => {
