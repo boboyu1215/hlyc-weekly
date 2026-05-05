@@ -34,6 +34,9 @@ export interface Project {
 export interface TaskItem {
   text: string;
   dueDate: string;
+  _carryover?: boolean;   // 跨周顺延标记
+  _overdue?: boolean;     // KPI 延误标记
+  _fromKPI?: boolean;     // 来自 KPI 页面注入
 }
 
 // 周报快照
@@ -42,6 +45,7 @@ export interface WeeklySnapshot {
   stage: number;
   risk: TaskItem[];
   coreOutput: string;
+  coreOutputItems?: TaskItem[];  // 维度一序列化（内容+实际完成日期）
   coreAction: TaskItem[];
   decision: TaskItem[];
   crossDept: TaskItem[];
@@ -62,10 +66,7 @@ export interface WeeklySnapshot {
 
 // 周报数据结构：{weekKey: {projectId: snapshot}}
 export interface WeeksData {
-  [weekKey: string]: {
-    [projectId: string]: WeeklySnapshot;
-    __meetings?: Meeting[];
-  };
+  [weekKey: string]: Record<string, WeeklySnapshot> & { __meetings?: Meeting[] };
 }
 
 // 会议记录（匹配旧系统 meeting.js 数据结构）

@@ -30,7 +30,7 @@ const stats = computed(() => {
     else grnProjects.push(item);
   });
 
-  sorted.sort((a, b) => ({ r: 0, y: 1, g: 2 }[a.status] || 0) - ({ r: 0, y: 1, g: 2 }[b.status] || 0));
+  sorted.sort((a, b) => ({ r: 0, y: 1, g: 2 }[a.status as 'r'|'y'|'g'] ?? 0) - ({ r: 0, y: 1, g: 2 }[b.status as 'r'|'y'|'g'] ?? 0));
 
   const maxSD = Math.max(...sd, 1);
 

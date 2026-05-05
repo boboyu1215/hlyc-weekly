@@ -27,6 +27,12 @@ const router = createRouter({
       meta: { title: '可视化看板' }
     },
     {
+      path: '/charts2',
+      name: 'charts2',
+      component: () => import('@/views/ChartsView2.vue'),
+      meta: { title: '可视化看板2' }
+    },
+    {
       path: '/meeting',
       name: 'meeting',
       component: () => import('@/views/MeetingView.vue'),

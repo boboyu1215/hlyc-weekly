@@ -15,10 +15,10 @@ const projectStore = useProjectStore();
 const authStore = useAuthStore();
 const storage = StorageService.getInstance();
 
-const form = ref<Partial<Project>>({
+const form = ref({
   name: '', area: '', startDate: '', schemeDate: '', designDate: '',
   siteDate: '', completionDate: '', openDate: '', prepOwner: '',
-  designOwner: '', defStatus: 'g', defStage: 0, archived: false
+  designOwner: '', defStatus: 'g' as 'r' | 'y' | 'g', defStage: 0, archived: false
 });
 
 const isEdit = computed(() => !!route.query.id);

@@ -76,7 +76,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
-import type { BoardNote } from '@/stores/board';
+import type { StickyNote as BoardNote } from '@/stores/board';
 
 const props = defineProps<{
   note: BoardNote;

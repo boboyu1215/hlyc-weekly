@@ -20,10 +20,10 @@ const newMemberName = ref('');
 
 // 用户列表
 const users = computed(() => {
-  return Object.entries(authStore.userRegistry).map(([name, user]) => ({
-    name,
-    ...user
-  }));
+  return Object.entries(authStore.userRegistry).map(([name, user]) => {
+    const { name: _n, ...rest } = user;
+    return { name, ...rest };
+  });
 });
 
 // 角色选项（三级权限体系）

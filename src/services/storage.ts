@@ -203,8 +203,8 @@ export class StorageService {
       // 继承显示：_fromKPI 来的标「延误」，普通事项标「顺延」
       result.push({
         ...item,
-        _carryover: !(item as any)._fromKPI,
-        _overdue: !!(item as any)._fromKPI,
+        _carryover: !item._fromKPI,
+        _overdue: !!item._fromKPI,
       });
     }
     return result;

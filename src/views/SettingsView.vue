@@ -175,6 +175,7 @@ function clearAllData() {
 
 // ── Google Drive 备份 ──
 const gdrive = ref({
+  loaded: false,
   authorized: false,
   folderId: '',
   lastSync: '',
@@ -191,7 +192,7 @@ async function loadGdriveStatus() {
       body: JSON.stringify({ action: 'backup_status' })
     });
     const data = await res.json();
-    gdrive.value = { ...gdrive.value, ...data };
+    gdrive.value = { ...gdrive.value, loaded: true, ...data };
   } catch {}
 }
 

@@ -256,7 +256,7 @@ async function applyKpiToSnaps(data: KpiData) {
     const existingActions = Array.isArray(snap.coreAction) ? [...snap.coreAction] : [];
 
     // 清除旧的 KPI 注入条目，重新注入
-    const cleaned = existingActions.filter(i => !(i as any)._fromKPI);
+    const cleaned = existingActions.filter(i => !i._fromKPI);
     for (const v of confirmedForProj) {
       cleaned.push({ text: v.text, dueDate: v.newDueDate, _fromKPI: true });
     }

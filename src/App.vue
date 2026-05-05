@@ -16,13 +16,7 @@ const projectStore = useProjectStore();
 const syncStore = useSyncStore();
 const storage = StorageService.getInstance();
 
-// 活动日志（底部活动流）
-const activityLogs = ref<any[]>([]);
 const showSyncDialog = ref(false);
-
-function loadActivity() {
-  activityLogs.value = storage.loadActivity().slice(0, 30);
-}
 
 // 全局刷新按钮（轮询检测到变化时显示，匹配旧系统 _showRefreshPrompt）
 const showRefreshBanner = computed(() => {
@@ -30,9 +24,8 @@ const showRefreshBanner = computed(() => {
 });
 
 function doRefresh() {
-  // 匹配旧系统 doRefresh：重新加载项目列表 + 活动日志
+  // 匹配旧系统 doRefresh：重新加载项目列表
   projectStore.loadProjects();
-  loadActivity();
   syncStore.consumeNewDataFlag();
 }
 
@@ -40,7 +33,6 @@ function handleVisibilityChange() {
   if (document.visibilityState === 'visible') {
     // pollOnce 会自动拉取最新数据
     projectStore.loadProjects();
-    loadActivity();
     syncStore.startPolling();
   } else {
     syncStore.stopPolling();
@@ -53,22 +45,6 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
     e.preventDefault();
     e.returnValue = '';
   }
-}
-
-// 格式化活动时间（相对时间）
-function formatTime(ts: number): string {
-  const d = new Date(ts);
-  const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
-
-  if (diffMin < 1) return '刚刚';
-  if (diffMin < 60) return diffMin + '分钟前';
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return diffHr + '小时前';
-  const diffDay = Math.floor(diffHr / 24);
-  if (diffDay < 7) return diffDay + '天前';
-  return d.toLocaleDateString('zh-CN');
 }
 
 // 页面是否已就绪（pullFromServer 完成后才渲染主内容）
@@ -87,9 +63,6 @@ onMounted(async () => {
   }
 
   projectStore.loadProjects(); // 读已更新的hlzc_p渲染项目列表
-
-  // 数据就绪后加载活动日志
-  loadActivity();
 
   // 周五及之后自动跳转下周（init 之后执行，确保覆盖 init 设置的当前周）
   const day = new Date().getDay();
@@ -132,17 +105,6 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="shell"><div class="content"><RouterView v-if="ready" /></div></div>
-
-    <!-- 底部活动流（匹配旧系统 app.js activity bar） -->
-    <div v-if="activityLogs.length > 0" class="activity-bar">
-      <div class="activity-scroll">
-        <div v-for="log in activityLogs" :key="log.time" class="activity-item">
-          <span class="activity-user">{{ log.user }}</span>
-          <span class="activity-desc">{{ log.desc }}</span>
-          <span class="activity-time">{{ formatTime(log.time) }}</span>
-        </div>
-      </div>
-    </div>
 
     <LoginDialog />
     <SyncDialog :show="showSyncDialog" @close="showSyncDialog = false" />
@@ -194,54 +156,5 @@ onBeforeUnmount(() => {
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
-}
-
-/* 底部活动流（匹配旧系统 activity bar） */
-.activity-bar {
-  background: var(--card);
-  border-top: 0.5px solid var(--bdr);
-  padding: 6px 0;
-  flex-shrink: 0;
-}
-
-.activity-scroll {
-  display: flex;
-  gap: 16px;
-  overflow-x: auto;
-  padding: 0 16px;
-  scrollbar-width: thin;
-}
-
-.activity-scroll::-webkit-scrollbar {
-  height: 3px;
-}
-
-.activity-scroll::-webkit-scrollbar-thumb {
-  background: var(--bdr);
-  border-radius: 2px;
-}
-
-.activity-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-  flex-shrink: 0;
-  font-size: 11px;
-  color: var(--t3);
-}
-
-.activity-user {
-  color: var(--gold);
-  font-weight: 700;
-}
-
-.activity-desc {
-  color: var(--t2);
-}
-
-.activity-time {
-  color: var(--t3);
-  opacity: 0.7;
 }
 </style>

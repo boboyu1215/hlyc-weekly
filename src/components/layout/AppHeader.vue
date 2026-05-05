@@ -22,7 +22,8 @@ getCurrentYearWeek(); // 初始化用
 // ── 导航 Tab 定义（精简版：去掉设置和数据管理）──
 const allTabs = [
   { path: '/weekly',   label: '项目周报' },
-  { path: '/charts',   label: '可视化看板' },
+  { path: '/charts',  label: '可视化看板' },
+  { path: '/charts2', label: '可视化看板2' },
   { path: '/overview', label: '项目总览' },
   { path: '/meeting',  label: '本周会议' },
   { path: '/users',    label: '录入数据', requireDirector: true },
@@ -37,7 +38,7 @@ const tabs = computed(() =>
 
 // 是否显示周导航（仅周报/看板/会议页）
 const showWeekNav = computed(() =>
-  ['weekly', 'charts', 'meeting'].includes(route.name as string)
+  ['weekly', 'charts', 'charts2', 'meeting'].includes(route.name as string)
 );
 
 // ── Tab 指示器 ──
@@ -275,7 +276,7 @@ onUnmounted(() => {
             <div
               v-for="m in mentions"
               :key="m.id"
-              @click="m.source === 'board' ? goToBoard() : goToWeekly()"
+              @click="(m as any).source === 'board' ? goToBoard() : goToWeekly()"
               style="padding:10px 12px;border-bottom:1px solid var(--bdr);
                      cursor:pointer;transition:background .1s"
               onmouseover="this.style.background='var(--bg)'"
@@ -284,7 +285,7 @@ onUnmounted(() => {
               <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
                 <span style="font-size:11px;padding:1px 6px;border-radius:4px;
                              background:var(--bg);color:var(--t2)">
-                  {{ m.source === 'board' ? '📌 黑板报' : '📋 周报' }}
+                  {{ (m as any).source === 'board' ? '📌 黑板报' : '📋 周报' }}
                 </span>
                 <span style="font-size:11px;color:var(--t3)">{{ m.from }} 提到了你</span>
               </div>

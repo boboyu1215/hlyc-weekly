@@ -415,30 +415,17 @@ export const useSyncStore = defineStore('sync', () => {
       }
 
       storage.saveWeeks(local);
-      
-      // ✅ 无感刷新：同时拉取工作点评
-      try {
-        const commentsRes = await fetch('/api', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'get', id: 'director_comments' })
-        }).then(r => r.json());
-        if (commentsRes?.comments) {
-          localStorage.setItem('hlzc_comments', JSON.stringify(commentsRes.comments));
-        }
-      } catch (e) {
-        console.warn('[Poll] 拉取工作点评失败', e);
-      }
-      
-      // ✅ 无感刷新：只触发事件，不刷新页面
       window.dispatchEvent(new CustomEvent('weeksDataUpdated'));
-      console.log('[Poll] 同步完成，无感刷新数据');
+      console.log('[Poll] 同步完成，触发页面刷新');
+      
+      // 直接刷新页面以确保数据更新
+      window.location.reload();
 
       _noChangeCount = 0;
       _pollInterval = POLL_MIN;
-      // 不再设置 pending 状态，避免弹出刷新提示
-      setSyncStatus('sync');
-      console.log('[Poll] 检测到变化，已无感更新');
+      _hasNewData = true;
+      setSyncStatus('pending');
+      console.log('[Poll] 检测到变化，已同步');
     } catch (error) {
       console.warn('[Poll] pollOnce error:', error);
     }
@@ -689,7 +676,7 @@ export async function saveAndSync(
     // 写回本地
     const local = storage.loadWeeks();
     if (!local[weekKey]) local[weekKey] = {};
-    local[weekKey][projId] = cleaned;
+    local[weekKey][projId] = cleaned as any;
     storage.saveWeeks(local);
 
     // 通知页面更新

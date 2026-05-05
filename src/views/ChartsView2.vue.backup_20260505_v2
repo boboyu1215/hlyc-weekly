@@ -1,0 +1,626 @@
+<script setup lang="ts">
+/**
+ * ChartsView2.vue — 可视化看板2（上周工作汇报版）
+ *
+ * 需要决策的问题 = risk[] + decision[]（同项目合并一张卡）
+ * 上周完成工作   = coreOutputItems（TaskItem[]，含 dueDate）
+ * 顶栏Logo      = hlzc_dash2_logo_header（独立localStorage，刷新不丢）
+ * 饼图Logo      = hlzc_dash2_logo_donut（独立localStorage，刷新不丢）
+ * Overlay       = hlzc_dash2_overlay（图片/勾选/拖拽，独立，不污染原始数据）
+ */
+
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import { useAppStore } from '@/stores/app';
+import { useProjectStore } from '@/stores/project';
+import { StorageService } from '@/services/storage';
+import { STAGES } from '@/config/constants';
+import { wkRange } from '@/utils/date';
+import type { WeeklySnapshot, Project, TaskItem } from '@/core/types';
+
+const appStore = useAppStore();
+const projectStore = useProjectStore();
+const storage = StorageService.getInstance();
+
+// ── 顶栏 Logo（独立持久化，刷新不丢）─────────────────────
+const LOGO_HEADER_KEY = 'hlzc_dash2_logo_header';
+const LOGO_DONUT_KEY  = 'hlzc_dash2_logo_donut';
+const headerLogoSrc = ref(localStorage.getItem(LOGO_HEADER_KEY) || '');
+const donutLogoSrc  = ref(localStorage.getItem(LOGO_DONUT_KEY)  || '');
+
+function onHeaderLogoFile(e: Event) {
+  const f = (e.target as HTMLInputElement).files?.[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => { headerLogoSrc.value = ev.target!.result as string; localStorage.setItem(LOGO_HEADER_KEY, headerLogoSrc.value); };
+  r.readAsDataURL(f); (e.target as HTMLInputElement).value = '';
+}
+function onDonutLogoFile(e: Event) {
+  const f = (e.target as HTMLInputElement).files?.[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => { donutLogoSrc.value = ev.target!.result as string; localStorage.setItem(LOGO_DONUT_KEY, donutLogoSrc.value); };
+  r.readAsDataURL(f); (e.target as HTMLInputElement).value = '';
+}
+
+// ── Overlay（图片/勾选/拖拽，独立存储）──────────────────
+const OL_KEY       = 'hlzc_dash2_overlay';
+const HERO_IMG_KEY = 'hlzc_dash2_hero_imgs';
+
+function loadOL() {
+  try { const r = localStorage.getItem(OL_KEY); if (r) return JSON.parse(r); } catch {}
+  return { heroTitle: '', heroLogic: '', pickedLast: [], confirmed: false, lcolWidth: 350, heroHeight: 220 };
+}
+function saveOL() {
+  try {
+    localStorage.setItem(OL_KEY, JSON.stringify({
+      heroTitle: heroTitle.value, heroLogic: heroLogic.value,
+      pickedLast: [...picksLast.value], confirmed: confirmed.value,
+      lcolWidth: lcolWidth.value, heroHeight: heroHeight.value,
+    }));
+  } catch(e) { console.warn('saveOL failed', e); }
+}
+function saveHeroImages() {
+  try { localStorage.setItem(HERO_IMG_KEY, JSON.stringify(heroImages.value)); }
+  catch {
+    try { localStorage.setItem(HERO_IMG_KEY, JSON.stringify(heroImages.value.slice(0, 1))); }
+    catch { console.warn('Hero images too large for localStorage'); }
+  }
+}
+function loadHeroImages(): string[] {
+  try { const r = localStorage.getItem(HERO_IMG_KEY); if (r) return JSON.parse(r); } catch {}
+  return [];
+}
+
+// ── 响应式状态 ───────────────────────────────────────────
+const showModal  = ref(false);
+const confirmed  = ref(false);
+const heroImages = ref<string[]>([]);
+const heroTitle  = ref('');
+const heroLogic  = ref('');
+const picksLast  = ref<Set<string>>(new Set());
+const lcolWidth  = ref(350);
+const heroHeight = ref(220);
+let isDraggingX = false, isDraggingY = false;
+
+// ── 周信息 ──────────────────────────────────────────────
+const weekLabel    = computed(() => `${appStore.yr} · W${String(appStore.wk).padStart(2, '0')}`);
+const weekRangeStr = computed(() => wkRange(appStore.yr, appStore.wk));
+
+// ── 核心数据 ─────────────────────────────────────────────
+interface PItem extends Project { snap: WeeklySnapshot; stageName: string; }
+const allItems = computed<PItem[]>(() =>
+  projectStore.activeProjects.map(p => {
+    const snap = storage.getSnap(appStore.yr, appStore.wk, p.id, projectStore.projects);
+    return { ...p, snap, stageName: STAGES[Math.min(snap.stage, STAGES.length - 1)] || '平面' };
+  }).sort((a, b) => ({ r: 0, y: 1, g: 2 }[a.snap.status] ?? 0) - ({ r: 0, y: 1, g: 2 }[b.snap.status] ?? 0))
+);
+
+// 健康统计
+const stats = computed(() => {
+  const r = allItems.value.filter(i => i.snap.status === 'r').length;
+  const y = allItems.value.filter(i => i.snap.status === 'y').length;
+  const g = allItems.value.filter(i => i.snap.status === 'g').length;
+  const t = allItems.value.length || 1;
+  return { r, y, g, total: allItems.value.length, rPct: Math.round(r/t*100), yPct: Math.round(y/t*100), gPct: Math.round(g/t*100) };
+});
+
+// 需要决策的问题：risk[] + decision[] 同项目合并一张卡
+interface DecCard { projId: number; projName: string; isY: boolean; risks: TaskItem[]; decisions: TaskItem[]; }
+const decCards = computed<DecCard[]>(() => {
+  const result: DecCard[] = [];
+  allItems.value.forEach(p => {
+    const risks     = (Array.isArray(p.snap.risk)     ? p.snap.risk     : []).filter(x => x.text?.trim());
+    const decisions = (Array.isArray(p.snap.decision) ? p.snap.decision : []).filter(x => x.text?.trim());
+    if (!risks.length && !decisions.length) return;
+    result.push({ projId: p.id, projName: p.name, isY: p.snap.status === 'y', risks, decisions });
+  });
+  return result;
+});
+
+// 上周完成工作：coreOutputItems（TaskItem[]，含 dueDate）
+interface WorkItem { key: string; projName: string; status: string; text: string; dueDate: string; }
+const lastItems = computed<WorkItem[]>(() => {
+  const result: WorkItem[] = [];
+  allItems.value.forEach(p => {
+    const co: TaskItem[] = (p.snap as any).coreOutputItems || [];
+    (Array.isArray(co) ? co : []).filter(x => x.text?.trim()).forEach((x, i) => {
+      result.push({ key: `l_${p.id}_${i}`, projName: p.name, status: p.snap.status, text: x.text, dueDate: x.dueDate || '' });
+    });
+  });
+  return result;
+});
+
+// ── 勾选 ─────────────────────────────────────────────────
+function isPicked(key: string) { return picksLast.value.has(key); }
+function togglePick(key: string) { picksLast.value.has(key) ? picksLast.value.delete(key) : picksLast.value.add(key); saveOL(); }
+const dispLast = computed(() => lastItems.value.filter(i => picksLast.value.has(i.key)));
+
+// ── 确认 ─────────────────────────────────────────────────
+function openModal()  { showModal.value = true; }
+function closeModal() { showModal.value = false; }
+function doConfirm()  { confirmed.value = true; showModal.value = false; saveOL(); nextTick(snapLayout); }
+function resetConfirm() { confirmed.value = false; saveOL(); }
+
+function snapLayout() {
+  const rcol = document.getElementById('rcol2');
+  const wa   = document.getElementById('workArea2');
+  if (!rcol || !wa) return;
+  const n = dispLast.value.length;
+  const reqWork = 64 + n * 36 + 28;
+  heroHeight.value = Math.max(150, rcol.offsetHeight - reqWork - 16);
+  nextTick(reflow);
+}
+
+// ── Hero 图片 ────────────────────────────────────────────
+const fileInput = ref<HTMLInputElement | null>(null);
+function heroClick()    { if (!heroImages.value.length) fileInput.value?.click(); }
+function triggerUpload() { fileInput.value?.click(); }
+function onFile(e: Event) {
+  const f = (e.target as HTMLInputElement).files?.[0];
+  if (!f || heroImages.value.length >= 3) return;
+  const r = new FileReader();
+  r.onload = ev => { heroImages.value.push(ev.target!.result as string); saveHeroImages(); nextTick(reflow); };
+  r.readAsDataURL(f); (e.target as HTMLInputElement).value = '';
+}
+function hDel() { if (heroImages.value.length) { heroImages.value.pop(); saveHeroImages(); nextTick(reflow); } }
+
+// ── 拖拽 ─────────────────────────────────────────────────
+function onDragXDown() { isDraggingX = true; document.body.style.cursor = 'col-resize'; }
+function onDragYDown() { isDraggingY = true; document.body.style.cursor = 'row-resize'; }
+function onMouseMove(e: MouseEvent) {
+  if (!isDraggingX && !isDraggingY) return;
+  if (isDraggingX) {
+    const body = document.getElementById('mainBody2');
+    if (body) lcolWidth.value = Math.max(280, Math.min(e.clientX - body.getBoundingClientRect().left - 16, 520));
+  }
+  if (isDraggingY) {
+    const rcol = document.getElementById('rcol2');
+    if (rcol) heroHeight.value = Math.max(150, Math.min(e.clientY - rcol.getBoundingClientRect().top, rcol.offsetHeight - 150));
+  }
+  reflow();
+}
+function onMouseUp() { isDraggingX = false; isDraggingY = false; document.body.style.cursor = 'default'; saveOL(); }
+
+// ── Reflow ───────────────────────────────────────────────
+function reflow() {
+  nextTick(() => {
+    const rcol  = document.getElementById('rcol2');
+    const wa    = document.getElementById('workArea2');
+    if (!rcol || !wa) return;
+
+    // 右栏工作区容器高度
+    const workH = rcol.offsetHeight - heroHeight.value - 16;
+    if (workH > 0) wa.style.height = workH + 'px';
+
+    wa.querySelectorAll<HTMLElement>('.work-card').forEach(card => {
+      const hdrH   = card.querySelector<HTMLElement>('.card-hdr')?.offsetHeight || 50;
+      const listEl = card.querySelector<HTMLElement>('.wi-list,.disp-list');
+      if (!listEl) return;
+      const items  = listEl.querySelectorAll<HTMLElement>('.wi,.disp-item');
+      if (!items.length) return;
+
+      if (!confirmed.value) {
+        // 确认前：均匀分配行高，允许滚动（内容多时自然溢出）
+        const per = Math.max(32, Math.floor((workH - hdrH - 28) / items.length));
+        items.forEach(it => { it.style.height = per + 'px'; it.style.alignItems = 'center'; });
+      } else {
+        // 确认后：行高全部改为 auto，让文字撑开；
+        // 同时把列表容器改为不滚动、flex 铺满
+        items.forEach(it => { it.style.height = 'auto'; it.style.minHeight = '36px'; it.style.alignItems = 'flex-start'; it.style.padding = '6px 8px'; });
+      }
+    });
+
+    // 左栏决策卡：height:auto 由内容撑开，dec-card 容器整体可滚动
+    // 无需设固定高度，CSS 已处理
+  });
+}
+
+// ── 初始化 ───────────────────────────────────────────────
+onMounted(() => {
+  const ol = loadOL();
+  heroImages.value = loadHeroImages();
+  heroTitle.value  = ol.heroTitle  || '';
+  heroLogic.value  = ol.heroLogic  || '';
+  picksLast.value  = new Set(ol.pickedLast || []);
+  confirmed.value  = ol.confirmed  || false;
+  lcolWidth.value  = ol.lcolWidth  || 350;
+  heroHeight.value = ol.heroHeight || 220;
+  nextTick(() => { drawDonut(); reflow(); });
+  window.addEventListener('resize', reflow);
+});
+onUnmounted(() => window.removeEventListener('resize', reflow));
+
+// ── 环形图 ───────────────────────────────────────────────
+function drawDonut() {
+  const canvas = document.getElementById('donut2') as HTMLCanvasElement;
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d')!;
+  ctx.clearRect(0, 0, 116, 116);
+  const cx = 58, cy = 58, segs = 28, gap = 0.055, ba = (Math.PI * 2) / segs;
+  const { r, y, g, total } = stats.value;
+  if (!total) return;
+  const rS = Math.round(r / total * segs), yS = Math.round(y / total * segs), gS = Math.round(g / total * segs);
+  let ang = -Math.PI / 2;
+  for (let i = 0; i < segs; i++) {
+    ctx.beginPath(); ctx.arc(cx,cy,44,ang+gap,ang+ba-gap); ctx.arc(cx,cy,36,ang+ba-gap,ang+gap,true); ctx.closePath();
+    ctx.fillStyle = i < rS ? '#E03B30' : i < rS+yS ? '#F59E0B' : 'rgba(0,0,0,0.06)'; ctx.fill(); ang += ba;
+  }
+  ang = -Math.PI / 2;
+  for (let i = 0; i < segs; i++) {
+    ctx.beginPath(); ctx.arc(cx,cy,56,ang+gap,ang+ba-gap); ctx.arc(cx,cy,48,ang+ba-gap,ang+gap,true); ctx.closePath();
+    ctx.fillStyle = i < gS ? '#34C759' : 'rgba(0,0,0,0.06)'; ctx.fill(); ang += ba;
+  }
+}
+
+// ── 工具函数 ─────────────────────────────────────────────
+function nm(name: string) { return name.length > 7 ? name.slice(0, 7) + '…' : name; }
+function fmtDate(d: string) {
+  if (!d) return '';
+  const m = d.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${parseInt(m[2])}/${parseInt(m[3])}`;
+  return d; // 已是 M/D 格式直接返回
+}
+</script>
+
+<template>
+<div class="slide" id="slide2" @mousemove="onMouseMove" @mouseup="onMouseUp" @mouseleave="onMouseUp">
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hl">
+    <div class="logo-box" title="点击上传顶栏Logo（与饼图独立）">
+      <img v-if="headerLogoSrc" :src="headerLogoSrc" class="logo-img" alt="LOGO">
+      <div v-else class="logo-box-hint">PNG<br>LOGO</div>
+      <input type="file" accept="image/*" class="logo-input" @change="onHeaderLogoFile">
+    </div>
+    <div class="hd-sep"></div>
+    <div>
+      <div class="hd-cn">华力集团 研策部周报</div>
+      <div class="hd-en">RESEARCH &amp; STRATEGY DEPT · WEEKLY REPORT</div>
+    </div>
+  </div>
+  <div class="hr">
+    <span class="wbadge">{{ weekLabel }}</span>
+    <span class="wdate">{{ weekRangeStr }}</span>
+    <button v-if="confirmed" class="hbtn" @click="resetConfirm">重新选择</button>
+    <button class="cfm-btn" @click="openModal">确认选项 →</button>
+    <button class="hbtn-img" @click="triggerUpload">＋ 图片</button>
+    <input ref="fileInput" type="file" accept="image/*" style="display:none" @change="onFile">
+  </div>
+</div>
+
+<!-- BODY -->
+<div class="body" id="mainBody2">
+
+  <!-- 左栏 -->
+  <div class="lcol" id="lcol2" :style="{ width: lcolWidth + 'px' }">
+
+    <!-- 健康度（饼图中心Logo独立） -->
+    <div class="health-card glass" id="healthCard2">
+      <div class="card-hdr"><span class="card-icon">📊</span><span class="card-title">项目健康度</span></div>
+      <div class="health-inner">
+        <div class="health-stats">
+          <div class="stat-row">
+            <div class="stat-label">
+              <div class="stat-name"><div class="stat-dot" style="background:#E03B30"></div>需决策 / 卡住</div>
+              <div class="stat-val">{{ stats.r }}</div>
+            </div>
+            <div class="prog-track"><div class="prog-fill" :style="{ width: stats.rPct + '%', background: '#E03B30' }"></div></div>
+          </div>
+          <div class="stat-row">
+            <div class="stat-label">
+              <div class="stat-name"><div class="stat-dot" style="background:#F59E0B"></div>需关注</div>
+              <div class="stat-val">{{ stats.y }}</div>
+            </div>
+            <div class="prog-track"><div class="prog-fill" :style="{ width: stats.yPct + '%', background: '#F59E0B' }"></div></div>
+          </div>
+          <div class="stat-row">
+            <div class="stat-label">
+              <div class="stat-name"><div class="stat-dot" style="background:#34C759"></div>正常推进</div>
+              <div class="stat-val">{{ stats.g }}</div>
+            </div>
+            <div class="prog-track"><div class="prog-fill" :style="{ width: stats.gPct + '%', background: '#34C759' }"></div></div>
+          </div>
+        </div>
+        <div class="donut-container" title="点击上传饼图中心Logo（与顶栏独立）">
+          <img v-if="donutLogoSrc" :src="donutLogoSrc" class="donut-logo" alt="Logo">
+          <canvas id="donut2" width="116" height="116" role="img" aria-label="健康度环形图"></canvas>
+          <input type="file" accept="image/*" class="donut-input" @change="onDonutLogoFile">
+        </div>
+      </div>
+      <div class="total-badge">
+        <span class="tot-label">在建项目</span>
+        <span class="tot-val">{{ stats.total }} 个</span>
+      </div>
+    </div>
+
+    <!-- 需要决策的问题（risk + decision，同项目合并） -->
+    <div class="dec-card glass" id="decCard2">
+      <div class="card-hdr"><span class="card-icon">🚨</span><span class="card-title">需要决策的问题</span></div>
+      <div class="dec-list" id="decList2">
+        <div v-for="card in decCards" :key="card.projId" :class="['dc', card.isY ? 'y' : '']">
+          <div class="dc-name">{{ card.projName }}</div>
+          <template v-for="(item, ri) in card.risks" :key="'r' + ri">
+            <div class="dc-row">
+              <div class="dc-lbl dc-lbl-risk">卡点</div>
+              <div class="dc-txt">{{ item.text }}</div>
+            </div>
+          </template>
+          <template v-for="(item, di) in card.decisions" :key="'d' + di">
+            <div class="dc-row">
+              <div class="dc-lbl dc-lbl-dec">决策</div>
+              <div class="dc-txt dc-act">{{ item.text }}</div>
+            </div>
+            <div v-if="item.dueDate" class="dc-when">
+              <span class="tag">WHEN: {{ fmtDate(item.dueDate) }}</span>
+            </div>
+          </template>
+        </div>
+        <div v-if="!decCards.length" class="dec-empty">本周无需决策项目 ✓</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- X 拖拽 -->
+  <div class="resizer-x" @mousedown="onDragXDown"></div>
+
+  <!-- 右栏 -->
+  <div class="rcol" id="rcol2">
+
+    <!-- 上周项目图片精选 -->
+    <div class="hero-zone glass-dk" :style="{ height: heroHeight + 'px' }" @click="heroClick">
+      <div class="hero-header">
+        <span class="hero-hd-icon">🖼</span>
+        <span class="hero-hd-title">上周项目图片精选</span>
+      </div>
+      <div v-if="heroImages.length" class="hero-imgs">
+        <div v-for="(src, i) in heroImages" :key="i" class="hero-img-wrap"><img :src="src" alt=""></div>
+      </div>
+      <div v-else class="hero-empty">
+        <div class="hero-empty-icon">＋</div>
+        <div class="hero-empty-txt">点击上传图片（最多3张并排）</div>
+      </div>
+      <div v-if="heroImages.length" class="hero-cap">
+        <div class="hero-cap-tag">上周视觉聚焦</div>
+        <div class="hero-cap-title" contenteditable="true" @click.stop @input="(e) => { heroTitle = (e.target as HTMLElement).innerText; saveOL(); }">{{ heroTitle }}</div>
+        <div class="hero-cap-logic" contenteditable="true" @click.stop @input="(e) => { heroLogic = (e.target as HTMLElement).innerText; saveOL(); }">{{ heroLogic }}</div>
+      </div>
+      <div v-if="heroImages.length" class="hero-acts" @click.stop>
+        <div v-if="heroImages.length < 3" class="h-btn" @click="triggerUpload">＋图片</div>
+        <div class="h-btn del" @click="hDel">删除</div>
+      </div>
+    </div>
+
+    <!-- Y 拖拽 -->
+    <div class="resizer-y" @mousedown="onDragYDown"></div>
+
+    <!-- 上周核心完成工作 -->
+    <div id="workArea2" class="work-area">
+      <div class="work-card glass">
+        <div class="card-hdr">
+          <span class="card-icon">🧠</span>
+          <span class="card-title">上周核心完成工作</span>
+          <div v-if="!confirmed && picksLast.size" class="wc-cnt">已选 {{ picksLast.size }} 项</div>
+          <div v-if="confirmed" class="wc-cnt">共 {{ dispLast.length }} 项</div>
+          <span class="col-hint">完成时间</span>
+        </div>
+        <!-- 勾选态：可滚动浏览全部 -->
+        <div v-if="!confirmed" class="wi-list">
+          <div
+            v-for="item in lastItems" :key="item.key"
+            :class="['wi', isPicked(item.key) ? 'picked' : '']"
+            @click="togglePick(item.key)"
+          >
+            <div :class="['wi-chk', isPicked(item.key) ? 'checked' : '']">{{ isPicked(item.key) ? '✓' : '' }}</div>
+            <div :class="['wi-badge', item.status]">{{ nm(item.projName) }}</div>
+            <div class="wi-txt">{{ item.text }}</div>
+            <div class="wi-date">{{ fmtDate(item.dueDate) }}</div>
+          </div>
+          <div v-if="!lastItems.length" class="list-empty">暂无上周完成记录</div>
+        </div>
+        <!-- 展示态：撑满，不滚动 -->
+        <div v-else class="disp-list">
+          <div v-for="item in dispLast" :key="item.key" class="disp-item">
+            <div :class="['di-badge', item.status]">{{ nm(item.projName) }}</div>
+            <div class="di-txt">{{ item.text }}</div>
+            <div class="di-date">{{ fmtDate(item.dueDate) }}</div>
+          </div>
+          <div v-if="!dispLast.length" class="list-empty">未选择任何条目</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- MODAL -->
+<Teleport to="body">
+  <div v-if="showModal" class="overlay show" @click.self="closeModal">
+    <div class="modal glass">
+      <div class="modal-title">📋 确认本次汇报展示内容</div>
+      <div class="modal-sub">以下为已勾选的上周完成工作，确认后页面重新排版展示。</div>
+      <div class="modal-sec">
+        <div class="modal-sec-lbl">🧠 上周核心完成工作（{{ dispLast.length }} 项）</div>
+        <div class="modal-list">
+          <div v-for="item in dispLast" :key="item.key" class="modal-item">
+            <span class="modal-proj">{{ item.projName }}</span>
+            <span class="modal-text">{{ item.text }}</span>
+            <span v-if="item.dueDate" class="modal-date">{{ fmtDate(item.dueDate) }}</span>
+          </div>
+          <div v-if="!dispLast.length" class="modal-empty">未选择任何条目</div>
+        </div>
+      </div>
+      <div class="modal-btns">
+        <button class="m-cancel" @click="closeModal">返回修改</button>
+        <button class="m-ok" @click="doConfirm">✓ 确认提交</button>
+      </div>
+    </div>
+  </div>
+</Teleport>
+
+</div>
+</template>
+
+<style scoped>
+.slide {
+  --text-main:#1d1d1f; --text-sec:#86868b;
+  --accent-red:#E03B30; --accent-yellow:#F59E0B; --accent-green:#34C759;
+  --radius-card:24px; --radius-inner:12px;
+  width:1280px; height:720px; flex-shrink:0;
+  background:radial-gradient(circle at 50% 0%,#f4f2ee 0%,#e5e0d8 100%);
+  display:flex; flex-direction:column; overflow:hidden; position:relative;
+  border-radius:32px; box-shadow:0 30px 80px rgba(0,0,0,.15);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue","PingFang SC",Arial,sans-serif;
+  -webkit-font-smoothing:antialiased; color:var(--text-main);
+}
+.slide::before { content:''; position:absolute; inset:0; pointer-events:none; z-index:0;
+  background:radial-gradient(circle at -10% 20%,rgba(255,255,255,.8) 0%,transparent 50%),
+             radial-gradient(circle at 110% 80%,rgba(255,255,255,.6) 0%,transparent 50%); }
+.glass { background:rgba(255,255,255,.65); backdrop-filter:blur(40px) saturate(180%); -webkit-backdrop-filter:blur(40px) saturate(180%); border:1px solid rgba(255,255,255,.8); box-shadow:0 16px 40px rgba(0,0,0,.06); }
+.glass-dk { background:rgba(20,20,22,.65); backdrop-filter:blur(40px) saturate(200%); -webkit-backdrop-filter:blur(40px) saturate(200%); border:1px solid rgba(255,255,255,.15); box-shadow:0 20px 50px rgba(0,0,0,.2); }
+
+/* HEADER */
+.hdr { position:relative; z-index:10; height:64px; flex-shrink:0; background:rgba(244,242,238,.7); backdrop-filter:blur(30px) saturate(150%); -webkit-backdrop-filter:blur(30px) saturate(150%); border-bottom:1px solid rgba(255,255,255,.5); display:flex; align-items:center; justify-content:space-between; padding:0 24px; }
+.hl { display:flex; align-items:center; gap:16px; }
+.logo-box { width:44px; height:44px; border-radius:12px; background:rgba(255,255,255,.5); border:1px solid rgba(0,0,0,.05); display:flex; flex-direction:column; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden; cursor:pointer; position:relative; box-shadow:inset 0 2px 4px rgba(255,255,255,.8),0 2px 8px rgba(0,0,0,.04); }
+.logo-img { width:100%; height:100%; object-fit:cover; display:block; position:relative; z-index:2; }
+.logo-box-hint { font-size:8px; color:var(--text-sec); text-align:center; font-weight:600; position:relative; z-index:2; }
+.logo-input { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; display:block; z-index:10; }
+.hd-sep { width:1px; height:24px; background:rgba(0,0,0,.1); flex-shrink:0; }
+.hd-cn  { font-size:18px; font-weight:800; letter-spacing:-.5px; }
+.hd-en  { font-size:9px; font-weight:600; color:var(--text-sec); letter-spacing:.25em; margin-top:2px; text-transform:uppercase; }
+.hr { display:flex; align-items:center; gap:10px; flex-wrap:nowrap; white-space:nowrap; }
+.wbadge { font-size:12px; font-weight:800; background:#fff; padding:4px 14px; border-radius:999px; box-shadow:0 2px 8px rgba(0,0,0,.04); }
+.wdate  { font-size:11px; font-weight:500; color:var(--text-sec); }
+.hbtn   { font-size:11px; font-weight:600; padding:6px 14px; border-radius:999px; border:none; background:rgba(0,0,0,.04); color:var(--text-sec); cursor:pointer; transition:all .2s; }
+.hbtn:hover { background:rgba(0,0,0,.08); }
+.hbtn-img { font-size:11px; font-weight:600; padding:6px 14px; border-radius:999px; border:none; background:rgba(0,0,0,.04); color:var(--text-sec); cursor:pointer; }
+.cfm-btn { font-size:11px; font-weight:700; padding:6px 18px; border-radius:999px; border:none; background:linear-gradient(135deg,#1d1d1f,#434347); color:#fff; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.2); transition:transform .2s; }
+.cfm-btn:hover { transform:scale(.96); }
+
+/* BODY */
+.body { position:relative; z-index:1; display:flex; padding:16px; flex:1; overflow:hidden; gap:0; }
+.lcol { min-width:280px; max-width:520px; display:flex; flex-direction:column; gap:12px; flex-shrink:0; }
+.resizer-x { width:16px; cursor:col-resize; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.resizer-x::after { content:''; width:4px; height:36px; background:rgba(0,0,0,.08); border-radius:4px; transition:.2s; }
+.resizer-x:hover::after { background:rgba(0,0,0,.25); height:48px; }
+.resizer-y { height:16px; cursor:row-resize; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.resizer-y::after { content:''; height:4px; width:36px; background:rgba(255,255,255,.2); border-radius:4px; transition:.2s; }
+.resizer-y:hover::after { background:rgba(255,255,255,.5); width:48px; }
+
+.card-hdr  { display:flex; align-items:center; gap:8px; flex-shrink:0; margin-bottom:12px; }
+.card-icon { font-size:18px; line-height:1; }
+.card-title { font-size:15px; font-weight:800; letter-spacing:-.3px; }
+
+/* 健康度 */
+.health-card  { border-radius:var(--radius-card); padding:16px 20px; flex-shrink:0; }
+.health-inner { display:flex; align-items:stretch; gap:12px; height:116px; }
+.health-stats { flex:1; display:flex; flex-direction:column; justify-content:space-between; }
+.stat-row   { display:flex; flex-direction:column; gap:4px; justify-content:center; }
+.stat-label { display:flex; justify-content:space-between; align-items:flex-end; }
+.stat-name  { font-size:11px; font-weight:600; color:var(--text-sec); display:flex; align-items:center; gap:6px; }
+.stat-dot   { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.stat-val   { font-size:15px; font-weight:800; line-height:1; }
+.prog-track { height:5px; border-radius:999px; background:rgba(0,0,0,.04); overflow:hidden; }
+.prog-fill  { height:100%; border-radius:999px; transition:width .6s cubic-bezier(.22,1,.36,1); }
+.total-badge { display:flex; justify-content:space-between; align-items:center; padding-top:10px; border-top:1px solid rgba(0,0,0,.06); margin-top:4px; }
+.tot-label { font-size:11px; font-weight:600; color:var(--text-sec); }
+.tot-val   { font-size:15px; font-weight:800; }
+.donut-container { position:relative; display:flex; align-items:center; justify-content:center; width:116px; height:116px; flex-shrink:0; align-self:center; cursor:pointer; }
+.donut-logo { position:absolute; width:64px; height:64px; border-radius:50%; border:4px solid #fff; background:#fff; object-fit:cover; z-index:1; box-shadow:0 4px 10px rgba(0,0,0,.1); }
+#donut2 { position:relative; z-index:2; display:block; pointer-events:none; }
+.donut-input { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; display:block; z-index:10; }
+
+/* 需要决策的问题 */
+.dec-card { border-radius:var(--radius-card); padding:16px 20px; flex:1; overflow-y:auto; display:flex; flex-direction:column; min-height:0; }
+.dec-list { display:flex; flex-direction:column; gap:8px; }
+.dc { border-radius:var(--radius-inner); padding:10px 14px; background:rgba(224,59,48,.05); border:1px solid rgba(224,59,48,.15); display:flex; flex-direction:column; gap:4px; position:relative; overflow:hidden; height:auto; flex-shrink:0; }
+.dc::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--accent-red); }
+.dc.y { background:rgba(245,158,11,.05); border-color:rgba(245,158,11,.15); }
+.dc.y::before { background:var(--accent-yellow); }
+.dc-name { font-size:12px; font-weight:800; padding-left:8px; margin-bottom:2px; }
+.dc-row  { display:flex; gap:8px; align-items:baseline; padding-left:8px; }
+.dc-lbl  { font-size:10px; min-width:28px; flex-shrink:0; font-weight:700; }
+.dc-lbl-risk { color:var(--text-sec); }
+.dc-lbl-dec  { color:var(--accent-red); }
+.dc.y .dc-lbl-dec { color:#C27A00; }
+.dc-txt  { font-size:11px; line-height:1.45; font-weight:500; }
+.dc-act  { font-weight:700; color:var(--accent-red); }
+.dc.y .dc-act { color:#C27A00; }
+.dc-when { padding-left:8px; margin-top:2px; }
+.tags    { display:flex; gap:4px; flex-wrap:wrap; }
+.tag     { font-size:9px; font-weight:700; padding:2px 8px; border-radius:999px; background:rgba(224,59,48,.08); color:#b02020; border:1px solid rgba(224,59,48,.2); }
+.dec-empty { font-size:12px; color:var(--text-sec); padding:12px 8px; font-weight:600; }
+
+/* RIGHT */
+.rcol { display:flex; flex-direction:column; flex:1; min-width:0; overflow:hidden; }
+.hero-zone { border-radius:var(--radius-card); overflow:hidden; position:relative; flex-shrink:0; transition:height .3s cubic-bezier(.2,.8,.2,1); }
+.hero-header { position:absolute; top:0; left:0; right:0; z-index:5; padding:12px 20px; background:linear-gradient(rgba(0,0,0,.5),transparent); display:flex; align-items:center; gap:10px; }
+.hero-hd-icon { font-size:16px; }
+.hero-hd-title { font-size:14px; font-weight:800; color:#fff; letter-spacing:.5px; text-shadow:0 2px 10px rgba(0,0,0,.3); }
+.hero-imgs { display:flex; height:100%; gap:2px; background:#000; }
+.hero-img-wrap { flex:1; min-width:0; height:100%; }
+.hero-img-wrap img { width:100%; height:100%; object-fit:cover; display:block; }
+.hero-empty { width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; background:rgba(255,255,255,.05); cursor:pointer; }
+.hero-empty-icon { font-size:28px; color:rgba(255,255,255,.4); }
+.hero-empty-txt  { font-size:11px; font-weight:500; color:rgba(255,255,255,.5); }
+.hero-cap { position:absolute; bottom:0; left:0; right:0; background:linear-gradient(transparent,rgba(0,0,0,.8)); padding:24px 20px 16px; pointer-events:none; }
+.hero-cap * { pointer-events:auto; }
+.hero-cap-tag   { font-size:9px; font-weight:700; color:rgba(255,255,255,.6); margin-bottom:4px; letter-spacing:.1em; text-transform:uppercase; }
+.hero-cap-title { font-size:20px; font-weight:800; color:#fff; outline:none; cursor:text; letter-spacing:-.5px; }
+.hero-cap-logic { font-size:11px; color:rgba(255,255,255,.8); outline:none; cursor:text; margin-top:4px; line-height:1.5; }
+.hero-acts { position:absolute; top:12px; right:16px; display:flex; gap:8px; z-index:6; }
+.h-btn { font-size:10px; font-weight:600; padding:4px 10px; border-radius:999px; background:rgba(255,255,255,.2); backdrop-filter:blur(10px); color:#fff; cursor:pointer; border:1px solid rgba(255,255,255,.3); transition:all .2s; }
+.h-btn:hover { background:rgba(255,255,255,.3); }
+.h-btn.del { background:rgba(224,59,48,.8); }
+
+/* 工作区 */
+.work-area { display:flex; flex-direction:column; flex:1; }
+.work-card { border-radius:var(--radius-card); padding:16px 20px; display:flex; flex-direction:column; flex:1; overflow:hidden; }
+.col-hint  { font-size:10px; color:var(--text-sec); font-weight:700; margin-left:auto; padding-right:4px; }
+
+/* 确认前：可滚动；确认后由JS切换为auto铺满 */
+.wi-list { display:flex; flex-direction:column; flex:1; overflow-y:auto; padding-right:2px; }
+.disp-list { display:flex; flex-direction:column; flex:1; overflow:hidden; }
+
+/* 全局隐藏滚动条（保留滚动功能，只隐藏外观） */
+* { scrollbar-width:none; -ms-overflow-style:none; }
+*::-webkit-scrollbar { display:none; }
+
+.wi { display:flex; align-items:center; gap:8px; cursor:pointer; border-radius:10px; border:1px solid transparent; transition:all .2s; padding:0 8px; flex-shrink:0; margin-bottom:2px; }
+.wi:hover { background:rgba(255,255,255,.5); }
+.wi.picked { background:#fff; box-shadow:0 4px 12px rgba(0,0,0,.05); border-color:rgba(0,0,0,.04); }
+.wi-chk { width:16px; height:16px; border-radius:4px; border:1.5px solid rgba(0,0,0,.15); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; color:transparent; transition:.2s; }
+.wi-chk.checked { background:var(--text-main); border-color:var(--text-main); color:#fff; }
+.wi-badge { font-size:10px; font-weight:700; padding:2px 8px; border-radius:6px; flex-shrink:0; white-space:nowrap; }
+.wi-badge.r { color:var(--accent-red); background:rgba(224,59,48,.1); }
+.wi-badge.y { color:#C27A00; background:rgba(245,158,11,.1); }
+.wi-badge.g { color:#1a9e3f; background:rgba(52,199,89,.1); }
+.wi-txt  { font-size:11px; font-weight:500; color:#3a3a3c; line-height:1.4; flex:1; }
+.wi-date,.di-date { font-size:11px; color:var(--text-sec); font-weight:700; padding-left:8px; flex-shrink:0; min-width:36px; text-align:right; }
+.wc-cnt  { font-size:10px; font-weight:700; padding:3px 10px; border-radius:999px; background:#fff; box-shadow:0 2px 6px rgba(0,0,0,.04); margin-left:8px; }
+.disp-item { display:flex; align-items:flex-start; gap:8px; border-radius:10px; background:rgba(255,255,255,.4); border:1px solid rgba(255,255,255,.6); padding:6px 10px; margin-bottom:4px; flex-shrink:0; }
+.di-badge { font-size:10px; padding:2px 8px; border-radius:6px; flex-shrink:0; font-weight:700; white-space:nowrap; margin-top:1px; }
+.di-badge.r { color:var(--accent-red); background:rgba(224,59,48,.1); }
+.di-badge.y { color:#C27A00; background:rgba(245,158,11,.1); }
+.di-badge.g { color:#1a9e3f; background:rgba(52,199,89,.1); }
+.di-txt  { font-size:11px; color:#3a3a3c; line-height:1.5; flex:1; font-weight:600; word-break:break-all; }
+.list-empty { font-size:12px; color:var(--text-sec); padding:16px 4px; }
+
+/* MODAL */
+.overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); backdrop-filter:blur(20px); z-index:200; align-items:center; justify-content:center; }
+.overlay.show { display:flex; }
+.modal { border-radius:32px; padding:32px; width:560px; max-height:85vh; display:flex; flex-direction:column; gap:16px; box-shadow:0 30px 60px rgba(0,0,0,.15); overflow-y:auto; }
+.modal-title { font-size:20px; font-weight:800; letter-spacing:-.5px; }
+.modal-sub   { font-size:12px; color:var(--text-sec); margin-top:4px; }
+.modal-sec   { display:flex; flex-direction:column; gap:8px; }
+.modal-sec-lbl { font-size:10px; font-weight:800; color:var(--text-sec); letter-spacing:.1em; text-transform:uppercase; }
+.modal-list  { display:flex; flex-direction:column; gap:6px; max-height:320px; overflow-y:auto; }
+.modal-item  { font-size:12px; padding:10px 14px; border-radius:12px; background:rgba(255,255,255,.5); line-height:1.5; display:flex; gap:8px; align-items:baseline; }
+.modal-proj  { font-size:10px; font-weight:700; color:var(--text-sec); flex-shrink:0; background:rgba(0,0,0,.04); padding:2px 7px; border-radius:5px; }
+.modal-text  { flex:1; }
+.modal-date  { font-size:11px; font-weight:700; color:var(--text-sec); flex-shrink:0; }
+.modal-empty { font-size:12px; color:var(--text-sec); padding:4px 8px; font-style:italic; }
+.modal-btns  { display:flex; gap:12px; justify-content:flex-end; margin-top:8px; }
+.m-cancel { font-size:13px; font-weight:600; padding:10px 24px; border-radius:999px; border:none; background:rgba(0,0,0,.05); cursor:pointer; }
+.m-ok     { font-size:13px; font-weight:700; padding:10px 24px; border-radius:999px; border:none; background:var(--text-main); color:#fff; cursor:pointer; box-shadow:0 6px 16px rgba(0,0,0,.15); }
+</style>
