@@ -91,6 +91,10 @@ const picksPlan   = ref<Set<string>>(new Set());
 const picksGantt  = ref<Set<number>>(new Set());
 const confirmedGantt = ref(false);   // 甘特独立确认
 const confirmed2  = ref(false);      // 本周计划独立确认
+const ganttPage = ref(0);            // 进度表页码（确认后分页）
+const planPage  = ref(0);            // 本周计划页码（确认后分页）
+const GANTT_PER_PAGE = ref(8);       // 进度表每页项数（容器高度计算后填入）
+const PLAN_PER_PAGE  = ref(10);      // 本周计划每页项数
 const sbWidth     = ref(220);        // 左侧边栏宽度（可拖拽）
 let dragX=false, dragY=false, dragSb=false;
 
@@ -180,67 +184,116 @@ const ganttRows = computed(()=>{
 
   const rawRows = source.map(p=>{
     let start=parseD((p as any).startDate);
-    let end=parseD((p as any).completionDate);
+    // 末日优先取开业时间 openDate；无则降级竣工时间 completionDate
+    let end=parseD((p as any).openDate) || parseD((p as any).completionDate);
     // 防御：end 若早于 start，互换之
     if(start && end && end.getTime() < start.getTime()){ const tmp=start; start=end; end=tmp; }
     const doneDays=start?Math.round((today.getTime()-start.getTime())/86400000):null;
     const dTE=end?Math.round((end.getTime()-today.getTime())/86400000):null;
-    const completionStr=(p as any).completionDate||'';
+    const openStr=(p as any).openDate||(p as any).completionDate||'';
     const owner=p.designOwner||'';
-    return {id:p.id,name:p.name,status:p.snap.status,start,end,doneDays,dTE,completionStr,owner};
+    return {id:p.id,name:p.name,status:p.snap.status,start,end,doneDays,dTE,completionStr:openStr,owner};
   });
 
-  // 时间轴范围：全局，不因勾选而变
-  const allValidS=allItems.value.map(p=>parseD((p as any).startDate)).filter((d):d is Date=>!!d).map(d=>d.getTime());
-  const allValidE=allItems.value.map(p=>parseD((p as any).completionDate)).filter((d):d is Date=>!!d).map(d=>d.getTime());
-  const candStart=allValidS.length?Math.min(...allValidS):today.getTime();
-  const candEnd  =allValidE.length?Math.max(...allValidE):today.getTime();
-  // 加缓冲：左右各推 7 天
-  let rStart=new Date(Math.min(candStart, today.getTime()) - 7*86400000);
-  let rEnd  =new Date(Math.max(candEnd,   today.getTime()) + 7*86400000);
-  // 兜底：若仍为同一时刻（无任何日期数据），给 6 月跨度
-  if(rEnd.getTime()-rStart.getTime() < 30*86400000){
-    rStart=new Date(today.getFullYear(),today.getMonth()-1,1);
-    rEnd  =new Date(today.getFullYear(),today.getMonth()+5,1);
-  }
-  const span=(rEnd.getTime()-rStart.getTime())||1;
-  const spanDays=span/86400000;
+  // 时间轴范围：本年度 + 跨年延展段
+  const curYear = today.getFullYear();
+  const yearStart = new Date(curYear, 0, 1);
+  const yearEnd   = new Date(curYear, 11, 31, 23, 59, 59);
 
-  // 轴粒度：≤180天按周，>180天按月
-  const byWeek=spanDays<=180;
-  const axisMarks:{label:string;pct:number}[]=[];
+  // 收集超本年度之最远开业日，以决定延展段年数
+  const allValidE=allItems.value
+    .map(p=>parseD((p as any).openDate)||parseD((p as any).completionDate))
+    .filter((d):d is Date=>!!d).map(d=>d.getTime());
+  const maxEndYear = allValidE.length
+    ? Math.max(curYear, new Date(Math.max(...allValidE)).getFullYear())
+    : curYear;
+  const extYears: number[] = [];
+  for(let y = curYear+1; y <= maxEndYear; y++) extYears.push(y);
+
+  // 主轴：年初 → 年末；延展：每年占容器 8%
+  const mainPctEnd = extYears.length > 0 ? 100 - extYears.length * 8 : 100; // 主轴占多少百分比
+  const extPctEach = extYears.length > 0 ? 8 : 0;
+
+  const rStart = yearStart;
+  const rEnd   = yearEnd;
+  const span = (rEnd.getTime() - rStart.getTime()) || 1;
+  const spanDays = span / 86400000;
+
+  // 时间→主轴百分比（仅本年内）
+  const timeToMainPct = (t: number) => {
+    if(t < rStart.getTime()) return 0;
+    if(t > rEnd.getTime())   return mainPctEnd;
+    return ((t - rStart.getTime()) / span) * mainPctEnd;
+  };
+  // 时间→总轴百分比（含延展段）
+  const timeToFullPct = (t: number) => {
+    const d = new Date(t);
+    const y = d.getFullYear();
+    if(y <= curYear) return timeToMainPct(t);
+    const idx = extYears.indexOf(y);
+    if(idx < 0) return mainPctEnd + extYears.length * extPctEach;
+    // 在该年内之相对位置
+    const ys = new Date(y, 0, 1).getTime();
+    const ye = new Date(y, 11, 31, 23, 59, 59).getTime();
+    const frac = Math.max(0, Math.min(1, (t - ys) / (ye - ys)));
+    return mainPctEnd + idx * extPctEach + frac * extPctEach;
+  };
+
+  // 轴标签：主轴按周（本年），延展段按年
+  const isoWeek=(d:Date)=>{
+    const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+    const day=t.getUTCDay()||7;
+    t.setUTCDate(t.getUTCDate()+4-day);
+    const yStart=new Date(Date.UTC(t.getUTCFullYear(),0,1));
+    return Math.ceil(((t.getTime()-yStart.getTime())/86400000+1)/7);
+  };
+  const weeks = Math.ceil(spanDays/7);
+  const step = weeks<=24 ? 1 : weeks<=48 ? 2 : weeks<=96 ? 4 : 8;
+  const axisMarks:{label:string;pct:number;isYear?:boolean}[]=[];
   const cur=new Date(rStart);
-  if(byWeek){
-    cur.setDate(cur.getDate()-cur.getDay()+1);
-    while(cur<=rEnd){
-      const pct=(cur.getTime()-rStart.getTime())/span*100;
-      if(pct>=0&&pct<=102) axisMarks.push({label:`${cur.getMonth()+1}/${cur.getDate()}`,pct:Math.max(0,pct)});
-      cur.setDate(cur.getDate()+7);
+  cur.setDate(cur.getDate()-((cur.getDay()+6)%7));
+  let idx=0;
+  while(cur<=rEnd){
+    const pct=timeToMainPct(cur.getTime());
+    if(pct>=-1 && pct<=mainPctEnd+1 && idx%step===0){
+      axisMarks.push({label:`W${isoWeek(cur)}`,pct:Math.max(0,pct)});
     }
-  } else {
-    cur.setDate(1);
-    while(cur<=rEnd){
-      const pct=(cur.getTime()-rStart.getTime())/span*100;
-      if(pct>=-1&&pct<=102) axisMarks.push({label:`${cur.getFullYear()}.${cur.getMonth()+1}`,pct:Math.max(0,pct)});
-      cur.setMonth(cur.getMonth()+1);
-    }
+    cur.setDate(cur.getDate()+7);
+    idx++;
   }
+  // 延展段年标
+  extYears.forEach((y, i) => {
+    axisMarks.push({label:`${y}年`,pct: mainPctEnd + i * extPctEach + extPctEach/2,isYear:true});
+  });
 
-  const todayPct=Math.max(0,Math.min(100,(today.getTime()-rStart.getTime())/span*100));
+  const todayPct = timeToFullPct(today.getTime());
 
   const mappedRows=rawRows.map(r=>{
     // 兜底：若无 start 或 end，仍生成可见条
     const sTime = r.start ? r.start.getTime() : today.getTime() - 14*86400000;
     const eTime = r.end   ? r.end.getTime()   : today.getTime() + 30*86400000;
-    let barL=Math.max(0,Math.min(100,(sTime-rStart.getTime())/span*100));
-    let barR=Math.max(0,Math.min(100,(eTime-rStart.getTime())/span*100));
+    let barL=Math.max(0,Math.min(100,timeToFullPct(sTime)));
+    let barR=Math.max(0,Math.min(100,timeToFullPct(eTime)));
     if(barR<barL+1) barR=barL+1; // 保证至少 1% 可视宽度
-    // 分段：以今日为界
+    // 主区/延展区分割：mainPctEnd 处
+    const mainEnd = mainPctEnd;
+    // 主条段
+    const mainBarL = Math.min(barL, mainEnd);
+    const mainBarR = Math.min(barR, mainEnd);
+    // 延展条段
+    const extBarL = Math.max(barL, mainEnd);
+    const extBarR = Math.max(barR, mainEnd);
+    // 已过/未来：以今日为界（仅在主条段内分；延展段一律半透）
     const tPct=todayPct;
-    const donePctL=barL;
-    const donePctR=Math.max(barL,Math.min(barR,tPct));
-    const futurePctL=Math.max(barL,Math.min(barR,tPct));
-    const futurePctR=barR;
+    const donePctL=mainBarL;
+    const donePctR=Math.max(mainBarL,Math.min(mainBarR,tPct));
+    const futurePctL=Math.max(mainBarL,Math.min(mainBarR,tPct));
+    const futurePctR=mainBarR;
+    // 文字右锚点：今日线（若在条内）或主条右端
+    const labelAnchorPct = (tPct>=mainBarL && tPct<=mainBarR) ? tPct : mainBarR;
+    // 条尾位置：贴主条右端（不入延展段）
+    const tailAnchor = mainBarR;
+    const tailInside = tailAnchor > 80;
     let dteLabel='待定',dteColor='#999';
     if(r.dTE!==null){
       if(r.dTE<0){dteLabel=`超期${Math.abs(r.dTE)}天`;dteColor='#E03B30';}
@@ -249,10 +302,10 @@ const ganttRows = computed(()=>{
     }
     const doneTxt=r.doneDays!==null?(r.doneDays<0?'未开始':`已进行${r.doneDays}天`):'—';
     const noDates=!r.start && !r.end;
-    return {...r,barL,barR,donePctL,donePctR,futurePctL,futurePctR,dteLabel,dteColor,doneTxt,noDates};
+    return {...r,barL,barR,mainBarL,mainBarR,extBarL,extBarR,donePctL,donePctR,futurePctL,futurePctR,labelAnchorPct,tailAnchor,tailInside,dteLabel,dteColor,doneTxt,noDates};
   });
 
-  return {rows:mappedRows,todayPct,axisMarks,byWeek};
+  return {rows:mappedRows,todayPct,axisMarks,mainPctEnd,extYears};
 });
 
 // ── KPI 指标（侧栏底部） ──────────────────────────────────
@@ -273,12 +326,12 @@ const kpiStats = computed(()=>{
   // 2. 项目健康率：绿灯 / 总
   const healthPct = stats.value.gPct;
 
-  // 3. 临期预警率：30天内竣工 / 总
+  // 3. 临期预警率：30天内开业 / 总
   let imminent=0;
   allItems.value.forEach(p=>{
-    const end=(p as any).completionDate;
+    const end=(p as any).openDate||(p as any).completionDate;
     if(end){
-      const d=new Date(end.replace(/\//g,'-'));
+      const d=new Date(String(end).replace(/\//g,'-'));
       if(!isNaN(d.getTime())){
         const dTE=Math.round((d.getTime()-today.getTime())/86400000);
         if(dTE>=0 && dTE<=30) imminent++;
@@ -291,9 +344,9 @@ const kpiStats = computed(()=>{
   const newTasks = planTotal;
   let overdue=0;
   allItems.value.forEach(p=>{
-    const end=(p as any).completionDate;
+    const end=(p as any).openDate||(p as any).completionDate;
     if(end){
-      const d=new Date(end.replace(/\//g,'-'));
+      const d=new Date(String(end).replace(/\//g,'-'));
       if(!isNaN(d.getTime()) && d.getTime() < today.getTime()) overdue++;
     }
   });
@@ -316,6 +369,29 @@ const isPicked2=(k:string)=>picksPlan.value.has(k);
 const isGanttPicked=(id:number)=>picksGantt.value.has(id);
 const dispLast=computed(()=>lastItems.value.filter(i=>picksLast.value.has(i.key)));
 const dispPlan=computed(()=>planItems.value.filter(i=>picksPlan.value.has(i.key)));
+
+// 分页
+const ganttPageCount = computed(()=> {
+  if(!confirmedGantt.value) return 1;
+  return Math.max(1, Math.ceil(ganttRows.value.rows.length / GANTT_PER_PAGE.value));
+});
+const ganttPagedRows = computed(()=>{
+  if(!confirmedGantt.value) return ganttRows.value.rows;
+  const start = ganttPage.value * GANTT_PER_PAGE.value;
+  return ganttRows.value.rows.slice(start, start + GANTT_PER_PAGE.value);
+});
+const planPageCount = computed(()=> {
+  if(!confirmed2.value) return 1;
+  return Math.max(1, Math.ceil(dispPlan.value.length / PLAN_PER_PAGE.value));
+});
+const planPagedItems = computed(()=>{
+  if(!confirmed2.value) return dispPlan.value;
+  const start = planPage.value * PLAN_PER_PAGE.value;
+  return dispPlan.value.slice(start, start + PLAN_PER_PAGE.value);
+});
+
+watch([confirmedGantt, ()=>ganttRows.value.rows.length], ()=>{ ganttPage.value = 0; });
+watch([confirmed2, ()=>dispPlan.value.length], ()=>{ planPage.value = 0; });
 function togglePick1(k:string){ picksLast.value.has(k)?picksLast.value.delete(k):picksLast.value.add(k); saveOL1(); }
 function togglePick2(k:string){ picksPlan.value.has(k)?picksPlan.value.delete(k):picksPlan.value.add(k); saveOL2(); }
 function toggleGantt(id:number){ picksGantt.value.has(id)?picksGantt.value.delete(id):picksGantt.value.add(id); saveOL2(); }
@@ -369,14 +445,40 @@ function reflow1(){
 }
 function reflow2(){
   nextTick(()=>{
-    const wa=document.getElementById('wa2'); if(!wa) return;
-    const card=wa.querySelector<HTMLElement>('.work-card'); if(!card) return;
-    const hdrH=card.querySelector<HTMLElement>('.card-hdr')?.offsetHeight||50;
-    const listEl=card.querySelector<HTMLElement>('.wi-list,.disp-list'); if(!listEl) return;
-    const items=listEl.querySelectorAll<HTMLElement>('.wi,.disp-item'); if(!items.length) return;
-    const avail=wa.offsetHeight-hdrH-28;
-    if(!confirmed2.value){ const per=Math.max(30,Math.floor(avail/items.length)); items.forEach(it=>{it.style.height=per+'px';it.style.alignItems='center';}); }
-    else{ items.forEach(it=>{it.style.height='auto';it.style.minHeight='32px';it.style.alignItems='flex-start';it.style.padding='4px 8px';}); }
+    // 本周计划：测算每页项数
+    const wa=document.getElementById('wa2');
+    if(wa){
+      const card=wa.querySelector<HTMLElement>('.work-card');
+      if(card){
+        const hdrH=card.querySelector<HTMLElement>('.card-hdr')?.offsetHeight||50;
+        const avail=wa.offsetHeight-hdrH-28;
+        // 确认后：行高 24（条 20 + 间距 4），算每页能容多少
+        if(confirmed2.value){
+          const perPage = Math.max(1, Math.floor(avail / 24));
+          PLAN_PER_PAGE.value = perPage;
+        } else {
+          // 勾选前：固定行高 32，可滚
+          const listEl=card.querySelector<HTMLElement>('.wi-list');
+          if(listEl){
+            const items=listEl.querySelectorAll<HTMLElement>('.wi');
+            items.forEach(it=>{it.style.height='32px';it.style.alignItems='center';});
+          }
+        }
+      }
+    }
+    // 进度表：测算每页项数
+    const ga=document.getElementById('gantt-card');
+    if(ga){
+      const hdrH=ga.querySelector<HTMLElement>('.card-hdr')?.offsetHeight||50;
+      const headH=ga.querySelector<HTMLElement>('.gantt-head')?.offsetHeight||30;
+      const noteH=ga.querySelector<HTMLElement>('.gantt-note')?.offsetHeight||14;
+      const avail=ga.offsetHeight-hdrH-headH-noteH-28;
+      if(confirmedGantt.value){
+        // 确认后行高 ~24px（20 + 间距 4）
+        const perPage = Math.max(1, Math.floor(avail / 24));
+        GANTT_PER_PAGE.value = perPage;
+      }
+    }
   });
 }
 
@@ -396,11 +498,11 @@ function drawDonut(id:string){
 // 成员小环形图
 function drawMemberRing(id:string, pct:number, color:string){
   const c=document.getElementById(id) as HTMLCanvasElement; if(!c) return;
-  const ctx=c.getContext('2d')!; ctx.clearRect(0,0,52,52);
-  ctx.beginPath(); ctx.arc(26,26,22,0,Math.PI*2); ctx.strokeStyle='rgba(255,255,255,0.1)'; ctx.lineWidth=4; ctx.stroke();
+  const ctx=c.getContext('2d')!; ctx.clearRect(0,0,42,42);
+  ctx.beginPath(); ctx.arc(21,21,17,0,Math.PI*2); ctx.strokeStyle='rgba(255,255,255,0.1)'; ctx.lineWidth=3.5; ctx.stroke();
   if(pct>0){
-    ctx.beginPath(); ctx.arc(26,26,22,-Math.PI/2,-Math.PI/2+(Math.PI*2*pct/100));
-    ctx.strokeStyle=color; ctx.lineWidth=4; ctx.lineCap='round'; ctx.stroke();
+    ctx.beginPath(); ctx.arc(21,21,17,-Math.PI/2,-Math.PI/2+(Math.PI*2*pct/100));
+    ctx.strokeStyle=color; ctx.lineWidth=3.5; ctx.lineCap='round'; ctx.stroke();
   }
 }
 
@@ -433,6 +535,8 @@ watch(activeTab, tab=>{
     }
   });
 });
+
+watch([confirmedGantt, confirmed2], ()=>{ reflow2(); });
 
 watch(memberStats, ()=>{
   if(activeTab.value==='plan'){
@@ -607,13 +711,13 @@ function ownerColor(name:string){
       <div class="sb-ring-list">
         <div v-for="(m,i) in memberStats" :key="m.name" class="sb-ring-item">
           <div class="sb-ring-wrap">
-            <canvas :id="'mring'+i" width="52" height="52"></canvas>
+            <canvas :id="'mring'+i" width="42" height="42"></canvas>
             <div class="sb-ring-pct">{{m.pct}}%</div>
           </div>
           <div class="sb-ring-info">
             <div class="sb-ring-name">{{m.name}}</div>
             <div class="sb-ring-big">{{m.projCnt}}<span class="sb-ring-unit"> 项目</span></div>
-            <div class="sb-ring-sm">{{m.actionCnt}} 条本周任务</div>
+            <div class="sb-ring-sm">{{m.actionCnt}} 条任务</div>
           </div>
         </div>
       </div>
@@ -639,15 +743,23 @@ function ownerColor(name:string){
   <div class="main-area">
 
     <!-- 甘特图（图2风格） -->
-    <div class="gantt-card glass">
+    <div id="gantt-card" class="gantt-card glass" :class="{'card-confirmed':confirmedGantt}">
       <div class="card-hdr">
-        <span class="card-icon">📅</span>
-        <span class="card-title">项目时间轴</span>
-        <span style="font-size:9px;color:var(--text-sec);margin-left:6px">· 勾选后确认显示</span>
-        <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+        <span class="card-icon-svg">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="6" y="13" width="3" height="5" rx="0.5" fill="currentColor"/><rect x="11" y="9" width="3" height="9" rx="0.5" fill="currentColor"/><rect x="16" y="6" width="3" height="12" rx="0.5" fill="currentColor"/></svg>
+        </span>
+        <span class="card-title">项目进度表</span>
+        <span v-if="!confirmedGantt" style="font-size:9px;color:var(--text-sec);margin-left:6px">· 勾选后确认显示</span>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <span v-if="confirmedGantt" style="font-size:11px;color:#10b981;font-weight:700">已确认 {{picksGantt.size}} 项</span>
+          <!-- 分页器 -->
+          <div v-if="confirmedGantt && ganttPageCount>1" class="pager">
+            <button class="pager-btn" :disabled="ganttPage===0" @click="ganttPage--">‹</button>
+            <span class="pager-num">{{ganttPage+1}}/{{ganttPageCount}}</span>
+            <button class="pager-btn" :disabled="ganttPage>=ganttPageCount-1" @click="ganttPage++">›</button>
+          </div>
           <button v-if="confirmedGantt" class="card-hdr-btn ghost" @click="resetGantt">重置</button>
           <button v-if="!confirmedGantt" :disabled="!picksGantt.size" class="card-hdr-btn primary" @click="doConfirmGantt">确认甘特选择 →</button>
-          <span v-if="confirmedGantt" style="font-size:9px;color:#10b981;font-weight:700">已确认 {{picksGantt.size}} 个项目</span>
         </div>
       </div>
       <!-- 轴 -->
@@ -656,16 +768,17 @@ function ownerColor(name:string){
         <div class="gantt-track-col" style="position:relative">
           <!-- 网格线 -->
           <div v-for="(ax,i) in ganttRows.axisMarks" :key="i" class="gantt-grid-line" :style="{left:ax.pct+'%'}"></div>
+          <!-- 主区/延展区分隔 -->
+          <div v-if="ganttRows.extYears.length>0" class="gantt-year-divider" :style="{left:ganttRows.mainPctEnd+'%'}"></div>
           <!-- 轴标签 -->
-          <div v-for="(ax,i) in ganttRows.axisMarks" :key="'l'+i" class="gantt-axis-lbl" :style="{left:ax.pct+'%'}">{{ax.label}}</div>
+          <div v-for="(ax,i) in ganttRows.axisMarks" :key="'l'+i" class="gantt-axis-lbl" :class="{'gantt-axis-lbl-year':ax.isYear}" :style="{left:ax.pct+'%'}">{{ax.label}}</div>
           <!-- 今日线标题 -->
           <div class="gantt-today-head" :style="{left:ganttRows.todayPct+'%'}">今天</div>
         </div>
-        <div class="gantt-info-col"></div>
       </div>
       <!-- 行 -->
-      <div class="gantt-body">
-        <div v-for="row in ganttRows.rows" :key="row.id" class="gantt-row">
+      <div class="gantt-body" :class="{'gantt-body-confirmed':confirmedGantt,'gantt-body-pickable':!confirmedGantt}">
+        <div v-for="row in ganttPagedRows" :key="row.id" class="gantt-row" :class="{'gantt-row-confirmed':confirmedGantt}">
           <!-- 勾选+项目名 -->
           <div class="gantt-name-col">
             <div :class="['g-chk',isGanttPicked(row.id)&&'checked']" @click="toggleGantt(row.id)">{{isGanttPicked(row.id)?'✓':''}}</div>
@@ -675,46 +788,70 @@ function ownerColor(name:string){
           <div class="gantt-track-col" style="position:relative">
             <!-- 网格线（行内） -->
             <div v-for="(ax,i) in ganttRows.axisMarks" :key="i" class="gantt-row-grid" :style="{left:ax.pct+'%'}"></div>
+            <!-- 主区/延展区分隔（行内） -->
+            <div v-if="ganttRows.extYears.length>0" class="gantt-year-divider gantt-year-divider-row" :style="{left:ganttRows.mainPctEnd+'%'}"></div>
             <!-- 今日线 -->
             <div class="gantt-today-bar" :style="{left:ganttRows.todayPct+'%'}"></div>
-            <!-- 项目条：分两段（已过实色 / 未来半透） -->
+            <!-- 项目条：分段（已过实色 / 未来半透 / 跨年延展虚段） -->
             <template v-if="!row.noDates">
-              <!-- 已过部分（深色） -->
+              <!-- 已过部分（深色，主区内） -->
               <div
                 v-if="(row.donePctR - row.donePctL) > 0.1"
                 class="gantt-bar gantt-bar-done"
                 :style="{left:row.donePctL+'%',width:(row.donePctR-row.donePctL)+'%',background:statusGrad(row.status),boxShadow:`0 3px 10px ${statusShadow(row.status)}`}"
-              >
-                <span class="gantt-bar-name">{{row.name}}</span>
-              </div>
-              <!-- 未来部分（浅色） -->
+              ></div>
+              <!-- 未来部分（浅色，主区内） -->
               <div
                 v-if="(row.futurePctR - row.futurePctL) > 0.1"
                 class="gantt-bar gantt-bar-future"
                 :style="{left:row.futurePctL+'%',width:(row.futurePctR-row.futurePctL)+'%',background:statusGrad(row.status),opacity:0.35}"
-              >
-                <span v-if="(row.donePctR - row.donePctL) <= 0.1" class="gantt-bar-name" style="opacity:0.85">{{row.name}}</span>
-              </div>
-              <!-- 负责人头像（条尾） -->
+              ></div>
+              <!-- 跨年延展虚条（超本年部分） -->
               <div
-                v-if="row.owner"
-                class="gantt-owner-floating"
-                :style="{left:'calc(' + Math.min(row.barR,92) + '% + 4px)'}"
-                :title="row.owner"
+                v-if="(row.extBarR - row.extBarL) > 0.1"
+                class="gantt-bar gantt-bar-ext"
+                :style="{left:row.extBarL+'%',width:(row.extBarR-row.extBarL)+'%',background:statusGrad(row.status),opacity:0.18}"
+              ></div>
+              <!-- 文字层：右锚于今日线或主条右端 -->
+              <div
+                class="gantt-label-out"
+                :style="{right:(100 - row.labelAnchorPct) + '%'}"
+              >Preliminary work</div>
+              <div
+                class="gantt-label-in"
+                :style="{
+                  right:(100 - row.labelAnchorPct) + '%',
+                  clipPath:'inset(0 ' + (100 - row.labelAnchorPct) + '% 0 ' + row.donePctL + '%)'
+                }"
+              >Preliminary work</div>
+              <!-- 条尾信息：贴主条右端 -->
+              <div
+                class="gantt-tail"
+                :class="{'gantt-tail-inside':row.tailInside}"
+                :style="row.tailInside
+                  ? {right:(100 - row.tailAnchor) + '%',transform:'translateY(-50%)'}
+                  : {left:'calc(' + Math.min(row.tailAnchor,100) + '% + 6px)',transform:'translateY(-50%)'}"
               >
-                <div class="g-owner-av" :style="{background:ownerColor(row.owner)}">
+                <span class="gantt-tail-icon" title="已进行天数">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  {{row.doneDays!==null && row.doneDays>=0 ? row.doneDays + 'd' : '—'}}
+                </span>
+                <span class="gantt-tail-icon" title="开业时间">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  {{row.completionStr ? fmtDate(row.completionStr) : '待定'}}
+                </span>
+                <div
+                  v-if="row.owner"
+                  class="g-owner-av g-owner-av-tail"
+                  :style="{background:ownerColor(row.owner)}"
+                  :title="row.owner"
+                >
                   <img v-if="avatars[row.owner]" :src="avatars[row.owner]" alt="">
                   <span v-else>{{row.owner.slice(0,1)}}</span>
                 </div>
-                <span class="g-owner-name">{{row.owner}}</span>
               </div>
             </template>
             <div v-else class="gantt-bar-dash">{{row.name}} <span style="opacity:.5">（待定）</span></div>
-          </div>
-          <!-- 信息列 -->
-          <div class="gantt-info-col">
-            <div class="gantt-done-txt">{{row.doneTxt}}</div>
-            <div class="gantt-dte" :style="{color:row.dteColor}">竣工: {{fmtDate(row.completionStr)||'待定'}}</div>
           </div>
         </div>
         <div v-if="!ganttRows.rows.length" class="list-empty" style="padding:20px">请勾选左侧项目，或暂无数据</div>
@@ -724,12 +861,20 @@ function ownerColor(name:string){
 
     <!-- 本周计划 -->
     <div id="wa2" class="work-area2">
-      <div class="work-card glass">
+      <div class="work-card glass" :class="{'card-confirmed':confirmed2}">
         <div class="card-hdr">
-          <span class="card-icon">📋</span><span class="card-title">本周重点工作计划</span>
+          <span class="card-icon-svg">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          </span><span class="card-title">本周重点工作计划</span>
           <div v-if="!confirmed2&&picksPlan.size" class="wc-cnt">已选 {{picksPlan.size}} 项</div>
           <div v-if="confirmed2" class="wc-cnt">共 {{dispPlan.length}} 项</div>
-          <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+          <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+            <!-- 分页器 -->
+            <div v-if="confirmed2 && planPageCount>1" class="pager">
+              <button class="pager-btn" :disabled="planPage===0" @click="planPage--">‹</button>
+              <span class="pager-num">{{planPage+1}}/{{planPageCount}}</span>
+              <button class="pager-btn" :disabled="planPage>=planPageCount-1" @click="planPage++">›</button>
+            </div>
             <span class="col-hint" style="margin-left:0">截止时间</span>
             <button v-if="confirmed2" class="card-hdr-btn ghost" @click="resetConfirm2">重新选择</button>
             <button v-if="!confirmed2" :disabled="!picksPlan.size" class="card-hdr-btn primary" @click="showModal2=true">确认计划 →</button>
@@ -744,8 +889,8 @@ function ownerColor(name:string){
           </div>
           <div v-if="!planItems.length" class="list-empty">暂无本周计划</div>
         </div>
-        <div v-else class="disp-list">
-          <div v-for="it in dispPlan" :key="it.key" class="disp-item">
+        <div v-else class="disp-list disp-list-confirmed">
+          <div v-for="it in planPagedItems" :key="it.key" class="disp-item disp-item-confirmed">
             <div class="di-pname">{{it.projName}}</div>
             <div class="di-txt">{{it.text}}</div>
             <div class="di-date">{{fmtDate(it.dueDate)}}</div>
@@ -842,6 +987,9 @@ function ownerColor(name:string){
 /* 卡片通用 */
 .card-hdr{display:flex;align-items:center;gap:8px;flex-shrink:0;margin-bottom:10px;}
 .card-icon{font-size:16px;}
+.card-icon-svg{display:inline-flex;align-items:center;justify-content:center;color:var(--text-main);}
+.card-icon-svg svg{display:block;}
+.gantt-tail-icon svg{flex-shrink:0;}
 .card-title{font-size:14px;font-weight:800;letter-spacing:-.3px;flex:1;}
 .col-hint{font-size:10px;color:var(--text-sec);font-weight:700;margin-left:auto;}
 
@@ -903,7 +1051,8 @@ function ownerColor(name:string){
 .work-card{border-radius:var(--radius-card);padding:13px 16px;display:flex;flex-direction:column;flex:1;overflow:hidden;}
 .wi-list{display:flex;flex-direction:column;flex:1;overflow-y:auto;}
 .disp-list{display:flex;flex-direction:column;flex:1;overflow:hidden;}
-.wi{display:flex;align-items:center;gap:7px;cursor:pointer;border-radius:9px;border:1px solid transparent;transition:all .18s;padding:0 7px;flex-shrink:0;margin-bottom:2px;}
+.disp-list-confirmed{gap:4px;}
+.wi{display:flex;align-items:center;gap:7px;cursor:pointer;border-radius:9px;border:1px solid transparent;transition:all .18s;padding:0 7px;flex-shrink:0;margin-bottom:2px;height:32px;}
 .wi:hover{background:rgba(255,255,255,.6);}
 .wi.picked{background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.04);}
 .wi-chk{width:15px;height:15px;border-radius:4px;border:1.5px solid rgba(0,0,0,.15);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:transparent;transition:.18s;}
@@ -917,7 +1066,16 @@ function ownerColor(name:string){
 .di-pname{font-size:11px;font-weight:700;color:#1d1d1f;flex-shrink:0;white-space:nowrap;padding-right:18px;margin-right:6px;margin-top:1px;border-right:1px solid rgba(0,0,0,.1);min-width:120px;}
 .wi-date,.di-date{font-size:10px;color:var(--text-sec);font-weight:700;padding-left:6px;flex-shrink:0;min-width:32px;text-align:right;}
 .wc-cnt{font-size:10px;font-weight:700;padding:2px 9px;border-radius:999px;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.04);margin-left:6px;}
+.pager{display:inline-flex;align-items:center;gap:2px;background:rgba(0,0,0,.05);border-radius:999px;padding:2px;}
+.pager-btn{border:none;background:transparent;width:22px;height:22px;border-radius:50%;cursor:pointer;font-size:14px;font-weight:600;color:var(--text-main);display:flex;align-items:center;justify-content:center;line-height:1;padding:0;transition:.15s;}
+.pager-btn:not(:disabled):hover{background:#fff;}
+.pager-btn:disabled{color:rgba(0,0,0,.2);cursor:default;}
+.pager-num{font-size:10px;font-weight:700;color:var(--text-main);padding:0 6px;min-width:36px;text-align:center;letter-spacing:.5px;}
 .disp-item{display:flex;align-items:flex-start;gap:7px;border-radius:9px;background:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.7);padding:5px 9px;margin-bottom:3px;flex-shrink:0;}
+.disp-item-confirmed{align-items:center;height:20px;padding:0 9px;margin-bottom:0;font-size:10px;}
+.disp-item-confirmed .di-pname{font-size:10px;padding-right:14px;margin-right:6px;min-width:110px;margin-top:0;}
+.disp-item-confirmed .di-txt{font-size:10px;line-height:1;}
+.disp-item-confirmed .di-date{font-size:9px;}
 .di-badge{font-size:9px;padding:1px 7px;border-radius:5px;flex-shrink:0;font-weight:700;white-space:nowrap;margin-top:1px;}
 .di-badge.r{color:var(--accent-red);background:rgba(224,59,48,.1);}
 .di-badge.y{color:#C27A00;background:rgba(245,158,11,.1);}
@@ -941,21 +1099,21 @@ function ownerColor(name:string){
 .sb-focus-text{font-size:10px;font-weight:600;color:#fff;line-height:1.5;outline:none;cursor:text;width:100%;min-height:46px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:6px 8px;font-family:inherit;resize:vertical;direction:ltr;unicode-bidi:plaintext;}
 .sb-focus-text::placeholder{color:rgba(255,255,255,.25);font-weight:400;}
 .sb-members{flex:1 1 auto;display:flex;flex-direction:column;overflow:hidden;min-height:0;}
-.sb-avatar-row{display:flex;flex-wrap:wrap;gap:14px 30px;margin-bottom:14px;justify-content:flex-start;}
+.sb-avatar-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:5px;margin-bottom:14px;justify-items:center;}
 .sb-avatar-item{display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0;}
-.sb-avatar-wrap{width:36px;height:36px;border-radius:50%;overflow:hidden;cursor:pointer;position:relative;border:2px solid rgba(255,255,255,.2);}
+.sb-avatar-wrap{width:34px;height:34px;border-radius:50%;overflow:hidden;cursor:pointer;position:relative;border:2px solid rgba(255,255,255,.2);}
 .sb-avatar-img{width:100%;height:100%;object-fit:cover;display:block;}
 .sb-avatar-init{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;}
 .sb-avatar-name{font-size:8px;color:rgba(255,255,255,.55);font-weight:600;}
-.sb-ring-list{display:flex;flex-direction:column;gap:10px;flex:1 1 auto;overflow-y:auto;min-height:0;}
-.sb-ring-item{display:flex;align-items:center;gap:8px;}
-.sb-ring-wrap{position:relative;width:52px;height:52px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.sb-ring-list{display:grid;grid-template-columns:repeat(2,1fr);gap:10px 8px;flex:1 1 auto;overflow-y:auto;min-height:0;}
+.sb-ring-item{display:flex;align-items:center;gap:6px;min-width:0;}
+.sb-ring-wrap{position:relative;width:42px;height:42px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
 .sb-ring-pct{position:absolute;font-size:9px;font-weight:800;color:#fff;}
-.sb-ring-info{flex:1;min-width:0;}
-.sb-ring-name{font-size:10px;font-weight:700;color:rgba(255,255,255,.9);}
-.sb-ring-big{font-size:18px;font-weight:800;color:#fff;line-height:1.1;}
-.sb-ring-unit{font-size:9px;color:rgba(255,255,255,.5);font-weight:400;}
-.sb-ring-sm{font-size:8px;color:rgba(255,255,255,.45);margin-top:1px;}
+.sb-ring-info{flex:1;min-width:0;overflow:hidden;}
+.sb-ring-name{font-size:10px;font-weight:700;color:rgba(255,255,255,.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sb-ring-big{font-size:14px;font-weight:800;color:#fff;line-height:1.1;}
+.sb-ring-unit{font-size:8px;color:rgba(255,255,255,.5);font-weight:400;}
+.sb-ring-sm{font-size:8px;color:rgba(255,255,255,.45);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
 /* KPI 区块（仅二卡） */
 .sb-kpi{flex-shrink:0;border-top:1px solid rgba(255,255,255,.08);padding-top:10px;margin-top:6px;}
@@ -979,27 +1137,55 @@ function ownerColor(name:string){
 .gantt-grid-line{position:absolute;top:0;bottom:0;width:1px;background:rgba(0,0,0,.06);}
 .gantt-axis-lbl{position:absolute;bottom:2px;font-size:9px;color:var(--text-sec);font-weight:600;transform:translateX(-50%);white-space:nowrap;}
 .gantt-today-head{position:absolute;top:0;font-size:9px;color:#f59e0b;font-weight:800;transform:translateX(-50%);white-space:nowrap;background:rgba(255,255,255,.9);padding:0 4px;border-radius:4px;z-index:2;}
-.gantt-body{display:flex;flex-direction:column;gap:5px;flex:1;overflow-y:auto;}
-.gantt-row{display:flex;align-items:stretch;gap:0;height:34px;flex-shrink:0;}
-.gantt-row .gantt-track-col{align-self:stretch;height:34px;}
-.gantt-name-col{display:flex;align-items:center;gap:5px;height:34px;}
+.gantt-body{display:flex;flex-direction:column;gap:4px;flex:1;}
+.gantt-body-pickable{overflow-y:auto;}
+.gantt-body-confirmed{overflow:hidden;}
+.gantt-row{display:flex;align-items:stretch;gap:0;height:38px;flex-shrink:0;}
+.gantt-row .gantt-track-col{align-self:stretch;height:38px;}
+.gantt-row-confirmed{height:24px;}
+.gantt-row-confirmed .gantt-track-col{height:24px;}
+.gantt-row-confirmed .gantt-name-col{height:24px;}
+.gantt-row-confirmed .gantt-row-grid{height:24px;}
+.gantt-row-confirmed .gantt-today-bar{height:24px;}
+.gantt-row-confirmed .gantt-bar{top:2px;height:20px;border-radius:6px;padding:0 6px;}
+.gantt-row-confirmed .gantt-bar-dash{top:2px;height:20px;border-radius:6px;}
+.gantt-row-confirmed .gantt-year-divider-row{height:24px;}
+.gantt-row-confirmed .gantt-label-out,
+.gantt-row-confirmed .gantt-label-in{font-size:10px;}
+.gantt-row-confirmed .gantt-tail{gap:6px;}
+.gantt-row-confirmed .gantt-tail-icon{font-size:10px;}
+.gantt-row-confirmed .g-owner-av-tail{width:22px;height:22px;font-size:10px;}
+.gantt-row-confirmed .gantt-proj-name{font-size:11px;}
+.gantt-row-confirmed .g-chk{width:12px;height:12px;}
+.gantt-name-col{display:flex;align-items:center;gap:5px;height:38px;}
 .g-chk{width:14px;height:14px;border-radius:3px;border:1.5px solid rgba(0,0,0,.2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;color:transparent;cursor:pointer;transition:.15s;background:#fff;}
 .g-chk.checked{background:var(--text-main);border-color:var(--text-main);color:#fff;}
 .gantt-proj-name{font-size:11px;font-weight:700;color:var(--text-main);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.gantt-row-grid{position:absolute;top:0;height:34px;width:1px;background:rgba(0,0,0,.04);}
-.gantt-today-bar{position:absolute;top:0;height:34px;width:2px;background:linear-gradient(180deg,#f59e0b,#f59e0b88);z-index:3;border-radius:2px;}
-.gantt-bar{position:absolute;top:4px;height:26px;border-radius:8px;display:flex;align-items:center;padding:0 8px;min-width:0;z-index:2;overflow:hidden;}
+.gantt-row-grid{position:absolute;top:0;height:38px;width:1px;background:rgba(0,0,0,.04);}
+.gantt-today-bar{position:absolute;top:0;height:38px;width:2px;background:linear-gradient(180deg,#f59e0b,#f59e0b88);z-index:3;border-radius:2px;}
+.gantt-bar{position:absolute;top:6px;height:26px;border-radius:8px;display:flex;align-items:center;padding:0 8px;min-width:0;z-index:2;overflow:hidden;}
 .gantt-bar-done{z-index:3;}
 .gantt-bar-future{z-index:2;border-radius:8px;}
-.gantt-bar-name{font-size:11px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;text-shadow:0 1px 3px rgba(0,0,0,.2);}
+.gantt-bar-ext{z-index:1;border-radius:8px;border:1.5px dashed rgba(0,0,0,0.15);}
+.gantt-year-divider{position:absolute;top:0;bottom:0;width:1px;background:rgba(0,0,0,0.18);z-index:2;}
+.gantt-year-divider-row{height:38px;}
+.gantt-axis-lbl-year{font-size:11px;color:var(--text-main);font-weight:800;}
+.gantt-bar-name{font-size:10px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;text-shadow:0 1px 3px rgba(0,0,0,.2);letter-spacing:.3px;}
 .gantt-bar-right{display:flex;align-items:center;gap:5px;flex-shrink:0;margin-left:8px;}
-.gantt-owner-floating{position:absolute;top:50%;transform:translateY(-50%);z-index:4;display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.92);border-radius:999px;padding:2px 8px 2px 2px;box-shadow:0 2px 6px rgba(0,0,0,.08);white-space:nowrap;}
+.gantt-owner-floating{display:none;}
+.gantt-label-out{position:absolute;top:50%;transform:translateY(-50%);font-size:11px;font-weight:700;color:var(--text-sec);white-space:nowrap;padding-right:6px;z-index:3;pointer-events:none;letter-spacing:.3px;}
+.gantt-label-in{position:absolute;top:50%;transform:translateY(-50%);font-size:11px;font-weight:700;color:#fff;white-space:nowrap;padding-right:6px;z-index:5;pointer-events:none;letter-spacing:.3px;text-shadow:0 1px 2px rgba(0,0,0,.25);}
+.gantt-tail{position:absolute;top:50%;z-index:6;display:flex;align-items:center;gap:8px;white-space:nowrap;}
+.gantt-tail-inside{padding-right:6px;}
+.gantt-tail-inside .gantt-tail-icon{color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.3);}
+.gantt-tail-icon{font-size:11px;font-weight:700;color:#3a3a3c;display:inline-flex;align-items:center;gap:3px;}
+.g-owner-av-tail{width:28px;height:28px;font-size:11px;border:none;box-shadow:0 2px 6px rgba(0,0,0,.18);z-index:7;}
 .gantt-owner-chip{display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.2);border-radius:999px;padding:2px 7px 2px 2px;}
 .g-owner-av{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;flex-shrink:0;overflow:hidden;}
 .g-owner-av img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;}
 .gantt-owner-floating .g-owner-name{font-size:9px;font-weight:700;color:var(--text-main);}
 .g-owner-name{font-size:9px;font-weight:700;color:#fff;}
-.gantt-bar-dash{position:absolute;top:4px;height:26px;left:2%;right:2%;border-radius:8px;border:2px dashed rgba(0,0,0,.2);display:flex;align-items:center;padding:0 10px;font-size:10px;color:var(--text-sec);}
+.gantt-bar-dash{position:absolute;top:6px;height:26px;left:2%;right:2%;border-radius:8px;border:2px dashed rgba(0,0,0,.2);display:flex;align-items:center;padding:0 10px;font-size:10px;color:var(--text-sec);}
 .gantt-info-col{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;padding-left:8px;height:34px;}
 .gantt-done-txt{font-size:9px;color:var(--text-sec);font-weight:600;}
 .gantt-dte{font-size:9px;font-weight:700;}
