@@ -7,8 +7,6 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { StorageService } from '@/services/storage';
 import apiClient from '@/services/api';
-import { pushMentionsForProject } from '@/services/mention';
-import { useProjectStore } from '@/stores/project';
 import { SNAP_CONTENT_FIELDS } from '@/config/constants';
 import type { QueueItem, SyncStatus, WeeklySnapshot } from '@/core/types';
 
@@ -683,16 +681,6 @@ export async function saveAndSync(
 
     // 通知页面更新
     window.dispatchEvent(new CustomEvent('weeksDataUpdated'));
-
-    // === @ 提及企微推送（快照已落库后触发） ===
-    try {
-      const projectStore = useProjectStore();
-      const project = projectStore.getProject(projId);
-      await pushMentionsForProject(project, snapData, submitter);
-    } catch (e) {
-      console.error('[mention] 推送异常（不阻塞主流程）', e);
-    }
-
     return true;
   } catch(e) {
     console.error('[Sync] saveAndSync失败', e);

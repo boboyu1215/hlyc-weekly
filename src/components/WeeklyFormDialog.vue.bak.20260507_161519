@@ -326,9 +326,7 @@ async function handleSave() {
     weekKey: appStore.weekKey
   });
 
-  // ⚠️ 已废弃：mention 推送逻辑已迁移至 src/services/mention.ts
-  //   通过 saveAndSync 触发，handleSave 函数本身已无调用入口
-  //   保留此段仅为代码考古
+  // 提交时扫描 @ 并推送微信+铃铛
   try {
     const currentUser = authStore.currentUser || '同事';
     const allTexts = [
