@@ -60,6 +60,18 @@ export const useProjectStore = defineStore('project', () => {
   function addProject(project: Project) {
     projects.value.push(project);
     saveProjects();
+    // 防御：清除该新项目ID可能残留的脏周报数据（防止从其他项目继承脏数据）
+    const weeks = storage.loadWeeks();
+    let modified = false;
+    for (const wk in weeks) {
+      if (weeks[wk] && weeks[wk][project.id] !== undefined) {
+        delete weeks[wk][project.id];
+        modified = true;
+      }
+    }
+    if (modified) {
+      storage.saveWeeks(weeks);
+    }
   }
 
   // 更新项目

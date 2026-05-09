@@ -97,7 +97,7 @@ async function saveProject() {
 
     <div class="fg">
       <div class="ff">
-        <label>设计负责人 *</label>
+        <label>研策负责人 *</label>
         <input v-model="form.designOwner" type="text" placeholder="请输入负责人姓名" />
       </div>
       <div class="ff">

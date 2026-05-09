@@ -121,8 +121,13 @@ export class StorageService {
     };
 
     // 情况1：本周有 _savedWk 原生快照 → 返回原生数据
+    // 防御：校验 _pid 是否匹配，防止脏数据（从其他项目复制来的）被误认为合法快照
     if (own !== undefined && own._savedWk === k) {
-      return this._resolveStatus(this._mergeCarryItems(own, k, pid, weeks));
+      if (own._pid !== undefined && own._pid !== pid) {
+        // _pid 存在但不匹配 → 脏数据，跳过，走后续逻辑
+      } else {
+        return this._resolveStatus(this._mergeCarryItems(own, k, pid, weeks));
+      }
     }
 
     // 情况2：本周有旧版快照（无_savedWk）且有实质内容 → 向下兼容
@@ -319,6 +324,9 @@ export class StorageService {
 
     // 写入 _savedWk 标识，让 getSnap 知道这是本周自己录入保存的原生快照
     cleanSnap._savedWk = k;
+
+    // 写入项目ID标识，防止脏数据（从其他项目复制来的）被误认为合法快照
+    cleanSnap._pid = pid;
 
     // 添加时间戳
     cleanSnap._ts = Date.now();
