@@ -11,6 +11,25 @@
   </head>
   <body>
     <div id="app"></div>
+    <script>
+    (function(){
+      var _d={};
+      var _K=["hlzc_p","hlzc_w","hlzc_activity","hlzc_users","hlzc_offline_queue","hlzc_pending_submit","hlzc_kpi"];
+      var _g=Storage.prototype.getItem,_s=Storage.prototype.setItem,_r=Storage.prototype.removeItem;
+      Storage.prototype.getItem=function(k){
+        if(_K.indexOf(k)>=0)return _d[k]!==undefined?JSON.stringify(_d[k]):null;
+        return _g.call(this,k);
+      };
+      Storage.prototype.setItem=function(k,v){
+        if(_K.indexOf(k)>=0){try{_d[k]=JSON.parse(v)}catch(e){_d[k]=v};return};
+        _s.call(this,k,v);
+      };
+      Storage.prototype.removeItem=function(k){
+        if(_K.indexOf(k)>=0){delete _d[k];return};
+        _r.call(this,k);
+      };
+    })();
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

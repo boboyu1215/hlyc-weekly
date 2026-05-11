@@ -763,8 +763,6 @@ export async function saveAndSync(
 // 登录时全量拉取（使用新格式 snap_{projId}_{weekKey}）
 export async function pullAll(): Promise<void> {
   try {
-    const projects = JSON.parse(localStorage.getItem('hlzc_p') || '[]');
-    const projectIds: number[] = projects.map((p: any) => p.id);
     const local = storage.loadWeeks();
 
     // 一次拉取所有版本号
@@ -781,7 +779,6 @@ export async function pullAll(): Promise<void> {
       const m = key.match(/snap_(\d+)_(20\d\d-W\d+)/);
       if (!m) continue;
       const projId = Number(m[1]);
-      if (!projectIds.includes(projId)) continue;
       const weekKey = m[2];
       const localTs = (local[weekKey]?.[projId] as any)?._ts ?? 0;
       if ((remoteTs ?? 0) <= localTs) continue;
