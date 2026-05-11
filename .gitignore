@@ -29,3 +29,13 @@ dist-ssr
 # Archive
 *.tar.gz
 *.zip
+
+# 调试脚本和备份文件
+*.bak
+*.bak.*
+check_*.js
+fix_server.js
+cleanup_*.py
+fix_*.py
+scripts/fix_*.py
+*.docx
