@@ -763,6 +763,16 @@ export async function saveAndSync(
 // 登录时全量拉取（使用新格式 snap_{projId}_{weekKey}）
 export async function pullAll(): Promise<void> {
   try {
+    // 先从服务器拉取项目列表（Storage shim 使页面加载时 _d 为空，必须先从服务器获取）
+    const projRes = await fetch('/api', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'get', id: 'projects' })
+    }).then(r => r.json());
+    if (projRes?.projects && Array.isArray(projRes.projects)) {
+      storage.saveProjects(projRes.projects);
+    }
+
     const local = storage.loadWeeks();
 
     // 一次拉取所有版本号
