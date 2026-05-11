@@ -86,7 +86,43 @@ export class StorageService {
   loadWeeks(): WeeksData {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.WEEKS);
-      return data ? JSON.parse(data) : {};
+      const weeks = data ? JSON.parse(data) : {};
+      // 兜底修复：若 weeks[k] 是数组（旧格式），转换为对象结构 { [pid]: snap }
+      // 同时过滤掉 _inherited 脏快照，防止链式污染
+      let modified = false;
+      for (const k in weeks) {
+        if (Array.isArray(weeks[k])) {
+          const obj: Record<string, any> = {};
+          for (const snap of (weeks[k] as any[])) {
+            if (snap && snap._pid) {
+              // 去脏：跳过 _inherited 快照，不带 _pid 的无法归属也跳过
+              if (!snap._inherited) {
+                obj[String(snap._pid)] = snap;
+              }
+            }
+          }
+          weeks[k] = obj;
+          modified = true;
+        } else if (weeks[k] && typeof weeks[k] === 'object') {
+          // weeks[k] 是对象，但可能存在 _inherited 脏快照，过滤掉
+          let objModified = false;
+          const obj = weeks[k] as Record<string, any>;
+          for (const pid in obj) {
+            if (obj[pid] && obj[pid]._inherited) {
+              delete obj[pid];
+              objModified = true;
+            }
+          }
+          if (objModified) {
+            weeks[k] = obj;
+            modified = true;
+          }
+        }
+      }
+      if (modified) {
+        localStorage.setItem(STORAGE_KEYS.WEEKS, JSON.stringify(weeks));
+      }
+      return weeks;
     } catch {
       return {};
     }
@@ -180,6 +216,7 @@ export class StorageService {
     if ((typeof snap.coreOutput === 'string' && snap.coreOutput.trim())) return true;
     if (Array.isArray(snap.coreAction) && snap.coreAction.some(i => i && i.text && i.text.trim())) return true;
     if (typeof snap.coreAction === 'string' && (snap.coreAction as any).trim()) return true;
+    if (Array.isArray((snap as any).coreOutputItems) && (snap as any).coreOutputItems.some((i: any) => i?.text?.trim())) return true;
     return false;
   }
 
@@ -310,7 +347,7 @@ export class StorageService {
     const weeks = this.loadWeeks();
     const k = wkKey(yr, wk);
 
-    if (!weeks[k]) {
+    if (!weeks[k] || Array.isArray(weeks[k])) {
       weeks[k] = {};
     }
 

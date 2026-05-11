@@ -141,7 +141,7 @@ async function saveProject() {
         <label>默认状态</label>
         <div class="ssel">
           <div
-            class="sopt" :class="{ sr: form.defStatus === 'r' }"
+            class="sopt sg" :class="{ sr: form.defStatus === 'r', sy: form.defStatus === 'y' }"
             @click="form.defStatus = 'r'"
           >红灯</div>
           <div
@@ -149,7 +149,7 @@ async function saveProject() {
             @click="form.defStatus = 'y'"
           >黄灯</div>
           <div
-            class="sopt" :class="{ sg: form.defStatus === 'g' }"
+            class="sopt sg" :class="{}"
             @click="form.defStatus = 'g'"
           >绿灯</div>
         </div>

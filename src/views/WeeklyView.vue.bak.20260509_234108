@@ -378,6 +378,8 @@ async function saveComment(projectId: number) {
     const data = await res.json();
     comments.value = data.comments || {};
   } catch {}
+  // ✅ 通知其他端刷新（直接刷新页面确保实时同步）
+  window.location.reload();
 }
 
 onBeforeUnmount(() => {

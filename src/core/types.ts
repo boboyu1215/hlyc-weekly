@@ -55,6 +55,7 @@ export interface WeeklySnapshot {
   _ts?: number;
   _fieldTs?: Record<string, number>;
   _savedWk?: string;
+  _pid?: number;              // 所属项目ID，防止脏数据跨项目误认
   _inherited?: boolean;       // 继承视图标记（非 boolean 的旧版数据向下兼容）
   _carryover?: boolean;        // 是否为跨周顺延事项标记
   _overdue?: boolean;          // 是否为 KPI 延误事项标记

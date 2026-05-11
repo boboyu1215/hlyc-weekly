@@ -98,23 +98,6 @@ const PLAN_PER_PAGE  = ref(10);      // 本周计划每页项数
 const sbWidth     = ref(220);        // 左侧边栏宽度（可拖拽）
 let dragX=false, dragY=false, dragSb=false;
 
-// ── 切换周次时清空选择（按周隔离） ─────────────────────
-watch(
-  () => [appStore.yr, appStore.wk],
-  () => {
-    picksLast.value = new Set();
-    picksPlan.value = new Set();
-    picksGantt.value = new Set();
-    confirmed1.value = false;
-    confirmed2.value = false;
-    confirmedGantt.value = false;
-    try {
-      localStorage.removeItem('ol1');
-      localStorage.removeItem('ol2');
-    } catch {}
-  }
-);
-
 // ── 周信息 ────────────────────────────────────────────────
 const weekLabel    = computed(()=>`${appStore.yr} · W${String(appStore.wk).padStart(2,'0')}`);
 const weekRangeStr = computed(()=>wkRange(appStore.yr, appStore.wk));

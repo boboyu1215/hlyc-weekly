@@ -262,7 +262,7 @@ export const useSyncStore = defineStore('sync', () => {
   // 上传本地数据
   async function pushToServer() {
     if (!apiClient.isConfigured()) {
-      throw new Error('API 未配置');
+      throw new Error('API未配置');
     }
 
     setSyncStatus('saving');
@@ -275,79 +275,17 @@ export const useSyncStore = defineStore('sync', () => {
         activityLog: storage.loadActivityLog()
       };
 
-      // 第一步：先同步基础数据（projects / users / activity），不依赖 _projId
-      const baseResult = await apiClient.fullSync({
-        projects: localData.projects,
-        users: localData.userRegistry,
-        activity: localData.activityLog
-      });
-      if (!baseResult || baseResult.success === false) {
-        throw new Error((baseResult && baseResult.error) || '上传基础数据失败');
-      }
+      const result = await apiClient.fullSync(localData);
 
-      // 第二步：weeks 数据按项目拆分，逐项目 fullSync
-      const rawWeeks = (localData.weeks || {}) as Record<string, any>;
-      const byProject: Record<string, Record<string, any>> = {};
-
-      const sampleKey = Object.keys(rawWeeks)[0];
-      const isWeekKeyed = !!sampleKey && /^\d{4}-W\d{1,2}$/.test(sampleKey);
-
-      if (isWeekKeyed) {
-        // 方式 A：按周聚合 → 转为按项目聚合
-        for (const [wk, projMap] of Object.entries(rawWeeks)) {
-          if (!projMap || typeof projMap !== 'object') continue;
-          for (const [pidStr, snap] of Object.entries(projMap as Record<string, any>)) {
-            if (pidStr.startsWith('_')) continue;
-            if (!byProject[pidStr]) byProject[pidStr] = {};
-            byProject[pidStr][wk] = snap;
-          }
-        }
-      } else {
-        // 方式 B：已是按项目聚合，原样使用
-        for (const [pidStr, val] of Object.entries(rawWeeks)) {
-          if (pidStr.startsWith('_')) continue;
-          byProject[pidStr] = val as Record<string, any>;
-        }
-      }
-
-      // 逐项目调 fullSync 写入快照
-      let okCount = 0;
-      let failCount = 0;
-      for (const [pidStr, projWeekData] of Object.entries(byProject)) {
-        const projId = Number(pidStr);
-        if (isNaN(projId)) continue;
-        if (!projWeekData || Object.keys(projWeekData).length === 0) continue;
-
-        const projPayload: any = {
-          _projId: projId,
-          weeks: projWeekData
-        };
-
-        try {
-          const result = await apiClient.fullSync(projPayload);
-          if (result && result.success !== false) {
-            okCount++;
-          } else {
-            failCount++;
-            console.error(`[pushToServer] 项目 ${projId} 写入失败:`, result?.error);
-          }
-        } catch (e) {
-          failCount++;
-          console.error(`[pushToServer] 项目 ${projId} 异常:`, e);
-        }
+      if (!result.success) {
+        throw new Error(result.error || '上传失败');
       }
 
       setSyncStatus('saved');
       syncStatus.value.lastSync = Date.now();
-
-      console.log(`[pushToServer] 完成：基础数据 ✓，项目快照 ${okCount}/${okCount + failCount}`);
-
-      if (failCount > 0 && okCount === 0) {
-        throw new Error('所有项目快照写入失败');
-      }
       return true;
     } catch (error) {
-      console.error('[pushToServer] 失败:', error);
+      console.error('上传数据失败:', error);
       setSyncStatus('err');
       throw error;
     }
@@ -480,7 +418,10 @@ export const useSyncStore = defineStore('sync', () => {
 
       storage.saveWeeks(local);
       window.dispatchEvent(new CustomEvent('weeksDataUpdated'));
-      console.log('[Poll] 同步完成，已派发更新事件');
+      console.log('[Poll] 同步完成，触发页面刷新');
+      
+      // 直接刷新页面以确保数据更新
+      window.location.reload();
 
       _noChangeCount = 0;
       _pollInterval = POLL_MIN;
@@ -588,7 +529,7 @@ export const useSyncStore = defineStore('sync', () => {
             if (!res?.success || !res?.data) continue
 
             const remoteSnap = res.data
-            if (!local[wk] || Array.isArray(local[wk])) local[wk] = {}
+            if (!local[wk]) local[wk] = {}
 
             const hasPending = pendingIds.includes(Number(projId))
             const localSnap = local[wk][projId]
@@ -716,7 +657,6 @@ export async function saveAndSync(
       hour: '2-digit', minute: '2-digit'
     });
     cleaned._ts = Date.now();
-    cleaned._savedWk = weekKey;
 
     // 写入新格式
     await fetch('/api', {

@@ -80,7 +80,7 @@ async function loadDiff() {
     const localSnap = storage.getProjectWeekSnapshots(props.project.id);
 
     // 按周对比
-    const diffFields = ['status', 'stage', 'risk', 'coreOutput', 'coreOutputItems', 'coreAction', 'decision', 'crossDept', 'next', 'incident', 'knowledge'];
+    const diffFields = ['status', 'stage', 'risk', 'coreOutput', 'coreAction', 'decision', 'crossDept'];
     // 只对比当前周，历史周已提交无需重复展示
     const currentKey = `${appStore.yr}-W${String(appStore.wk).padStart(2, '0')}`;
     const wkeys = Object.keys(localSnap)
